@@ -1,0 +1,8 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Generated FRB + drift output (added by build_runner / FRB codegen). TODO(#11, #14).
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "lib/src/rust/**"

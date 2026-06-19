@@ -1,0 +1,48 @@
+name: app_patient
+description: >-
+  HealthTech patient app (Flutter). Mobile-first, offline-first, entry-level
+  Android target. All cryptography is delegated to the shared Rust crypto-core
+  via flutter_rust_bridge (no Dart cipher). See docs/adr/0001 and docs/adr/0006.
+publish_to: "none"
+version: 0.1.0+1
+
+# Era-correct for late-2025 / 2026. Dart 3.x null-safe.
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Dart<->Rust FFI to crypto-core. ADR 0001/0003: the ONLY crypto path.
+  # Pinned (tilde) — FRB version must match the codegen used in crypto-core. TODO(#11).
+  flutter_rust_bridge: ^2.7.0
+
+  # Offline encrypted store. SQLCipher full-DB AES-256 (ADR 0006). DB key is
+  # unsealed from the Keystore-wrapped blob, in-memory only. TODO(#14).
+  drift: ^2.21.0
+  sqlcipher_flutter_libs: ^0.6.4
+  sqlite3_flutter_libs: ^0.5.26
+
+  # QR: scan (mobile_scanner, one package Android+iOS) + generate (qr_flutter).
+  # 120 s TTL lives in app logic. TODO(#16).
+  mobile_scanner: ^5.2.3
+  qr_flutter: ^4.1.0
+
+  # Non-critical secrets only (NOT the master key — that is StrongBox/TEE via the
+  # Kotlin platform-channel shim). ADR 0001. TODO(#11).
+  flutter_secure_storage: ^9.2.2
+
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  drift_dev: ^2.21.0
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true

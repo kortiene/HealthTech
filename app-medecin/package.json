@@ -1,0 +1,22 @@
+{
+  "name": "@healthtech/app-medecin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "HealthTech doctor interface — installable Preact + TypeScript PWA (ADR 0002).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "preact": "^10.26.4"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.1",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.7"
+  }
+}

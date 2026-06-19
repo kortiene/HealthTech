@@ -1,0 +1,36 @@
+---
+# =============================================================================
+# HealthTech — sovereign in-country host configuration (Ansible)
+# Implements ADR 0005 — Storage & sovereign hosting.
+#
+# RESIDENCY (non-negotiable): the inventory MUST contain only hosts physically
+# located in Côte d'Ivoire (ARTCI-eligible national datacenter / licensed local
+# operator). NO foreign managed cloud anywhere in the data path. NO secrets in
+# this repo — use ansible-vault, supplied at run time.
+#
+# This is a structure-only placeholder. It declares no tasks and targets the
+# empty/implicit inventory so `ansible-playbook --syntax-check` passes with no
+# credentials.
+#
+# TODO(#8): build out the roles below for the in-country data-path footprint.
+# =============================================================================
+
+- name: HealthTech sovereign hosting — placeholder
+  hosts: all
+  gather_facts: false
+
+  # TODO(#8): the real layout splits into roles, one per in-country service:
+  #   - axum_backend        # Rust/Axum service, deployed x2 for HA
+  #   - minio               # S3-compatible encrypted-blob + media store
+  #   - postgres_primary    # non-identifying metadata only
+  #   - postgres_replica    # streaming replication / warm standby (HA)
+  #   - caddy_tls           # TLS reverse proxy fronting the two backends
+  #   - waf                 # web application firewall in front of the proxy
+  #   - backups             # in-country encrypted backups (MinIO + Postgres)
+  tasks:
+    - name: Residency guardrail (placeholder — no real configuration yet)
+      ansible.builtin.debug:
+        msg: >-
+          TODO(#8): configure in-country services (Axum x2, MinIO, Postgres
+          primary+replica, Caddy/TLS, WAF). All hosts must be in Côte d'Ivoire;
+          no foreign cloud in the data path (ADR 0005).

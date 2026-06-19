@@ -1,0 +1,9 @@
+# HealthTech Rust workspace — crypto-core + backend (ADR 0003, 0004).
+# The Flutter (app-patient) and Preact PWA (app-medecin) packages are not Rust
+# and live outside this workspace; they consume crypto-core via FFI/WASM.
+[workspace]
+resolver = "2"
+members = ["crypto-core", "backend"]
+
+[workspace.metadata]
+description = "HealthTech — decentralized local-first / zero-knowledge health platform"
