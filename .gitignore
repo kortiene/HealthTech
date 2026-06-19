@@ -23,11 +23,25 @@ app-patient/android/local.properties
 infra/**/.terraform/
 infra/**/*.tfstate*
 
-# Secrets / local env — NEVER commit
+# Secrets / local env — NEVER commit (ADR 0007 / #4)
 .env
 .env.*
 *.pem
 *.key
+# …but DO commit the placeholder templates (no real values in them).
+!.env.example
+!*.env.example
+
+# SOPS/age: never commit private keys or decrypted output. Encrypted bundles
+# (secrets/**/*.sops.yaml) and public recipients (.sops.yaml) ARE committed.
+*.agekey
+**/age*.txt
+*.dec
+*.decrypted
+secrets/**/*.plain.*
+# Runtime secret dumps written by the IaC (decrypted EnvironmentFiles).
+/run/
+**/run/healthtech/
 
 # ADW run workspaces / state (per-run, not source)
 agents/

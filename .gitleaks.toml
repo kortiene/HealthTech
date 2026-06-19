@@ -1,0 +1,39 @@
+# gitleaks configuration — HealthTech secret-scan gate (issue #4, ADR 0007).
+# Runs on every PR (see .github/workflows/secrets.yml) and locally via
+# `just secrets-lint`. Fails closed if a plaintext secret is introduced.
+#
+# We extend gitleaks' default rule set and allowlist ONLY the files that are
+# committed-in-clear BY DESIGN and contain placeholders / public material /
+# ciphertext — never a real secret:
+#   - *.env.example                 → placeholder dev templates
+#   - secrets/**/*.example          → placeholder secret-bundle templates
+#   - secrets/**/*.sops.yaml        → SOPS-ENCRYPTED bundles (values are ciphertext)
+#   - .sops.yaml                    → public age recipients + rules (no private keys)
+#   - infra/dev/compose.yaml        → obvious dev throwaway credentials
+#   - backend/tests/check_secrets_sh.rs → the secret-detector's OWN test: it
+#     embeds synthetic, obviously-fake key/PEM fixtures (literally "synthetic"/
+#     "SYNTHETIC"/"notreal") to assert check-secrets.sh flags them. The gate must
+#     not false-positive on its own detector's fixtures.
+title = "HealthTech gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders, public recipients, and encrypted-at-rest bundles (no real secrets)"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/).*\.env\.example$''',
+  '''^secrets/.*\.example$''',
+  '''^secrets/.*\.sops\.ya?ml$''',
+  '''^\.sops\.yaml$''',
+  '''^infra/dev/compose\.ya?ml$''',
+  '''^\.gitleaks\.toml$''',
+  '''^backend/tests/check_secrets_sh\.rs$''',
+]
+# Throwaway dev tokens and bootstrap placeholders are not secrets.
+regexes = [
+  '''dev_throwaway[A-Za-z0-9_]*''',
+  '''dev_minio_root''',
+  '''REPLACE_(ME|AT_BOOTSTRAP)[A-Za-z0-9_]*''',
+]

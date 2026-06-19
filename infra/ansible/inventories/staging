@@ -1,0 +1,10 @@
+# Ansible inventory — STAGING (ADR 0007, #4).
+# In-country hosts only (ARTCI / loi n°2013-450, ADR 0005). The group name
+# `staging` auto-loads group_vars/staging.yml (env-scoped, secret-free).
+#
+# Hosts below are PLACEHOLDERS — real in-country addresses are filled in by #8
+# (sovereign hosting provisioning). `--syntax-check` does not connect to them.
+[staging]
+# staging-backend-1.healthtech.ci   # TODO(#8): real in-country host
+# staging-minio-1.healthtech.ci     # TODO(#8): real in-country host
+# staging-db-1.healthtech.ci        # TODO(#8): real in-country host

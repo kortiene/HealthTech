@@ -1,0 +1,34 @@
+# SOPS configuration — per-environment encryption rules (ADR 0007, issue #4).
+#
+# SOPS encrypts the *values* inside secrets/<env>/*.sops.yaml with the matching age
+# recipient(s) below. Each environment uses a DIFFERENT age recipient so a dev key can
+# never decrypt staging/prod (least privilege by construction).
+#
+# RESIDENCY (ARTCI / loi n°2013-450, ADR 0005): the age *private* keys are the root of
+# trust and live ONLY in-country (operator host / HSM / operator laptop) — NEVER in this
+# repo and NEVER on a foreign managed KMS. Only the *public* recipients appear below;
+# public age keys are safe to commit.
+#
+# BOOTSTRAP: the recipients below are DEMO placeholders generated for the scaffold. Replace
+# each with the real in-country operator's age public key before encrypting real secrets:
+#   age-keygen -o ~/.config/sops/age/healthtech-<env>.txt   # run on the in-country host
+#   age-keygen -y ~/.config/sops/age/healthtech-<env>.txt   # prints the public recipient
+# then paste the printed `age1…` recipient here. See infra/README.md → "Bootstrap & unseal".
+#
+# FAIL-SAFE encryption: `unencrypted_regex` encrypts EVERY value by default and leaves
+# ONLY the `env` selector readable, so a newly-added secret key can never be left in clear
+# by forgetting to list it. Mapping keys (postgres/minio/tls) stay readable; their leaf
+# VALUES are ciphertext — diffs and reviews remain meaningful at the key level.
+
+creation_rules:
+  - path_regex: secrets/dev/.*\.sops\.ya?ml$
+    unencrypted_regex: '^env$'
+    age: age10urm6sdcqd65g2k3jfj0ycsmdn94p2ngn7wuq3d7v8h6rrk2hunsu3pa7a
+
+  - path_regex: secrets/staging/.*\.sops\.ya?ml$
+    unencrypted_regex: '^env$'
+    age: age1n08a0vs6dwalaquc79xpx7lrc7ydpt2ukeh0p72cg0nhqh0dtynq97vesh
+
+  - path_regex: secrets/prod/.*\.sops\.ya?ml$
+    unencrypted_regex: '^env$'
+    age: age1s62th85uffvqpfyjdt375085dkhdupnlnqlhw0m5uyeu8wrhde5q58qlkv

@@ -50,3 +50,38 @@ build-web:
 
 test-flutter:
     if command -v flutter >/dev/null 2>&1; then cd app-patient && flutter test; else echo "flutter SDK absent — skipping app-patient tests"; fi
+
+# --- Secrets & environments (ADR 0007 / issue #4) --------------------------
+
+# Fail-closed secret-scan + leak tripwire (gitleaks + house-style guardrail).
+# Wired into CI via .github/workflows/secrets.yml.
+secrets-lint:
+    gitleaks detect --no-banner --redact --config .gitleaks.toml
+    bash scripts/check-secrets.sh
+
+# Decrypt an environment's SOPS bundle to stdout (needs that env's age key).
+# Usage: just secrets-decrypt staging
+secrets-decrypt ENV:
+    sops -d secrets/{{ENV}}/services.sops.yaml
+
+# Edit an environment's SOPS bundle in place (re-encrypts on save).
+# Usage: just secrets-edit staging
+secrets-edit ENV:
+    sops secrets/{{ENV}}/services.sops.yaml
+
+# Validate the IaC for every environment with NO cloud credentials.
+# (terraform validate needs Terraform >= 1.9; see infra/terraform/main.tf.)
+infra-validate:
+    terraform -chdir=infra/terraform fmt -check
+    terraform -chdir=infra/terraform init -backend=false
+    terraform -chdir=infra/terraform validate
+    for e in dev staging prod; do ansible-playbook --syntax-check -i infra/ansible/inventories/$e infra/ansible/playbook.yml; done
+
+# Bring the local dev stack (Postgres + MinIO) up (throwaway creds, synthetic data).
+dev-up:
+    test -f .env || cp .env.example .env
+    docker compose -f infra/dev/compose.yaml --env-file .env up -d
+
+# Tear the local dev stack down.
+dev-down:
+    docker compose -f infra/dev/compose.yaml down

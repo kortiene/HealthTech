@@ -76,7 +76,13 @@ pub fn encrypt_record(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>, 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
-        .encrypt(nonce, Payload { msg: plaintext, aad: &[] })
+        .encrypt(
+            nonce,
+            Payload {
+                msg: plaintext,
+                aad: &[],
+            },
+        )
         // Encryption only errors on absurd input sizes; treat as RNG-class failure.
         .map_err(|_| CryptoError::Rng)?;
 
@@ -99,7 +105,13 @@ pub fn decrypt_record(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>, Crypt
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(nonce_bytes);
     cipher
-        .decrypt(nonce, Payload { msg: ciphertext, aad: &[] })
+        .decrypt(
+            nonce,
+            Payload {
+                msg: ciphertext,
+                aad: &[],
+            },
+        )
         .map_err(|_| CryptoError::Decrypt)
 }
 

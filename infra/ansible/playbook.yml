@@ -2,15 +2,24 @@
 # =============================================================================
 # HealthTech — sovereign in-country host configuration (Ansible)
 # Implements ADR 0005 — Storage & sovereign hosting.
+# Environments & secret injection: ADR 0007 — Secrets management & environments (#4).
 #
 # RESIDENCY (non-negotiable): the inventory MUST contain only hosts physically
 # located in Côte d'Ivoire (ARTCI-eligible national datacenter / licensed local
-# operator). NO foreign managed cloud anywhere in the data path. NO secrets in
-# this repo — use ansible-vault, supplied at run time.
+# operator). NO foreign managed cloud anywhere in the data path.
 #
-# This is a structure-only placeholder. It declares no tasks and targets the
-# empty/implicit inventory so `ansible-playbook --syntax-check` passes with no
-# credentials.
+# ENVIRONMENTS (ADR 0007): select an environment by pointing -i at its inventory:
+#   ansible-playbook -i inventories/staging playbook.yml
+# Each inventory's single group (dev|staging|prod) auto-loads the matching
+# group_vars/<env>.yml (env-scoped, SECRET-FREE) next to this playbook.
+#
+# SECRETS (ADR 0007): NO secret value is stored here. Secrets are decrypted from
+# the SOPS/age vault at run time and written to a NON-world-readable systemd
+# EnvironmentFile (mode 0600) — never into a world-readable file or process argv.
+# The injection task is sketched (commented) below; #8 fleshes out the roles.
+#
+# This stays a structure-only placeholder: it declares no real service tasks and
+# `ansible-playbook --syntax-check` passes with no inventory, no vault, no creds.
 #
 # TODO(#8): build out the roles below for the in-country data-path footprint.
 # =============================================================================
@@ -18,6 +27,10 @@
 - name: HealthTech sovereign hosting — placeholder
   hosts: all
   gather_facts: false
+
+  # Environment & residency come from group_vars/<env>.yml (auto-loaded by the
+  # inventory group name) or from `-e env=<env>` / `-e country=<x>` overrides.
+  # They are normalised into distinct fact names below to avoid self-reference.
 
   # TODO(#8): the real layout splits into roles, one per in-country service:
   #   - axum_backend        # Rust/Axum service, deployed x2 for HA
@@ -28,9 +41,50 @@
   #   - waf                 # web application firewall in front of the proxy
   #   - backups             # in-country encrypted backups (MinIO + Postgres)
   tasks:
-    - name: Residency guardrail (placeholder — no real configuration yet)
+    - name: Normalise environment & residency selectors (defaults, no self-reference)
+      ansible.builtin.set_fact:
+        healthtech_env: "{{ env | default('dev') }}"
+        healthtech_country: "{{ country | default('CI') }}"
+
+    - name: Validate the selected environment
+      ansible.builtin.assert:
+        that:
+          - healthtech_env in ['dev', 'staging', 'prod']
+        fail_msg: "env must be one of dev|staging|prod (got '{{ healthtech_env }}')."
+        quiet: true
+
+    - name: Residency guardrail — hosts must be in Côte d'Ivoire (ARTCI / loi 2013-450)
+      ansible.builtin.assert:
+        that:
+          - healthtech_country == 'CI'
+        fail_msg: "Residency violation: country must be CI; no foreign cloud in the data path (ADR 0005/0007)."
+        quiet: true
+
+    # TODO(#8): inject operational secrets from the SOPS/age vault into a 0600
+    # systemd EnvironmentFile (NEVER world-readable, NEVER in argv). Sketch:
+    #
+    #   - name: Decrypt this env's operational secrets (SOPS + age, in-country key)
+    #     ansible.builtin.set_fact:
+    #       healthtech_secrets: "{{ lookup('community.sops.sops',
+    #         playbook_dir + '/../../secrets/' + env + '/services.sops.yaml') | from_yaml }}"
+    #     no_log: true   # never print secret values
+    #
+    #   - name: Write the backend EnvironmentFile (root-only, 0600)
+    #     ansible.builtin.copy:
+    #       dest: "/run/healthtech/{{ env }}.env"
+    #       owner: root
+    #       group: root
+    #       mode: "0600"
+    #       content: |
+    #         APP_ENV={{ env }}
+    #         DATABASE_URL={{ healthtech_secrets.postgres.app_password }}
+    #         ...
+    #     no_log: true
+
+    - name: Residency + environment guardrail (placeholder — no real configuration yet)
       ansible.builtin.debug:
         msg: >-
-          TODO(#8): configure in-country services (Axum x2, MinIO, Postgres
-          primary+replica, Caddy/TLS, WAF). All hosts must be in Côte d'Ivoire;
-          no foreign cloud in the data path (ADR 0005).
+          env={{ healthtech_env }} country={{ healthtech_country }} — TODO(#8): configure
+          in-country services (Axum x2, MinIO, Postgres primary+replica, Caddy/TLS, WAF) and
+          inject operational secrets from the SOPS vault into a 0600 EnvironmentFile.
+          All hosts must be in Côte d'Ivoire; no foreign cloud in the data path (ADR 0005).

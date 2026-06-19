@@ -24,6 +24,7 @@ the runner-up proposals per the judges' recommendations.
 | Backend | **Rust + Axum**, same cargo workspace as the crypto core | [0004](./0004-backend-rust-axum.md) |
 | Storage & hosting | **MinIO (blobs) + PostgreSQL (metadata), self-hosted in Côte d'Ivoire** | [0005](./0005-storage-and-sovereign-hosting.md) |
 | Offline & keys | **SQLCipher (Android) + AEAD-ciphertext IndexedDB (web); Android Keystore + PBKDF2 recovery** | [0006](./0006-offline-storage-and-keys.md) |
+| Secrets & environments | **SOPS + age (in-country keys); per-env dev/staging/prod; OpenBao deferred for prod** | [0007](./0007-secrets-and-environments.md) |
 
 ## The repository will become a polyglot monorepo
 
