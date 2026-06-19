@@ -61,10 +61,10 @@ setup phase can move the issue's card on the GitHub Project board.
 ## Test gate (stack chosen — see `docs/adr/`)
 
 Backlog #1 is decided: a polyglot monorepo — Rust `crypto-core` + `backend` (one cargo workspace),
-Kotlin/Android `app-patient`, Preact/TS PWA `app-medecin`. The pipeline test gate:
+Flutter `app-patient` (via `flutter_rust_bridge`), Preact/TS PWA `app-medecin`. The pipeline test gate:
 
 - **`MX_AGENT_TEST_CMD="just test"`** — a justfile target aggregating `cargo test --workspace` + the web
-  `vitest` + the Android `gradlew test`. Until the monorepo + justfile are scaffolded (#2), use the
+  `vitest` + the Flutter `flutter test`. Until the monorepo + justfile are scaffolded (#2), use the
   concrete first gate **`cargo test --workspace`** (the Rust workspace lands first).
 - **`MX_AGENT_FINALIZE_GATES`** (newline-separated) for extra pre-merge gates, e.g.
   `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo deny check`.
