@@ -6,6 +6,14 @@ set shell := ["bash", "-uc"]
 default:
     @just --list
 
+# --- ADW pipeline ----------------------------------------------------------
+
+# Run the ADW delivery pipeline on a GitHub issue from the repo root.
+# Usage: just issue 3 --runner claude --yes   (needs a runner credential, e.g. ANTHROPIC_API_KEY)
+# The test gate uses `just test` via MX_AGENT_TEST_CMD (export it first).
+issue *ARGS:
+    cd adw_sdlc && pnpm issue {{ARGS}}
+
 # --- aggregate gates -------------------------------------------------------
 
 # Run every package's test suite (the ADW pipeline test gate).
