@@ -76,9 +76,11 @@ fi
 key_hits=$(
   while IFS= read -r -d '' f; do
     f=${f#./}
-    # skip this script itself (it names the key patterns in prose)
+    # skip this script itself and the test file that embeds synthetic fixtures
+    # (both are allowlisted in .gitleaks.toml for the same reason)
     case "$f" in
       scripts/check-secrets.sh) continue ;;
+      backend/tests/check_secrets_sh.rs) continue ;;
     esac
     if LC_ALL=C grep -lE 'AGE-SECRET-KEY-1|-----BEGIN [A-Z ]*PRIVATE KEY-----' "$f" 2>/dev/null; then :; fi
   done < <(tracked)
