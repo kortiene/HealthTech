@@ -14,6 +14,7 @@ const POISONED: Record<string, string> = {
   PATH: '/bin',
   ANTHROPIC_API_KEY: 'sk-ant-x',
   ANTHROPIC_AUTH_TOKEN: 'tok',
+  CLAUDE_CODE_OAUTH_TOKEN: 'sub-oauth-x',
   OPENAI_API_KEY: 'sk-oai-x',
   CODEX_API_KEY: 'sk-codex-x',
   OPENCODE_SERVER_PASSWORD: 'pw',
@@ -62,6 +63,7 @@ describe('safeSubprocessEnv', () => {
     const claude = safeSubprocessEnv({ allowGhToken: false, runner: 'claude', source: POISONED });
     expect(claude['ANTHROPIC_API_KEY']).toBe('sk-ant-x');
     expect(claude['ANTHROPIC_AUTH_TOKEN']).toBe('tok');
+    expect(claude['CLAUDE_CODE_OAUTH_TOKEN']).toBe('sub-oauth-x'); // subscription token reaches the runner
     const codex = safeSubprocessEnv({ allowGhToken: false, runner: 'codex', source: POISONED });
     expect(codex['CODEX_API_KEY']).toBe('sk-codex-x');
     expect(codex['OPENAI_API_KEY']).toBe('sk-oai-x');
@@ -82,7 +84,7 @@ describe('safeSubprocessEnv', () => {
     // the claude child must not see the OpenAI/Codex keys. opencode and pi
     // are any-provider backends and legitimately carry both provider keys.
     const codex = safeSubprocessEnv({ allowGhToken: false, runner: 'codex', source: POISONED });
-    for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_BIN', 'PI_BIN', 'PI_MODEL']) {
+    for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_BIN', 'PI_BIN', 'PI_MODEL']) {
       expect(codex, key).not.toHaveProperty(key);
     }
     const claude = safeSubprocessEnv({ allowGhToken: false, runner: 'claude', source: POISONED });

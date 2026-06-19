@@ -44,7 +44,16 @@ export const ENV_DENY_PREFIXES = ['MATRIX_', 'MX_AGENT_'] as const;
  * carry both provider keys; claude and codex get exactly their own.
  */
 export const RUNNER_ENV_ALLOW: Record<RunnerId, readonly string[]> = {
-  claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_BIN', 'CLAUDE_CODE_PATH'],
+  // CLAUDE_CODE_OAUTH_TOKEN carries a Claude Pro/Max *subscription* token so the
+  // runner works without a pay-as-you-go ANTHROPIC_API_KEY; HOME (base allow)
+  // also lets the spawned Claude Code read an on-disk `claude login` session.
+  claude: [
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'CLAUDE_BIN',
+    'CLAUDE_CODE_PATH',
+  ],
   // CODEX_BIN mirrors CLAUDE_BIN (binary override); CODEX_HOME lets callers
   // point the CLI's config/auth dir (default ~/.codex) at a scrubbed
   // throwaway dir — the residual-surface mitigation of PLAN.md Section 4.4.

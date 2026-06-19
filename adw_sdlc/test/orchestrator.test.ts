@@ -48,7 +48,9 @@ type DepsOverride = Partial<Omit<OrchestratorDeps, 'git'>> & { git?: Partial<Orc
 /** Full deps with inert stubs; tests override the seams they exercise. */
 function testDeps(overrides: DepsOverride = {}): OrchestratorDeps {
   const base: OrchestratorDeps = {
-    env: { PATH: '/bin' },
+    // ANTHROPIC_API_KEY present by default → classify uses the shared SDK path.
+    // (Subscription mode = no key → classify routes through the runner; tested below.)
+    env: { PATH: '/bin', ANTHROPIC_API_KEY: 'sk-ant-test' },
     isatty: () => false,
     confirm: async () => false,
     sleep: async () => {},
@@ -353,7 +355,7 @@ describe('run() integration', () => {
 
   it('runs phases in order, withholds GH_TOKEN, absorbs artifacts, and merges', async () => {
     const order: string[] = [];
-    const poisoned = { GH_TOKEN: 'ghp_secret', PATH: '/bin', MATRIX_TOKEN: 'x', MX_AGENT_FOO: 'x' };
+    const poisoned = { GH_TOKEN: 'ghp_secret', PATH: '/bin', MATRIX_TOKEN: 'x', MX_AGENT_FOO: 'x', ANTHROPIC_API_KEY: 'sk-ant-x' };
     const issueStates = vi.fn().mockReturnValueOnce('OPEN').mockReturnValueOnce('CLOSED');
     const classify = vi.fn(async (prompt: string) => {
       order.push('classify');
@@ -654,8 +656,30 @@ describe('run() integration', () => {
     expect(AdwState.load(loadedId())?.issueClass).toBe('feat');
   });
 
+  it('routes classify through the runner when no ANTHROPIC_API_KEY (subscription mode)', async () => {
+    const order: string[] = [];
+    const classify = vi.fn(async () => ({ value: { issue_class: 'feat' as const, reason: 'r' }, usage: {} }));
+    const deps = testDeps({
+      // No ANTHROPIC_API_KEY → the shared-SDK classify path is unavailable, so
+      // classify must fall back to the selected runner (the subscription path),
+      // without the operator needing to set MX_AGENT_CLASSIFY_ON_RUNNER=1.
+      env: { PATH: '/bin' },
+      issueState: vi.fn().mockReturnValueOnce('OPEN').mockReturnValueOnce('CLOSED'),
+      classify,
+      runAgentPhase: agentStub(
+        { ...PHASE_RESULTS, classify: { issue_class: 'feat', reason: 'r' } },
+        (opts) => order.push(opts.phase),
+      ),
+    });
+    const rc = await run(5, createMockRunner(), { yes: true, noProgress: true }, deps);
+    expect(rc).toBe(0);
+    expect(classify).not.toHaveBeenCalled();
+    expect(order).toEqual(['classify', 'plan', 'implement', 'tests', 'review']);
+    expect(AdwState.load(loadedId())?.issueClass).toBe('feat');
+  });
+
   it('inheritEnv is an explicit opt-out that forwards the full parent env (Python --inherit-env parity)', async () => {
-    const poisoned = { GH_TOKEN: 'ghp_secret', PATH: '/bin', MX_AGENT_FOO: 'x' };
+    const poisoned = { GH_TOKEN: 'ghp_secret', PATH: '/bin', MX_AGENT_FOO: 'x', ANTHROPIC_API_KEY: 'sk-ant-x' };
     const seenEnvs: Array<Record<string, string>> = [];
     const deps = testDeps({
       env: poisoned,

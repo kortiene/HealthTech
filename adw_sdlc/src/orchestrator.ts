@@ -938,9 +938,16 @@ export async function run(
         continue;
       }
 
-      if (phase === 'classify' && deps.env['MX_AGENT_CLASSIFY_ON_RUNNER'] !== '1') {
-        // D1: classify is the only pure structured phase; it runs on the shared
-        // Anthropic-SDK structured call regardless of the selected runner.
+      // D1: classify normally runs on the shared Anthropic-SDK structured call.
+      // That path needs a pay-as-you-go ANTHROPIC_API_KEY (the public messages
+      // API does not accept a Claude subscription OAuth token), so when no API
+      // key is configured we auto-route classify through the selected runner —
+      // the Claude Code executable honors a `claude login` / CLAUDE_CODE_OAUTH_TOKEN
+      // subscription. MX_AGENT_CLASSIFY_ON_RUNNER=1 forces the runner regardless.
+      const classifyOnSharedSdk =
+        deps.env['MX_AGENT_CLASSIFY_ON_RUNNER'] !== '1' &&
+        (deps.env['ANTHROPIC_API_KEY'] ?? '').trim() !== '';
+      if (phase === 'classify' && classifyOnSharedSdk) {
         const prompt = composePhasePrompt(phase, phaseArgs(phase, issue, state, ctx, files), state, runner.id, false);
         const phaseDir = state.phaseDir(phase);
         writeFileSync(join(phaseDir, 'prompt.txt'), prompt, 'utf8');
