@@ -58,10 +58,15 @@ Requires `gh` authenticated for the `kortiene/HealthTech` repo. Set a runner cre
 (e.g. `ANTHROPIC_API_KEY`) for the selected runner. Optionally set `PROJECT_NUMBER=2` so the
 setup phase can move the issue's card on the GitHub Project board.
 
-## Pending (depends on backlog #1 — stack decision)
+## Test gate (stack chosen — see `docs/adr/`)
 
-The application stack/test tooling is not yet chosen, so:
-- Set `MX_AGENT_TEST_CMD` (and optionally `MX_AGENT_FINALIZE_GATES`) once the stack lands so the
-  resolve loop and pre-merge gates actually verify the build.
-- The phase templates reference the configurable test gate rather than a concrete command; tighten
-  them when the stack is fixed.
+Backlog #1 is decided: a polyglot monorepo — Rust `crypto-core` + `backend` (one cargo workspace),
+Kotlin/Android `app-patient`, Preact/TS PWA `app-medecin`. The pipeline test gate:
+
+- **`MX_AGENT_TEST_CMD="just test"`** — a justfile target aggregating `cargo test --workspace` + the web
+  `vitest` + the Android `gradlew test`. Until the monorepo + justfile are scaffolded (#2), use the
+  concrete first gate **`cargo test --workspace`** (the Rust workspace lands first).
+- **`MX_AGENT_FINALIZE_GATES`** (newline-separated) for extra pre-merge gates, e.g.
+  `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo deny check`.
+
+These go live once #2 scaffolds the harness; until then the empty default correctly skips the gate.
