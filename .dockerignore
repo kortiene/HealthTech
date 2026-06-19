@@ -1,0 +1,28 @@
+# Keep the Docker build context small and secret-free (backend/Dockerfile).
+# The backend image only needs the cargo workspace; everything else is noise.
+
+# Build outputs / caches
+target/
+**/node_modules/
+**/dist/
+app-patient/build/
+app-patient/.dart_tool/
+
+# Non-backend packages (not needed by the backend image)
+app-patient/
+app-medecin/
+adw_sdlc/
+agents/
+
+# VCS / CI / docs
+.git/
+.github/
+docs/
+
+# Infra state & secrets — MUST never enter an image layer
+infra/**/.terraform/
+**/*.tfstate*
+.env
+.env.*
+*.pem
+*.key

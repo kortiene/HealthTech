@@ -1,7 +1,9 @@
 # Architecture Decision Records — HealthTech
 
 This directory records the major technical decisions for the HealthTech platform, one ADR per
-decision (issue [#1](https://github.com/kortiene/HealthTech/issues/1)). Each ADR follows:
+decision (the stack ADRs 0001–0006 from issue [#1](https://github.com/kortiene/HealthTech/issues/1); the
+secrets & environments ADR 0007 from issue [#4](https://github.com/kortiene/HealthTech/issues/4); the
+CI/CD pipeline ADR 0008 from issue [#3](https://github.com/kortiene/HealthTech/issues/3)). Each ADR follows:
 **Status · Context · Decision · Consequences · Alternatives**.
 
 ## How these were chosen
@@ -25,6 +27,7 @@ the runner-up proposals per the judges' recommendations.
 | Storage & hosting | **MinIO (blobs) + PostgreSQL (metadata), self-hosted in Côte d'Ivoire** | [0005](./0005-storage-and-sovereign-hosting.md) |
 | Offline & keys | **SQLCipher (Android) + AEAD-ciphertext IndexedDB (web); Android Keystore + PBKDF2 recovery** | [0006](./0006-offline-storage-and-keys.md) |
 | Secrets & environments | **SOPS + age (in-country keys); per-env dev/staging/prod; OpenBao deferred for prod** | [0007](./0007-secrets-and-environments.md) |
+| CI/CD pipeline | **GitHub Actions: per-package lint/test/build, cargo-deny + osv-scanner SCA, APK + distroless backend image artifacts** | [0008](./0008-ci-cd-pipeline.md) |
 
 ## The repository will become a polyglot monorepo
 

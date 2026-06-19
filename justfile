@@ -25,6 +25,12 @@ lint: lint-rust
 # Build every package.
 build: build-rust build-web
 
+# Dependency vulnerability + license scan (SCA), mirrors the CI `sca` job.
+sca: sca-rust sca-web sca-osv
+
+# Local mirror of CI (lint+test+build+sca); APK/image artifacts are CI-only.
+ci: lint test build sca
+
 # --- Rust (crypto-core + backend) ------------------------------------------
 
 test-rust:
@@ -37,6 +43,14 @@ lint-rust:
 build-rust:
     cargo build --workspace
 
+# Rust SCA: advisories + license allow-list + source/ban policy (deny.toml).
+sca-rust:
+    cargo deny check
+
+# Build the backend container image (musl static -> distroless). Needs Docker.
+build-image:
+    docker build -f backend/Dockerfile -t healthtech-backend:local .
+
 # --- Doctor PWA (app-medecin) ----------------------------------------------
 
 test-web:
@@ -45,11 +59,21 @@ test-web:
 build-web:
     cd app-medecin && npm run build
 
+# PWA SCA: vulnerability scan of the shipped (prod) dependency surface.
+sca-web:
+    cd app-medecin && npm audit --omit=dev --audit-level=high
+
 # --- Patient app (app-patient, Flutter) ------------------------------------
 # Skipped gracefully when the Flutter SDK is absent so `just test` still runs.
 
 test-flutter:
     if command -v flutter >/dev/null 2>&1; then cd app-patient && flutter test; else echo "flutter SDK absent — skipping app-patient tests"; fi
+
+# --- Cross-ecosystem SCA (osv-scanner) -------------------------------------
+# Scans every lockfile (Cargo, npm, pub.dev) against the OSV database.
+
+sca-osv:
+    osv-scanner scan source --lockfile=Cargo.lock --lockfile=app-medecin/package-lock.json --lockfile=app-patient/pubspec.lock --lockfile=adw_sdlc/package-lock.json
 
 # --- Secrets & environments (ADR 0007 / issue #4) --------------------------
 

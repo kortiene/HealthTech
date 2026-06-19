@@ -20,8 +20,11 @@ import 'package:flutter/services.dart';
 /// Every method is a stub that throws until the native side lands (#11) — it
 /// must NOT silently degrade to a software key.
 class KeystoreChannel {
-  static const MethodChannel _channel =
-      MethodChannel('healthtech/keystore');
+  // Declared ahead of first use: the stub methods below will route through this
+  // channel once the Kotlin/iOS shim lands (#11). Kept now so the API surface is
+  // stable. `ignore` is scoped to this single intentional case, not the package.
+  // ignore: unused_field
+  static const MethodChannel _channel = MethodChannel('healthtech/keystore');
 
   const KeystoreChannel();
 
