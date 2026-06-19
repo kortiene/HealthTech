@@ -12,9 +12,11 @@ record must remain RAM-only.
 ## Decision
 
 **Offline storage**
-- **Android (patient):** **SQLCipher** (AES-256 full-DB encryption) for the ≤500 KB record mirror and the
-  pending-upload queue, so onboarding and viewing work offline. The SQLCipher DB key is wrapped by the
-  Android Keystore master key, never stored in plaintext.
+- **Patient (Flutter/Android):** **SQLCipher** (AES-256 full-DB encryption) via `drift` +
+  `sqlcipher_flutter_libs` (or `sqflite_sqlcipher`) for the ≤500 KB record mirror and the pending-upload
+  queue, so onboarding and viewing work offline. The SQLCipher DB key is wrapped by the Android Keystore
+  master key (sealed via the Kotlin platform-channel shim, [ADR 0001](./0001-patient-app-flutter.md)),
+  never stored in plaintext.
 - **Android (doctor shell, if/when used):** **SQLCipher** for the offline prescription/consultation queue
   (#21), drained on reconnect (#22).
 - **Doctor PWA (web):** browsers can't run SQLCipher, so the offline queue stores **only already
@@ -23,9 +25,10 @@ record must remain RAM-only.
   in #21; the trust boundary is equivalent-or-stronger (the operator/store never sees plaintext).*
 
 **Key management**
-- **Patient master key:** generated inside the Rust core, sealed in the **Android Keystore** — StrongBox
-  (secure element) when present, TEE-backed fallback on devices that lack it — non-exportable,
-  `setUserAuthenticationRequired` where UX allows; it wraps the SQLCipher DB key and per-record data keys.
+- **Patient master key:** generated inside the Rust core, sealed in the **Android Keystore** via a Kotlin
+  platform-channel shim ([ADR 0001](./0001-patient-app-flutter.md)) — StrongBox (secure element) when
+  present, TEE-backed fallback on devices that lack it — non-exportable, `setUserAuthenticationRequired`
+  where UX allows; it wraps the SQLCipher DB key and per-record data keys.
 - **Recovery (#12):** PBKDF2 from a passphrase / culturally-adapted security questions re-derives access on
   a new phone (US-1.4) without the original hardware key ever leaving the old device.
 - **Doctor session key:** the per-session symmetric key arrives via the patient's 120 s QR, lives only in

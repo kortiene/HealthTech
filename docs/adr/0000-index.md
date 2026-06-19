@@ -18,7 +18,7 @@ the runner-up proposals per the judges' recommendations.
 
 | Dimension | Decision | ADR |
 | --- | --- | --- |
-| Patient app | **Native Android (Kotlin + Jetpack Compose, minSdk 24)** | [0001](./0001-patient-app-native-android.md) |
+| Patient app | **Flutter (Dart, minSdk 24)** — Rust crypto via `flutter_rust_bridge` | [0001](./0001-patient-app-flutter.md) |
 | Doctor interface | **Installable PWA (Preact + TypeScript + Vite), RAM-only WASM decrypt** | [0002](./0002-doctor-interface-pwa.md) |
 | Cryptography core | **One shared Rust crate (RustCrypto) → UniFFI/JNI + WASM; no platform crypto** | [0003](./0003-shared-crypto-core-rust.md) |
 | Backend | **Rust + Axum**, same cargo workspace as the crypto core | [0004](./0004-backend-rust-axum.md) |
@@ -28,7 +28,7 @@ the runner-up proposals per the judges' recommendations.
 ## The repository will become a polyglot monorepo
 
 ```
-app-patient/    # Kotlin/Android (Gradle)
+app-patient/    # Flutter (Dart) — flutter_rust_bridge -> crypto-core
 app-medecin/    # Preact/TypeScript PWA (Vite)
 crypto-core/    # Rust crate (RustCrypto) — UniFFI + wasm-bindgen targets
 backend/        # Rust/Axum service (same cargo workspace as crypto-core)
@@ -51,4 +51,8 @@ docs/adr/       # these records
 5. **Sovereign single-datacenter is an availability SPOF** (no foreign failover allowed). Mitigate with
    in-country HA (primary+replica, warm standby) and offline-first so consultations survive outages.
 6. **One-core × three-targets is a crypto supply-chain SPOF**: pin deps, `cargo-audit`/`cargo-deny`,
-   reproducible builds, gate on NIST test vectors.
+   reproducible builds, gate on NIST test vectors. (Now **three** binding targets after the Flutter
+   re-decision: UniFFI + wasm-bindgen + `flutter_rust_bridge`.)
+7. **Flutter patient-app footprint** ([ADR 0001](./0001-patient-app-flutter.md), revised) must pass a
+   **device-lab gate** on a real near-full low-end Infinix *before* build-out (installed size, RAM, cold
+   start); native Kotlin is the documented fallback if it regresses.

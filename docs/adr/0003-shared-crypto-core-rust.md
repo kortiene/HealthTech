@@ -17,9 +17,9 @@ Implement **one** Rust crate, `crypto-core`, as the **only** place AES/PBKDF2 lo
 **RustCrypto**: `aes-gcm` (AES-256-GCM AEAD), `pbkdf2` + `sha2` (PBKDF2-HMAC-SHA256), `getrandom` for
 nonces/salts, `zeroize` for secret wiping. It is exposed from the same source to every client:
 
-1. **Android patient app** → UniFFI-generated Kotlin bindings over a JNI `.so`/`.aar`.
+1. **Flutter patient app** → `flutter_rust_bridge` (Dart↔Rust FFI) over the JNI `.so` (see [ADR 0001](./0001-patient-app-flutter.md)).
 2. **Doctor PWA** → `wasm-bindgen` WASM module in a Web Worker.
-3. **Any future native shell / the backend's test harness** → the same UniFFI/native bindings.
+3. **Any native shell / the backend's test harness** → the same UniFFI/native bindings.
 
 Clients call only high-level functions (`generate_master_key`, `encrypt_record`, `decrypt_record`,
 `derive_key`, `wipe`). **Platform crypto is explicitly forbidden** — no `javax.crypto` AES, no WebCrypto
