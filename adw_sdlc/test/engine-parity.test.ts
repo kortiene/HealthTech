@@ -126,6 +126,10 @@ const POISONED_ENV = {
   GH_TOKEN: 'ghp_secret',
   MATRIX_TOKEN: 'x',
   MX_AGENT_FOO: 'x',
+  // Present so classify uses the shared-SDK path (the parity tests assert that
+  // path's cost/usage). With no key, classify auto-routes through the runner —
+  // the subscription mode covered by orchestrator.test.ts.
+  ANTHROPIC_API_KEY: 'sk-ant-x',
 };
 
 /**

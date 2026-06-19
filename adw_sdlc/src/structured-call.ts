@@ -4,10 +4,12 @@
  * classify is the only pure structured phase — its template forbids examining
  * the codebase, so it needs no tools, no shell, and no worktree. It therefore
  * runs IN-PROCESS on the plain Anthropic SDK (messages.parse + zodOutputFormat)
- * with claude-haiku-4-5 by default, regardless of the selected runner; the
- * D5 process boundary does not apply because nothing here can read an env or
- * spawn a child (the SDK only needs ANTHROPIC_API_KEY, which is already on
- * the base allowlist).
+ * with claude-haiku-4-5 by default; the D5 process boundary does not apply
+ * because nothing here can read an env or spawn a child. This path needs a
+ * pay-as-you-go ANTHROPIC_API_KEY — the public messages API does not accept a
+ * Claude subscription OAuth token — so the orchestrator only takes it when a
+ * key is configured and otherwise routes classify through the selected runner
+ * (which honors a `claude login` subscription). See orchestrator.ts classify.
  */
 
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';

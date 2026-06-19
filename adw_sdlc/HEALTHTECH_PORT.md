@@ -54,14 +54,29 @@ MX_AGENT_TEST_CMD="<your test command>" \
   npx tsx src/cli.ts <N> --runner claude --yes
 ```
 
-Requires `gh` authenticated for the `kortiene/HealthTech` repo. Set a runner credential
-(e.g. `ANTHROPIC_API_KEY`) for the selected runner. Optionally set `PROJECT_NUMBER=2` so the
-setup phase can move the issue's card on the GitHub Project board.
+Requires `gh` authenticated for the `kortiene/HealthTech` repo. Optionally set `PROJECT_NUMBER=2`
+so the setup phase can move the issue's card on the GitHub Project board.
 
-## Pending (depends on backlog #1 — stack decision)
+### Auth — API key *or* Anthropic subscription
 
-The application stack/test tooling is not yet chosen, so:
-- Set `MX_AGENT_TEST_CMD` (and optionally `MX_AGENT_FINALIZE_GATES`) once the stack lands so the
-  resolve loop and pre-merge gates actually verify the build.
-- The phase templates reference the configurable test gate rather than a concrete command; tighten
-  them when the stack is fixed.
+The `claude` runner works with either:
+
+- **Pay-as-you-go API key:** `export ANTHROPIC_API_KEY=sk-ant-…`. The cheap `classify` phase runs
+  in-process on the Anthropic SDK (haiku).
+- **Claude Pro/Max subscription:** run `claude login` once (credentials in `~/.claude`), or
+  `export CLAUDE_CODE_OAUTH_TOKEN=…`. **No API key needed.** When `ANTHROPIC_API_KEY` is unset, the
+  pipeline auto-routes `classify` through the runner (the Claude Code executable honors the
+  subscription) instead of the API SDK — no flag required. `MX_AGENT_CLASSIFY_ON_RUNNER=1` forces
+  this routing even when a key is present.
+
+The subscription token / on-disk login reach the runner child through the env allowlist
+(`CLAUDE_CODE_OAUTH_TOKEN` + `HOME`); secrets like `GH_TOKEN` are still withheld.
+
+## Test gate (live — stack chosen, monorepo scaffolded)
+
+Backlog #1 (stack, see `docs/adr/`) and #2 (scaffold) are done. The pipeline test gate is:
+
+- **`MX_AGENT_TEST_CMD="just test"`** — a root `justfile` target aggregating `cargo test --workspace`
+  + the web `vitest` + the Flutter `flutter test`. Run from the repo root, e.g. `just issue <N> …`.
+- **`MX_AGENT_FINALIZE_GATES`** (newline-separated) for extra pre-merge gates, e.g.
+  `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo deny check`.
