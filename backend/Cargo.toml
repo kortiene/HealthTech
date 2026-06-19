@@ -1,0 +1,29 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+description = "HealthTech zero-knowledge blob proxy (ADR 0004). Dumb store/fetch of opaque encrypted blobs; never decrypts."
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+# Shared Rust crypto crate — used ONLY for shared types / test-vector (KAT) verification.
+# The backend MUST NOT call any decrypt path. See ADR 0003 / ADR 0004.
+crypto-core = { path = "../crypto-core" }
+
+# HTTP framework + async runtime (ADR 0004).
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+
+# UUID parsing for the /blob/{uuid} anonymous index.
+# `serde` is required so axum's `Path<Uuid>` extractor can deserialize the path segment.
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Structured logging.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+# Tower's oneshot service harness lets us exercise the router in tests without a socket.
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

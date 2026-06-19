@@ -1,0 +1,24 @@
+# crypto-core — the single client-side cryptography crate (ADR 0003).
+# This is a WORKSPACE MEMBER: it declares [package] but intentionally NO [workspace].
+# The root Cargo.toml (owned by the orchestrator) ties this member into the cargo workspace.
+[package]
+name = "crypto-core"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "Zero-knowledge cryptography core (AES-256-GCM + PBKDF2-HMAC-SHA256). The ONLY place cipher logic lives — shared by Flutter (FFI), the doctor PWA (WASM), and the backend. See ADR 0003."
+repository = "https://github.com/kortiene/HealthTech"
+publish = false
+
+[dependencies]
+# RustCrypto stack — pinned, era-correct (late-2025/2026). See ADR 0003.
+aes-gcm = "0.10"   # AES-256-GCM AEAD
+pbkdf2 = "0.12"    # PBKDF2 (without built-in SHA, we wire sha2 via hmac path)
+sha2 = "0.10"      # SHA-256 for HMAC inside PBKDF2
+getrandom = "0.2"  # OS CSPRNG for nonces / master keys
+zeroize = "1"      # secret wiping
+
+[dev-dependencies]
+hex = "0.4"        # decode NIST/round-trip vectors in tests
+
+# deny(warnings) is enforced in lib.rs (ADR 0003: supply-chain hardening).

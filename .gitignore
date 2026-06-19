@@ -1,9 +1,33 @@
 # Dependencies
 node_modules/
-adw_sdlc/node_modules/
 
 # Build output
-adw_sdlc/dist/
+dist/
+build/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Flutter / Dart (app-patient)
+app-patient/.dart_tool/
+app-patient/.flutter-plugins
+app-patient/.flutter-plugins-dependencies
+app-patient/build/
+app-patient/android/.gradle/
+app-patient/android/local.properties
+.packages
+*.iml
+
+# Terraform (infra)
+infra/**/.terraform/
+infra/**/*.tfstate*
+
+# Secrets / local env — NEVER commit
+.env
+.env.*
+*.pem
+*.key
 
 # ADW run workspaces / state (per-run, not source)
 agents/
