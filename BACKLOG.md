@@ -47,6 +47,7 @@
 - **#4 — Environnements & secrets** · `Should` · `M` · `infra` `security`
   Gestion des secrets (pas de clé en clair dans le repo), environnements dev/staging/prod, IaC pour l'hébergement local.
   *Acceptation :* secrets injectés via coffre-fort ; `staging` reproductible depuis l'IaC.
+  *Décision :* [ADR 0007](./docs/adr/0007-secrets-and-environments.md) (SOPS + age, in-country ; par-env dev/staging/prod). *Fournit* le coffre-fort et le scan de secrets consommés par #3 (CI) ; dépend de #8 pour la mise en service réelle.
 
 ### E6 — Conformité, légal & gouvernance `compliance`
 

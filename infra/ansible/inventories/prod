@@ -1,0 +1,10 @@
+# Ansible inventory — PROD (ADR 0007, #4).
+# In-country hosts only (ARTCI / loi n°2013-450, ADR 0005). The group name
+# `prod` auto-loads group_vars/prod.yml (env-scoped, secret-free).
+#
+# Hosts below are PLACEHOLDERS — real in-country addresses are filled in by #8
+# (sovereign hosting provisioning). `--syntax-check` does not connect to them.
+[prod]
+# prod-backend-1.healthtech.ci      # TODO(#8): real in-country host
+# prod-minio-1.healthtech.ci        # TODO(#8): real in-country host
+# prod-db-1.healthtech.ci           # TODO(#8): real in-country host

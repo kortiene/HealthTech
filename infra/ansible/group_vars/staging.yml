@@ -1,0 +1,14 @@
+---
+# Ansible group_vars — STAGING (ADR 0007, #4). Env-scoped, SECRET-FREE.
+# Auto-loaded for hosts in the `staging` inventory group. NO secret values here —
+# secrets are decrypted from secrets/staging/services.sops.yaml at run time.
+env: staging
+country: CI # residency pin (ARTCI / loi 2013-450); never override
+
+backend_instance_count: 2
+postgres_replica_count: 1
+
+# Where the decrypted operational secrets are written at run time (0600, root-only).
+secrets_env_file: /run/healthtech/staging.env
+# SOPS source bundle for this environment (encrypted at rest; decrypted in-country).
+sops_secrets_path: ../../secrets/staging/services.sops.yaml

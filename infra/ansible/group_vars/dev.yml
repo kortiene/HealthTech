@@ -1,0 +1,14 @@
+---
+# Ansible group_vars — DEV (ADR 0007, #4). Env-scoped, SECRET-FREE.
+# Auto-loaded for hosts in the `dev` inventory group. NO secret values here —
+# secrets are decrypted from secrets/dev/services.sops.yaml at run time.
+env: dev
+country: CI # residency pin; never override to a foreign country
+
+backend_instance_count: 1
+postgres_replica_count: 0
+
+# Where the decrypted operational secrets are written at run time (0600, root-only).
+secrets_env_file: /run/healthtech/dev.env
+# SOPS source bundle for this environment (encrypted at rest; decrypted in-country).
+sops_secrets_path: ../../secrets/dev/services.sops.yaml

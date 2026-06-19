@@ -1,0 +1,5 @@
+# Ansible inventory — DEV (ADR 0007, #4).
+# `dev` is the contributor's local machine (synthetic data + throwaway secrets).
+# The group name `dev` auto-loads group_vars/dev.yml (env-scoped, secret-free).
+[dev]
+localhost ansible_connection=local

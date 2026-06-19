@@ -29,10 +29,31 @@ should follow the same shape, e.g. `feat/16-qr-code-temporaire`.
 - **Data residency.** Nothing in the data path may use a foreign managed cloud
   ([ADR 0005](./docs/adr/0005-storage-and-sovereign-hosting.md)).
 
+## Secret hygiene (ADR 0007 / #4)
+
+- **Never commit a secret.** No keys, tokens, passwords, real patient data, decrypted records,
+  `*.tfstate`, or a real `.env`. Only **encrypted** bundles (`secrets/**/*.sops.yaml`), public age
+  recipients (`/.sops.yaml`), and `*.example` placeholder templates are committed.
+- **Operational secrets only.** Patient master keys / per-record data keys / QR session keys are
+  client-side and **must never** enter `secrets/`, the IaC, env files, or CI (zero-knowledge
+  boundary, ADR 0004/0006/0007).
+- **Get dev secrets locally:** `cp .env.example .env` then `just dev-up` (throwaway Postgres +
+  MinIO). No real credential is ever needed for dev. For staging/prod bundles, decrypt with
+  `just secrets-decrypt <env>` (needs that env's in-country age key).
+- **What CI enforces:** `.github/workflows/secrets.yml` runs `gitleaks` + `scripts/check-secrets.sh`
+  on every PR — fail-closed if a plaintext secret, `*.tfstate`, real `.env`, or private key is
+  staged. Run it yourself with `just secrets-lint`.
+- **Optional pre-commit hook** (catch leaks before they land):
+  ```sh
+  printf '#!/usr/bin/env bash\ngitleaks protect --staged --no-banner --redact --config .gitleaks.toml\nbash scripts/check-secrets.sh\n' \
+    > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+  ```
+
 ## Before you push
 
 - `just test` is green (the ADW pipeline gate; `MX_AGENT_TEST_CMD="just test"`).
 - `just lint` passes (`cargo fmt --check`, `cargo clippy -D warnings`).
+- `just secrets-lint` is green (no plaintext secret introduced).
 - The orchestrator owns git/gh in automated runs — do not script merges.
 
 ## Quality gates

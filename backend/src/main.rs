@@ -7,12 +7,17 @@
 //!
 //! TODO(#9): replace the in-memory `BlobStore` with MinIO (object store) + PostgreSQL 16
 //!           (non-identifying metadata: anonymous UUID, ciphertext size/version, timestamps,
-//!           KDF params). See ADR 0005.
+//!           KDF params). See ADR 0005. Credentials come from [`config::Config`] (ADR 0007).
 //! TODO(#23): presigned short-TTL ephemeral media URLs + HTTP range / resumable (tus) uploads.
+//!           The signing key comes from [`config::Config::presigned_url_signing_key`] (ADR 0007).
 //! TODO(#8): wire to sovereign in-country hosting (TLS reverse proxy, HA).
+
+mod config;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+
+use config::Config;
 
 use axum::{
     body::Bytes,
@@ -46,7 +51,11 @@ async fn put_blob(
     body: Bytes,
 ) -> StatusCode {
     // TODO(#9): stream to MinIO + record non-identifying metadata in Postgres (ADR 0005).
-    state.blobs.write().expect("blob store poisoned").insert(uuid, body);
+    state
+        .blobs
+        .write()
+        .expect("blob store poisoned")
+        .insert(uuid, body);
     StatusCode::CREATED
 }
 
@@ -77,17 +86,29 @@ fn app() -> Router {
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
-    // TODO(#8): bind address / TLS termination handled by the in-country reverse proxy (ADR 0005).
-    let addr = "0.0.0.0:8080";
-    let listener = tokio::net::TcpListener::bind(addr)
+    // Operational config is injected from the secrets vault via the environment (ADR 0007).
+    // Fail fast on a missing required secret; never log a secret value (every secret field in
+    // `Config` redacts in Debug/Display, and we only ever log `app_env` and the bind address).
+    let config = Config::from_env().unwrap_or_else(|err| {
+        tracing::error!(%err, "invalid backend configuration");
+        std::process::exit(1);
+    });
+
+    // TODO(#8): TLS termination handled by the in-country reverse proxy (ADR 0005).
+    let addr = config.bind_addr.clone();
+    let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("failed to bind backend listener");
-    tracing::info!(%addr, "HealthTech zero-knowledge blob proxy listening");
+    tracing::info!(
+        env = %config.app_env,
+        %addr,
+        injected_secrets = ?config.injected_storage_secrets(),
+        "HealthTech zero-knowledge blob proxy listening"
+    );
 
     axum::serve(listener, app())
         .await
@@ -105,7 +126,12 @@ mod tests {
     #[tokio::test]
     async fn health_returns_ok() {
         let resp = app()
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
