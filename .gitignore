@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+adw_sdlc/node_modules/
+
+# Build output
+adw_sdlc/dist/
+
+# ADW run workspaces / state (per-run, not source)
+agents/
+
+# Test / tooling caches
+.pytest_cache/
+__pycache__/
+*.tsbuildinfo
+.vitest/
+
+# OS / editor
+.DS_Store
+*.swp
