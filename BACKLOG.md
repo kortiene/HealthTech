@@ -54,6 +54,9 @@
 - **#5 — Analyse de conformité loi n°2013-450 & exigences ARTCI** · `Must` · `L` · `compliance` `docs`
   Cartographier chaque exigence légale (résidence des données, consentement, droits du patient) vers une exigence technique.
   *Acceptation :* matrice de conformité exigence → contrôle technique → preuve, validée par le conseil juridique.
+  *Spec :* [`specs/loi-2013-450-artci-compliance-matrix.md`](./specs/loi-2013-450-artci-compliance-matrix.md).
+  *Livrables :* [`docs/compliance/`](./docs/compliance/README.md) — [matrice](./docs/compliance/loi-2013-450-artci-matrix.md), [exigences](./docs/compliance/exigences-legales.md), [contrôles & preuves](./docs/compliance/controles.md), [registre des traitements](./docs/compliance/registre-des-traitements.md), [cartographie données/flux](./docs/compliance/cartographie-donnees-et-flux.md), [journal de validation juridique](./docs/compliance/journal-validation-juridique.md), [écarts](./docs/compliance/ecarts.md). *Matrice = **projet** tant que le sign-off juridique de toutes les exigences `Must` n'est pas acquis.*
+  *Écarts découverts (issues à créer) :* politique de rétention (`ECART-01`), flux de suppression/crypto-effacement (`ECART-02`), procédure de notification de violation (`ECART-03`), désignation correspondant/DPO (`ECART-04`), régime données de santé/mineurs (`ECART-05`), qualification des rôles RT/sous-traitant (`ECART-06`), base légale de la localisation (`ECART-07`), accès d'urgence/break-glass (`ECART-08`). Détail : [`docs/compliance/ecarts.md`](./docs/compliance/ecarts.md).
 
 - **#6 — Modèle de menace & politique de sécurité** · `Must` · `L` · `security` `docs`
   Threat model (STRIDE) couvrant : vol de téléphone, serveur compromis, MITM réseau, QR code intercepté, attaque sur la phrase de passe de récupération.

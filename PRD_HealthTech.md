@@ -70,6 +70,6 @@ Offrir à chaque citoyen ivoirien la propriété absolue et sécurisée de ses d
 
 ## 5. Exigences Non-Fonctionnelles (NFR)
 
-- **Sécurité et Conformité :** Alignement strict sur la loi ivoirienne n°2013-450 relative à la protection des données à caractère personnel. Données stockées obligatoirement sur le territoire national.
+- **Sécurité et Conformité :** Alignement strict sur la loi ivoirienne n°2013-450 relative à la protection des données à caractère personnel. Données stockées obligatoirement sur le territoire national. La preuve de cet « alignement strict » est tracée, exigence par exigence, dans la **[matrice de conformité](./docs/compliance/loi-2013-450-artci-matrix.md)** (`exigence → contrôle technique → preuve`, volet [`docs/compliance/`](./docs/compliance/README.md), issue #5) — pièce probante du dossier d'homologation ARTCI (#30).
 - **Performance :** Le déchiffrement et l'affichage du dossier sur l'écran du médecin après le scan du QR code ne doivent pas prendre plus de **3 secondes** sous couverture 3G stable.
 - **Expérience Utilisateur (UX) :** L'application du médecin doit pouvoir être prise en main avec moins de 5 minutes de formation (interface ultra-épurée, pas de menus complexes).
