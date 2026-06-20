@@ -1,0 +1,46 @@
+# Dependabot — ongoing dependency scanning and update PRs (issue #3).
+# Complements the per-PR SCA gate in ci.yml (cargo-deny + osv-scanner): this
+# keeps the pinned trees fresh and surfaces new advisories as update PRs.
+version: 2
+updates:
+  # Rust workspace (crypto-core + backend).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Doctor PWA.
+  - package-ecosystem: npm
+    directory: "/app-medecin"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Delivery orchestrator.
+  - package-ecosystem: npm
+    directory: "/adw_sdlc"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Patient app (Flutter / pub.dev).
+  - package-ecosystem: pub
+    directory: "/app-patient"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # The CI itself: keep third-party Actions pinned and patched.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Backend base images in the Dockerfile.
+  - package-ecosystem: docker
+    directory: "/backend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

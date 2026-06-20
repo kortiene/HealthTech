@@ -54,9 +54,18 @@ should follow the same shape, e.g. `feat/16-qr-code-temporaire`.
 - `just test` is green (the ADW pipeline gate; `MX_AGENT_TEST_CMD="just test"`).
 - `just lint` passes (`cargo fmt --check`, `cargo clippy -D warnings`).
 - `just secrets-lint` is green (no plaintext secret introduced).
+- `just sca` passes (dependency vulnerability + license scan).
+- `just ci` mirrors the GitHub Actions pipeline locally (lint + test + build + sca).
 - The orchestrator owns git/gh in automated runs — do not script merges.
 
 ## Quality gates
 
-CI (`.github/workflows/`) runs the package test suites on every PR. Pre-merge gates are configured via
-`MX_AGENT_FINALIZE_GATES` (e.g. `cargo fmt --check`, `cargo clippy … -D warnings`, `cargo deny check`).
+CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml), [ADR 0008](./docs/adr/0008-ci-cd-pipeline.md))
+runs on every PR: per-package **lint + unit tests + build**, **dependency scanning (SCA)** —
+`cargo deny check` plus `osv-scanner` over the Cargo/npm/pub lockfiles and `npm audit` — and produces the
+**patient APK** and the **backend image** as artifacts. The aggregate **`CI success`** check must be enabled
+as a *required status check* in branch protection so a red pipeline blocks merge. New advisories are also
+surfaced as update PRs by [`dependabot.yml`](./.github/dependabot.yml).
+
+Pre-merge gates for the ADW orchestrator are configured via `MX_AGENT_FINALIZE_GATES` (e.g. `cargo fmt
+--check`, `cargo clippy … -D warnings`, `cargo deny check`).

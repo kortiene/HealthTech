@@ -4,7 +4,9 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 build/
-pubspec.lock
+# pubspec.lock IS committed: app-patient is an application (not a library), so a
+# locked, reproducible dependency set is correct — and the CI SCA gate scans it
+# (osv-scanner, ci.yml). Keep it tracked, consistent with Cargo.lock / package-lock.json.
 
 # Generated bindings (FRB + drift) — regenerated via codegen. TODO(#11, #14).
 *.g.dart

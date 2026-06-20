@@ -1,0 +1,48 @@
+# cargo-deny — Rust supply-chain SCA gate for the cargo workspace (issue #3).
+#
+# The crypto is ONE shared core fanned out to three binding targets (ADR 0003),
+# so a dependency CVE, an unexpected copyleft license, or a crate pulled from an
+# unknown source is a release blocker — this gate makes those loud and failing.
+#
+# Run locally:  cargo deny check        (CI: EmbarkStudios/cargo-deny-action)
+
+[graph]
+all-features = true
+
+[advisories]
+# Fail on any RUSTSEC advisory in the dependency tree, and on yanked crates.
+# (vulnerabilities + unmaintained crates are denied by default in this schema.)
+yanked = "deny"
+ignore = []
+
+[licenses]
+# First-party workspace crates are intentionally AGPL-3.0-or-later; SCA vets the
+# DEPENDENCY tree, not our own known license. `publish = false` crates are skipped.
+private = { ignore = true }
+# Allow-list of OSI-approved, permissive licenses compatible with shipping the
+# AGPL-licensed binary. A dependency under any other license fails the gate.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "Zlib",
+  "MPL-2.0",
+  "CC0-1.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Duplicate versions are noisy but not fatal in a young tree; wildcards are.
+multiple-versions = "warn"
+wildcards = "warn"
+
+[sources]
+# Crates must come from crates.io; nothing from an unknown registry or git host.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

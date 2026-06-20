@@ -1,5 +1,7 @@
 # HealthTech
 
+[![CI](https://github.com/kortiene/HealthTech/actions/workflows/ci.yml/badge.svg)](https://github.com/kortiene/HealthTech/actions/workflows/ci.yml)
+
 **Plateforme de santé numérique décentralisée pour la Côte d'Ivoire** — *local-first / zero-knowledge*.
 
 Le patient transporte son dossier médical chiffré dans son smartphone et en octroie un accès éphémère et
@@ -38,6 +40,22 @@ cd app-patient && flutter test         # nécessite le SDK Flutter
 
 Prérequis : Rust (cargo), Node ≥ 20, [`just`](https://github.com/casey/just), et le SDK Flutter pour
 l'app patient.
+
+## Intégration continue (CI/CD)
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) s'exécute à chaque PR ([ADR 0008](./docs/adr/0008-ci-cd-pipeline.md)) :
+lint + tests + build de chaque paquet, scan de dépendances (SCA), et production de **deux artefacts** —
+l'APK patient et l'image conteneur du backend (musl statique → distroless).
+
+```bash
+just ci           # miroir local : lint + test + build + sca
+just sca          # scan de vulnérabilités/licences (cargo-deny + npm audit + osv-scanner)
+just build-image  # construit l'image backend (nécessite Docker)
+```
+
+Le check agrégé **`CI success`** doit être configuré comme *required status check* (protection de branche) :
+une CI rouge bloque le merge. Le SCA combine `cargo-deny` (avis + licences Rust) et `osv-scanner`
+(Cargo + npm + pub.dev) ; [`dependabot.yml`](./.github/dependabot.yml) maintient les dépendances à jour.
 
 ## Contribuer
 

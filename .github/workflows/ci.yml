@@ -1,0 +1,191 @@
+name: CI
+
+# Issue #3 — Pipeline CI/CD. Lint, unit tests, builds, and dependency (SCA)
+# scanning for every product package on every PR, plus the two release
+# artifacts required by the acceptance criteria: a patient APK and a backend
+# container image. Mark the aggregate "CI success" check as required in branch
+# protection so a red pipeline blocks merge.
+#
+# adw_sdlc (the delivery orchestrator) keeps its own workflow (adw-sdlc.yml);
+# this pipeline covers the HealthTech product packages.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One in-flight run per ref; new pushes cancel superseded runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: the whole pipeline only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  # ---- Rust workspace: crypto-core + backend (ADR 0003/0004) --------------
+  rust:
+    name: rust · fmt + clippy + test + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2.9.1
+      - name: Format (lint)
+        run: cargo fmt --all --check
+      - name: Clippy (lint, warnings = errors)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace --locked
+      - name: Build
+        run: cargo build --workspace --locked
+
+  # ---- Doctor PWA: app-medecin (Preact + TS, ADR 0002) -------------------
+  web:
+    name: web · typecheck + test + build (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    defaults:
+      run:
+        working-directory: app-medecin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: app-medecin/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --fund=false
+      - name: Typecheck (lint)
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      # Production dependency-vulnerability scan (SCA) for the shipped surface.
+      - name: Audit (SCA, prod deps)
+        run: npm audit --omit=dev --audit-level=high
+
+  # ---- Patient app: app-patient (Flutter, ADR 0001) ----------------------
+  flutter:
+    name: flutter · analyze + test + build apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          channel: stable
+          # Pinned (known-good; bump via Dependabot/review). Unpinned `stable`
+          # would couple the build to whatever Flutter ships that day, including
+          # its `flutter.ndkVersion` — see ADR 0008 risks. Bump with #13.
+          flutter-version: '3.41.5'
+          cache: true
+      - name: Resolve dependencies
+        working-directory: app-patient
+        run: flutter pub get
+      - name: Format (lint)
+        working-directory: app-patient
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Analyze (lint)
+        working-directory: app-patient
+        run: flutter analyze
+      - name: Unit/widget tests
+        working-directory: app-patient
+        run: flutter test
+      # The skeleton has no committed android/ platform folder yet (TODO #13).
+      # Generate it ephemerally so CI produces a real APK artifact WITHOUT a
+      # CI-scoped change committing platform scaffolding. `--project-name` matches
+      # the pubspec package; existing lib/, pubspec.yaml and test/ are preserved.
+      - name: Generate android scaffolding (ephemeral)
+        working-directory: app-patient
+        run: flutter create --platforms=android --org io.healthtech --project-name app_patient .
+      - name: Build debug APK (artifact)
+        working-directory: app-patient
+        run: flutter build apk --debug
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-patient-apk
+          path: app-patient/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---- Backend container image artifact (ADR 0004) -----------------------
+  backend-image:
+    name: backend · docker image artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: false
+          load: true
+          tags: healthtech-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Export image tarball
+        run: docker save "healthtech-backend:${{ github.sha }}" | gzip > healthtech-backend-image.tar.gz
+      - name: Upload backend image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image
+          path: healthtech-backend-image.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---- Dependency scanning (SCA) across every ecosystem ------------------
+  sca:
+    name: sca · cargo-deny + osv-scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # Rust: advisories + license allow-list + source/ban policy (deny.toml).
+      - name: cargo-deny (Rust SCA + licenses)
+        uses: EmbarkStudios/cargo-deny-action@v2.0.20
+        with:
+          command: check
+      # Cross-ecosystem CVE scan over every lockfile (Cargo, npm, pub.dev).
+      - name: osv-scanner (npm + pub + cargo lockfiles)
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        with:
+          scan-args: |-
+            --lockfile=Cargo.lock
+            --lockfile=app-medecin/package-lock.json
+            --lockfile=app-patient/pubspec.lock
+            --lockfile=adw_sdlc/package-lock.json
+
+  # ---- Single required status check for branch protection ----------------
+  ci-success:
+    name: CI success
+    if: always()
+    needs: [rust, web, flutter, backend-image, sca]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fail if any job did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One or more CI jobs failed or were cancelled."
+          exit 1
+      - name: All green
+        run: echo "All CI jobs passed."
