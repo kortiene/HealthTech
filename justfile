@@ -17,10 +17,10 @@ issue *ARGS:
 # --- aggregate gates -------------------------------------------------------
 
 # Run every package's test suite (the ADW pipeline test gate).
-test: test-rust test-web test-flutter
+test: test-rust test-web test-flutter test-compliance-scripts
 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
-lint: lint-rust
+lint: lint-rust compliance-check
 
 # Build every package.
 build: build-rust build-web
@@ -39,6 +39,14 @@ test-rust:
 lint-rust:
     cargo fmt --check
     cargo clippy --workspace --all-targets -- -D warnings
+
+# Validate compliance documentation artefacts (issue #5, ADR docs/compliance).
+compliance-check:
+    bash scripts/check-compliance-matrix.sh
+
+# Self-test the compliance matrix checker with synthetic fixtures (issue #5).
+test-compliance-scripts:
+    bash scripts/test-compliance-matrix.sh
 
 build-rust:
     cargo build --workspace
