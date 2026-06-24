@@ -32,7 +32,7 @@
 | **CTRL-17** | **Modèle local-first** : le patient **détient et lit** son dossier sur son appareil | Technique | [#14](https://github.com/kortiene/HealthTech/issues/14), [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
 | **CTRL-18** | **Édition du dossier + rechiffrement** (note/ordonnance fusionnée puis re-chiffrée) | Technique | [#18](https://github.com/kortiene/HealthTech/issues/18), [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
 | **CTRL-19** | **Crypto-effacement** (destruction de la clé rend le blob irrécupérable) + suppression du blob par UUID | Technique | [#9](https://github.com/kortiene/HealthTech/issues/9) ; **flux de suppression à concevoir** ([ECART-02](./ecarts.md)) | **Écart** (à instruire) |
-| **CTRL-20** | **Modèle de menace STRIDE** & politique de sécurité | Organisationnel | [#6](https://github.com/kortiene/HealthTech/issues/6) | Planifié |
+| **CTRL-20** | **Modèle de menace STRIDE** & politique de sécurité | Organisationnel | [#6](https://github.com/kortiene/HealthTech/issues/6) | **Livré** ([`docs/threat-model/stride-threat-model.md`](../threat-model/stride-threat-model.md) + [`SECURITY.md`](../../SECURITY.md)) |
 | **CTRL-21** | **Pentest externe** (crypto, ZK, QR, récupération, wipe) | Organisationnel | [#25](https://github.com/kortiene/HealthTech/issues/25) | Planifié |
 | **CTRL-22** | **Revue cryptographique indépendante** (AES-GCM, PBKDF2, nonces/clés) | Organisationnel | [#26](https://github.com/kortiene/HealthTech/issues/26) | Planifié |
 | **CTRL-23** | **TLS** en transit (reverse proxy in-country) | Technique | [ADR 0005](../adr/0005-storage-and-sovereign-hosting.md) | Planifié |
@@ -67,7 +67,7 @@
 | **PREUVE-13** | **Récépissé / décision d'autorisation ARTCI** | CTRL-02 *(formalité)*, CTRL-30 | [#30](https://github.com/kortiene/HealthTech/issues/30) | À produire |
 | **PREUVE-14** | **Rapport de pentest** | CTRL-21 | [#25](https://github.com/kortiene/HealthTech/issues/25) | Planifié |
 | **PREUVE-15** | **Avis de revue cryptographique** indépendante | CTRL-22 | [#26](https://github.com/kortiene/HealthTech/issues/26) | Planifié |
-| **PREUVE-16** | **Document de threat model** (STRIDE) | CTRL-20 | [#6](https://github.com/kortiene/HealthTech/issues/6) | Planifié |
+| **PREUVE-16** | **Document de threat model** (STRIDE) | CTRL-20 | [#6](https://github.com/kortiene/HealthTech/issues/6) | **Existant** ([`docs/threat-model/stride-threat-model.md`](../threat-model/stride-threat-model.md)) |
 | **PREUVE-17** | **Registre des traitements** | CTRL-24 | [`registre-des-traitements.md`](./registre-des-traitements.md) | **Existant** (ce livrable) |
 | **PREUVE-18** | **Cartographie données & flux** | CTRL-25 | [`cartographie-donnees-et-flux.md`](./cartographie-donnees-et-flux.md) | **Existant** (ce livrable) |
 | **PREUVE-19** | **Démo app patient** affichant le dossier complet | CTRL-17 | [#15](https://github.com/kortiene/HealthTech/issues/15), [#14](https://github.com/kortiene/HealthTech/issues/14) | Planifié |

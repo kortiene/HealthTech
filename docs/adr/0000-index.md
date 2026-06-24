@@ -29,6 +29,17 @@ the runner-up proposals per the judges' recommendations.
 | Secrets & environments | **SOPS + age (in-country keys); per-env dev/staging/prod; OpenBao deferred for prod** | [0007](./0007-secrets-and-environments.md) |
 | CI/CD pipeline | **GitHub Actions: per-package lint/test/build, cargo-deny + osv-scanner SCA, APK + distroless backend image artifacts** | [0008](./0008-ci-cd-pipeline.md) |
 
+## Security documentation
+
+The STRIDE threat model and security policy produced by issue [#6](https://github.com/kortiene/HealthTech/issues/6) are security artifacts (not ADRs), stored alongside this index:
+
+| Document | Description | Issue |
+| --- | --- | --- |
+| [`docs/threat-model/stride-threat-model.md`](../threat-model/stride-threat-model.md) | Full STRIDE model: 8 threat categories, countermeasures traced to backlog issues, residual risks | [#6](https://github.com/kortiene/HealthTech/issues/6) |
+| [`SECURITY.md`](../../SECURITY.md) | Responsible disclosure policy, severity classification, authorized test scope | [#6](https://github.com/kortiene/HealthTech/issues/6) |
+
+These documents are **PREUVE-16** in the compliance catalogue (`docs/compliance/controles.md`, CTRL-20) and form part of the ARTCI homologation dossier ([#30](https://github.com/kortiene/HealthTech/issues/30)).
+
 ## The repository will become a polyglot monorepo
 
 ```
