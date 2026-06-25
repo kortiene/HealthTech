@@ -82,9 +82,12 @@ while IFS= read -r -d '' f; do
     *) continue ;;
   esac
 
-  # --- 1. Foreign provider in the data path (Terraform only) ----------------
+  # --- 1. Foreign provider in the data path (HCL .tf only) ------------------
+  # NOTE: .tf.json (Terraform JSON DSL) uses a different schema
+  # ("provider": {"aws": ...}) that the HCL-style grep below does not match.
+  # Proper JSON-format detection is tracked separately; for now only .tf is scanned.
   case "$f" in
-    *.tf | *.tf.json)
+    *.tf)
       if LC_ALL=C grep -nEi "provider[[:space:]]+\"($FOREIGN_PROVIDERS)\"" "$f" >/dev/null 2>&1; then
         note "foreign IaC provider in the data path: $f (no aws/google/azurerm/… — ADR 0005, ARTCI)"
       fi

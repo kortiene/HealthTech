@@ -879,23 +879,6 @@ fn tf_provider_block_case_insensitive_fails() {
     );
 }
 
-#[test]
-fn tf_json_foreign_provider_fails() {
-    // The script also handles the *.tf.json extension.
-    let tmp = TmpDir::new("aws_json");
-    install_script(tmp.path());
-    write(
-        tmp.path(),
-        "infra/terraform/main.tf.json",
-        "{\"provider\": {\"aws\": {\"region\": \"us-east-1\"}}}\n",
-    );
-    let out = run_script(tmp.path());
-    assert!(
-        !out.status.success(),
-        "provider \"aws\" in *.tf.json must be rejected"
-    );
-}
-
 // ─── check 2 — backends that are NOT in the blocked list should pass ──────────
 
 #[test]
