@@ -303,7 +303,10 @@ fn tf_azurerm_backend_fails() {
     );
 
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "backend \"azurerm\" must be rejected");
+    assert!(
+        !out.status.success(),
+        "backend \"azurerm\" must be rejected"
+    );
 }
 
 #[test]
@@ -755,7 +758,10 @@ fn tf_oci_provider_block_fails() {
         "provider \"oci\" { tenancy_ocid = var.tenancy_ocid }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"oci\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"oci\" block must be rejected"
+    );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("foreign IaC provider"), "got:\n{stderr}");
 }
@@ -770,7 +776,10 @@ fn tf_ibm_provider_block_fails() {
         "provider \"ibm\" { region = \"eu-de\" }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"ibm\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"ibm\" block must be rejected"
+    );
 }
 
 #[test]
@@ -783,7 +792,10 @@ fn tf_hcloud_provider_block_fails() {
         "provider \"hcloud\" { token = var.hcloud_token }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"hcloud\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"hcloud\" block must be rejected"
+    );
 }
 
 #[test]
@@ -796,7 +808,10 @@ fn tf_linode_provider_block_fails() {
         "provider \"linode\" { token = var.linode_token }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"linode\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"linode\" block must be rejected"
+    );
 }
 
 #[test]
@@ -809,7 +824,10 @@ fn tf_vultr_provider_block_fails() {
         "provider \"vultr\" { api_key = var.vultr_api_key }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"vultr\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"vultr\" block must be rejected"
+    );
 }
 
 #[test]
@@ -822,7 +840,10 @@ fn tf_scaleway_provider_block_fails() {
         "provider \"scaleway\" { zone = \"fr-par-1\" }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"scaleway\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"scaleway\" block must be rejected"
+    );
 }
 
 #[test]
@@ -835,7 +856,10 @@ fn tf_ovh_provider_block_fails() {
         "provider \"ovh\" { endpoint = \"ovh-eu\" }\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"ovh\" block must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"ovh\" block must be rejected"
+    );
 }
 
 #[test]
@@ -866,7 +890,10 @@ fn tf_json_foreign_provider_fails() {
         "{\"provider\": {\"aws\": {\"region\": \"us-east-1\"}}}\n",
     );
     let out = run_script(tmp.path());
-    assert!(!out.status.success(), "provider \"aws\" in *.tf.json must be rejected");
+    assert!(
+        !out.status.success(),
+        "provider \"aws\" in *.tf.json must be rejected"
+    );
 }
 
 // ─── check 2 — backends that are NOT in the blocked list should pass ──────────
@@ -1093,7 +1120,10 @@ fn yaml_extension_country_non_ci_fails() {
         "country: DE in a *.yaml file must be rejected"
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("residency pin overridden"), "got:\n{stderr}");
+    assert!(
+        stderr.contains("residency pin overridden"),
+        "got:\n{stderr}"
+    );
 }
 
 #[test]
@@ -1129,7 +1159,10 @@ fn yaml_country_single_quoted_non_ci_fails() {
         "country: 'FR' (single-quoted) in yaml must be rejected"
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("residency pin overridden"), "got:\n{stderr}");
+    assert!(
+        stderr.contains("residency pin overridden"),
+        "got:\n{stderr}"
+    );
 }
 
 #[test]
