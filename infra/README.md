@@ -74,7 +74,8 @@ ansible-playbook -i infra/ansible/inventories/staging infra/ansible/playbook.yml
 subset ships now** and is reproducible today:
 
 ```sh
-just infra-validate     # terraform fmt/validate + ansible --syntax-check, per environment
+just infra-residency    # data-residency tripwire (no foreign cloud in infra/, country pinned CI)
+just infra-validate     # residency tripwire + terraform fmt/validate + ansible --syntax-check, per env
 just dev-up             # local Postgres + MinIO (staging-shaped), throwaway secrets
 just secrets-lint       # gitleaks + secret-hygiene tripwire
 ```
@@ -94,6 +95,24 @@ just secrets-lint       # gitleaks + secret-hygiene tripwire
 - **Availability SPOF accepted:** a single in-country datacenter has no foreign failover.
   Mitigated by in-country HA (Postgres primary + replica, warm standby) and offline-first
   clients so consultations survive outages.
+
+### Residency guardrails (enforced)
+
+Residency is defended at three layers, so a foreign-cloud regression is caught no matter where
+it is introduced:
+
+1. **Plan/run time — Terraform.** `country` is pinned to `CI` in `main.tf` (never exposed in any
+   tfvars) and a `validation` rejects any other value.
+2. **Run time — Ansible.** `playbook.yml` `assert`s `country == 'CI'` before configuring a host.
+3. **Commit time — CI tripwire (#8).** [`scripts/check-residency.sh`](../scripts/check-residency.sh)
+   fails closed if a foreign IaC provider (`aws`/`google`/`azurerm`/…), a foreign managed state
+   backend (`gcs`/`azurerm`/…) or `s3` pointed at real AWS, a known foreign cloud endpoint
+   (`amazonaws.com`, `googleapis.com`, `*.blob.core.windows.net`, …), or a non-CI `country`
+   override ever enters `infra/`. It is credential-free and network-free, runs in CI alongside the
+   secret-hygiene tripwire (`.github/workflows/secrets.yml`), and is the first step of
+   `just infra-validate`. An in-country MinIO S3-compatible state backend (a `.ci`/private
+   endpoint, no `amazonaws.com`) passes, so the gate does not block the real provisioning path
+   once the operator (#8 / P0) is chosen. Run it directly with `just infra-residency`.
 
 ## Layout
 

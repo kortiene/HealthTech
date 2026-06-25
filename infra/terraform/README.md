@@ -31,8 +31,14 @@ sops exec-env ../../secrets/staging/services.sops.yaml \
 ```
 
 - `country` is **pinned to CI** in `main.tf` (not exposed in any tfvars) and cannot be overridden
-  per environment — the validation rejects any non-CI value (residency, ADR 0005/0007).
-- The state backend must be **encrypted and in-country** (TODO(#8)); state can embed secrets.
+  per environment — the validation rejects any non-CI value (residency, ADR 0005/0007). A
+  **commit-time** gate ([`scripts/check-residency.sh`](../../scripts/check-residency.sh), `just
+  infra-residency`) additionally fails closed if a foreign provider / state backend / cloud
+  endpoint, or a non-CI `country`, is ever added here — before any `plan`/`apply` runs.
+- The state backend must be **encrypted and in-country** (TODO(#8)); state can embed secrets. When
+  configured, an in-country MinIO S3-compatible backend (a `.ci`/private endpoint, no
+  `amazonaws.com`) satisfies the residency gate; a foreign managed backend (`gcs`/`azurerm`/`s3`
+  on real AWS) is rejected.
 
 > **TODO(#8):** select the ARTCI-licensed local operator's Terraform provider, define VMs /
 > bare-metal, private networking, security groups, and encrypted backup volumes. Keep all

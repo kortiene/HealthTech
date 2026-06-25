@@ -3,8 +3,9 @@
 This directory records the major technical decisions for the HealthTech platform, one ADR per
 decision (the stack ADRs 0001–0006 from issue [#1](https://github.com/kortiene/HealthTech/issues/1); the
 secrets & environments ADR 0007 from issue [#4](https://github.com/kortiene/HealthTech/issues/4); the
-CI/CD pipeline ADR 0008 from issue [#3](https://github.com/kortiene/HealthTech/issues/3)). Each ADR follows:
-**Status · Context · Decision · Consequences · Alternatives**.
+CI/CD pipeline ADR 0008 from issue [#3](https://github.com/kortiene/HealthTech/issues/3); the sovereign
+operator selection ADR 0009 from issue [#8](https://github.com/kortiene/HealthTech/issues/8)). Each ADR
+follows: **Status · Context · Decision · Consequences · Alternatives**.
 
 ## How these were chosen
 
@@ -28,6 +29,7 @@ the runner-up proposals per the judges' recommendations.
 | Offline & keys | **SQLCipher (Android) + AEAD-ciphertext IndexedDB (web); Android Keystore + PBKDF2 recovery** | [0006](./0006-offline-storage-and-keys.md) |
 | Secrets & environments | **SOPS + age (in-country keys); per-env dev/staging/prod; OpenBao deferred for prod** | [0007](./0007-secrets-and-environments.md) |
 | CI/CD pipeline | **GitHub Actions: per-package lint/test/build, cargo-deny + osv-scanner SCA, APK + distroless backend image artifacts** | [0008](./0008-ci-cd-pipeline.md) |
+| Sovereign operator | **National ARTCI-eligible operator selected against a criteria grid (final pick pending procurement)** | [0009](./0009-sovereign-operator-selection.md) |
 
 ## Security documentation
 
