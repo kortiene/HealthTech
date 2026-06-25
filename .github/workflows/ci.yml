@@ -117,7 +117,7 @@ jobs:
         working-directory: app-patient
         run: flutter build apk --debug
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-patient-apk
           path: app-patient/build/app/outputs/flutter-apk/*.apk
@@ -145,7 +145,7 @@ jobs:
       - name: Export image tarball
         run: docker save "healthtech-backend:${{ github.sha }}" | gzip > healthtech-backend-image.tar.gz
       - name: Upload backend image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-image
           path: healthtech-backend-image.tar.gz
