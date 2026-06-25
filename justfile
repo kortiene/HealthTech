@@ -17,7 +17,7 @@ issue *ARGS:
 # --- aggregate gates -------------------------------------------------------
 
 # Run every package's test suite (the ADW pipeline test gate).
-test: test-rust test-web test-flutter test-compliance-scripts test-threat-model
+test: test-rust test-web test-flutter test-compliance-scripts test-threat-model test-residency-scripts
 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
 lint: lint-rust compliance-check threat-model-check
@@ -47,6 +47,10 @@ compliance-check:
 # Self-test the compliance matrix checker with synthetic fixtures (issue #5).
 test-compliance-scripts:
     bash scripts/test-compliance-matrix.sh
+
+# Self-test the data-residency guardrail with synthetic fixtures (issue #8).
+test-residency-scripts:
+    bash scripts/test-residency.sh
 
 # Validate threat model artefacts (issue #6, docs/threat-model/).
 threat-model-check:
@@ -111,11 +115,20 @@ secrets-edit ENV:
 
 # Validate the IaC for every environment with NO cloud credentials.
 # (terraform validate needs Terraform >= 1.9; see infra/terraform/main.tf.)
-infra-validate:
+# Runs the residency guardrail first so a foreign-cloud regression fails fast,
+# even before Terraform/Ansible are installed.
+infra-validate: infra-residency
     terraform -chdir=infra/terraform fmt -check
     terraform -chdir=infra/terraform init -backend=false
     terraform -chdir=infra/terraform validate
     for e in dev staging prod; do ansible-playbook --syntax-check -i infra/ansible/inventories/$e infra/ansible/playbook.yml; done
+
+# Data-residency anti-regression guardrail (issue #8, ADR 0005 / ARTCI). Fails
+# closed if a foreign provider / state backend / cloud endpoint, or a non-CI
+# `country` override, ever enters infra/. Credential-free, no network; mirrors
+# secrets-lint. Wired into CI via .github/workflows/secrets.yml.
+infra-residency:
+    bash scripts/check-residency.sh
 
 # Bring the local dev stack (Postgres + MinIO) up (throwaway creds, synthetic data).
 dev-up:

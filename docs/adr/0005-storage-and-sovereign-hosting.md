@@ -2,6 +2,8 @@
 
 **Status:** Accepted (2026-06-19) · Issue [#1](https://github.com/kortiene/HealthTech/issues/1) · Implements Epics E7 (#8, #9), E5 (#23)
 
+> **Follow-up (#8):** the operator/datacenter pick is refined by [ADR 0009 — Sovereign operator selection](./0009-sovereign-operator-selection.md) (criteria grid; final pick pending procurement). The data-localization attestation (acceptance criterion #8.2) lives at [`docs/compliance/attestation-localisation-donnees.md`](../compliance/attestation-localisation-donnees.md) (PREUVE-05). Residency is enforced at commit time by [`scripts/check-residency.sh`](../../scripts/check-residency.sh).
+
 ## Context
 
 Encrypted blobs and metadata must be **hosted on Ivorian soil** to satisfy ARTCI / loi n°2013-450; a

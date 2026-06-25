@@ -68,9 +68,10 @@
 
 ### E7 — Hébergement souverain & backend zero-knowledge `infra`
 
-- **#8 — Provisionnement de l'hébergement en Côte d'Ivoire** · `Must` · `L` · `infra` `compliance`
+- **#8 — Provisionnement de l'hébergement en Côte d'Ivoire** · `Must` · `L` · `infra` `compliance` · *En cours (procurement long-lead)*
   Sélectionner et provisionner l'hébergement local (datacenter national) garantissant la résidence des données.
   *Acceptation :* infrastructure opérationnelle sur le territoire national, attestation de localisation.
+  *Avancement :* critères de sélection opérateur fixés ([ADR 0009](./docs/adr/0009-sovereign-operator-selection.md)) ; garde-fou de résidence anti-régression livré (`scripts/check-residency.sh`, en CI + `just infra-residency`/`infra-validate`) ; modèle d'attestation de localisation produit ([`attestation-localisation-donnees.md`](./docs/compliance/attestation-localisation-donnees.md), PREUVE-05). **Restant (décision humaine + bring-up) :** choix/contrat de l'opérateur (P0), provider + ressources + state backend chiffré in-country Terraform, rôles Ansible, mise en service réelle (#8.1) et signature de l'attestation (#8.2).
 
 - **#9 — Service de stockage de blobs zero-knowledge** · `Must` · `L` · `feature` `backend` `security`
   API minimale : stocker / récupérer un blob chiffré indexé par UUID anonyme. Le serveur ne voit jamais de donnée nominative ni de clé.
