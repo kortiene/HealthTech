@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn max_blob_bytes_exceeds_plaintext_budget() {
-        assert!(MAX_BLOB_BYTES > MAX_PLAINTEXT_BYTES);
+        const { assert!(MAX_BLOB_BYTES > MAX_PLAINTEXT_BYTES) };
     }
 
     #[test]
@@ -273,9 +273,11 @@ mod tests {
     /// additions (e.g. AAD channel — `TODO(#11)`).
     #[test]
     fn blob_size_margin_is_positive() {
-        assert!(
-            BLOB_SIZE_MARGIN > 0,
-            "BLOB_SIZE_MARGIN must leave headroom above the strict overhead"
-        );
+        const {
+            assert!(
+                BLOB_SIZE_MARGIN > 0,
+                "BLOB_SIZE_MARGIN must leave headroom above the strict overhead"
+            )
+        };
     }
 }
