@@ -38,7 +38,12 @@ fn public_decrypt_matches_nist_empty_aad_vectors() {
         blob.extend_from_slice(&hexd(v.tag));
 
         let recovered = decrypt_record(&key, &blob).expect(v.name);
-        assert_eq!(recovered, hexd(v.plaintext), "{}: plaintext mismatch", v.name);
+        assert_eq!(
+            recovered,
+            hexd(v.plaintext),
+            "{}: plaintext mismatch",
+            v.name
+        );
     }
 }
 
@@ -79,7 +84,10 @@ fn wire_format_layout_and_overhead() {
     let (nonce, ct_tag) = blob.split_at(NONCE_LEN);
     let mut recomposed = nonce.to_vec();
     recomposed.extend_from_slice(ct_tag);
-    assert_eq!(decrypt_record(&key, &recomposed).expect("decrypt"), plaintext);
+    assert_eq!(
+        decrypt_record(&key, &recomposed).expect("decrypt"),
+        plaintext
+    );
 }
 
 // --- G6: input robustness -----------------------------------------------------------
@@ -90,7 +98,9 @@ fn empty_plaintext_round_trips() {
     let blob = encrypt_record(&key, b"").expect("encrypt empty");
     // No ciphertext bytes — just nonce + tag.
     assert_eq!(blob.len(), OVERHEAD_LEN);
-    assert!(decrypt_record(&key, &blob).expect("decrypt empty").is_empty());
+    assert!(decrypt_record(&key, &blob)
+        .expect("decrypt empty")
+        .is_empty());
 }
 
 #[test]
@@ -142,7 +152,10 @@ fn record_at_500kb_budget_round_trips() {
     let plaintext = vec![0x5Au8; 500 * 1024];
     let blob = encrypt_record(&key, &plaintext).expect("encrypt 500 KB");
     assert_eq!(blob.len(), OVERHEAD_LEN + plaintext.len());
-    assert_eq!(decrypt_record(&key, &blob).expect("decrypt 500 KB"), plaintext);
+    assert_eq!(
+        decrypt_record(&key, &blob).expect("decrypt 500 KB"),
+        plaintext
+    );
 }
 
 /// Blobs in [NONCE_LEN, OVERHEAD_LEN) carry a nonce but no complete GCM tag.
@@ -175,7 +188,10 @@ fn tampered_ciphertext_body_is_rejected() {
     // Wire layout: nonce[0..NONCE_LEN] || ct[NONCE_LEN..blob.len()-TAG_LEN] || tag[..]
     let ct_start = NONCE_LEN;
     let ct_end = blob.len() - TAG_LEN;
-    assert!(ct_end > ct_start, "test requires at least one ciphertext byte");
+    assert!(
+        ct_end > ct_start,
+        "test requires at least one ciphertext byte"
+    );
     blob[ct_start] ^= 0xFF; // flip bits in the first ciphertext byte
     assert_eq!(decrypt_record(&key, &blob), Err(CryptoError::Decrypt));
 }
@@ -213,7 +229,10 @@ fn generate_master_key_produces_distinct_outputs() {
 fn derive_key_is_sensitive_to_salt() {
     let key_a = derive_key(b"passphrase", b"salt-A", 1000);
     let key_b = derive_key(b"passphrase", b"salt-B", 1000);
-    assert_ne!(key_a, key_b, "different salts must yield different derived keys");
+    assert_ne!(
+        key_a, key_b,
+        "different salts must yield different derived keys"
+    );
 }
 
 /// Different passphrases under the same salt and iteration count must yield different keys.
@@ -221,7 +240,10 @@ fn derive_key_is_sensitive_to_salt() {
 fn derive_key_is_sensitive_to_passphrase() {
     let key_a = derive_key(b"correct horse battery staple", b"salt", 1000);
     let key_b = derive_key(b"incorrect horse battery staple", b"salt", 1000);
-    assert_ne!(key_a, key_b, "different passphrases must yield different derived keys");
+    assert_ne!(
+        key_a, key_b,
+        "different passphrases must yield different derived keys"
+    );
 }
 
 /// An empty passphrase is a valid (if weak) PBKDF2 input — must not panic.
@@ -252,7 +274,10 @@ fn wipe_empty_slice_is_noop() {
 fn wipe_arbitrary_length_buffer() {
     let mut buf = vec![0xDEu8; 37]; // arbitrary non-KEY_LEN length
     wipe(&mut buf);
-    assert!(buf.iter().all(|&b| b == 0), "wipe must zero every byte regardless of length");
+    assert!(
+        buf.iter().all(|&b| b == 0),
+        "wipe must zero every byte regardless of length"
+    );
 }
 
 // --- CryptoError surface -----------------------------------------------------------
@@ -263,8 +288,14 @@ fn wipe_arbitrary_length_buffer() {
 fn crypto_error_display_is_non_empty() {
     let rng_msg = format!("{}", CryptoError::Rng);
     let dec_msg = format!("{}", CryptoError::Decrypt);
-    assert!(!rng_msg.is_empty(), "CryptoError::Rng Display must be non-empty");
-    assert!(!dec_msg.is_empty(), "CryptoError::Decrypt Display must be non-empty");
+    assert!(
+        !rng_msg.is_empty(),
+        "CryptoError::Rng Display must be non-empty"
+    );
+    assert!(
+        !dec_msg.is_empty(),
+        "CryptoError::Decrypt Display must be non-empty"
+    );
     // The messages must differ so a caller can at least log distinct failure modes.
     assert_ne!(rng_msg, dec_msg);
 }
@@ -290,9 +321,21 @@ fn all_auth_failures_return_same_indistinguishable_error() {
     let truncated = &blob[..blob.len() - 1];
     let e_truncated = decrypt_record(&key, truncated).unwrap_err();
 
-    assert_eq!(e_wrong_key, CryptoError::Decrypt, "wrong key must give Decrypt");
-    assert_eq!(e_tampered_tag, CryptoError::Decrypt, "tampered tag must give Decrypt");
-    assert_eq!(e_truncated, CryptoError::Decrypt, "truncated blob must give Decrypt");
+    assert_eq!(
+        e_wrong_key,
+        CryptoError::Decrypt,
+        "wrong key must give Decrypt"
+    );
+    assert_eq!(
+        e_tampered_tag,
+        CryptoError::Decrypt,
+        "tampered tag must give Decrypt"
+    );
+    assert_eq!(
+        e_truncated,
+        CryptoError::Decrypt,
+        "truncated blob must give Decrypt"
+    );
     // All three are the same variant — no differentiation possible for the caller.
     assert_eq!(e_wrong_key, e_tampered_tag);
     assert_eq!(e_wrong_key, e_truncated);
@@ -306,8 +349,15 @@ fn single_byte_plaintext_round_trips() {
     let key = generate_master_key();
     let plaintext = b"\x42";
     let blob = encrypt_record(&key, plaintext).expect("encrypt 1 byte");
-    assert_eq!(blob.len(), OVERHEAD_LEN + 1, "1-byte plaintext blob must be OVERHEAD_LEN + 1");
-    assert_eq!(decrypt_record(&key, &blob).expect("decrypt 1 byte"), plaintext);
+    assert_eq!(
+        blob.len(),
+        OVERHEAD_LEN + 1,
+        "1-byte plaintext blob must be OVERHEAD_LEN + 1"
+    );
+    assert_eq!(
+        decrypt_record(&key, &blob).expect("decrypt 1 byte"),
+        plaintext
+    );
 }
 
 /// An all-zero plaintext round-trips correctly. GCM operates as a stream cipher and

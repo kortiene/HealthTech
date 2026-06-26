@@ -57,7 +57,7 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use pbkdf2::pbkdf2_hmac;
 use sha2::Sha256;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 /// AES-256 key length in bytes.
 pub const KEY_LEN: usize = 32;
@@ -102,7 +102,13 @@ fn seal(
 ) -> Result<Vec<u8>, CryptoError> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     cipher
-        .encrypt(Nonce::from_slice(nonce), Payload { msg: plaintext, aad })
+        .encrypt(
+            Nonce::from_slice(nonce),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         // GCM only errors when plaintext exceeds its ~64 GiB limit — unreachable for a
         // ≤ 500 KB record. Surfaced coarsely as an internal sealing failure, no oracle.
         .map_err(|_| CryptoError::Rng)
@@ -119,7 +125,13 @@ fn open(
 ) -> Result<Vec<u8>, CryptoError> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     cipher
-        .decrypt(Nonce::from_slice(nonce), Payload { msg: ciphertext_and_tag, aad })
+        .decrypt(
+            Nonce::from_slice(nonce),
+            Payload {
+                msg: ciphertext_and_tag,
+                aad,
+            },
+        )
         .map_err(|_| CryptoError::Decrypt)
 }
 
@@ -133,6 +145,88 @@ pub fn generate_master_key() -> [u8; KEY_LEN] {
     // Panics only if the OS has no entropy source at all, which is unrecoverable.
     getrandom::getrandom(&mut key).expect("OS CSPRNG unavailable");
     key
+}
+
+/// In-RAM owner of the patient master key (root DEK), kept inside the Rust core (#11).
+///
+/// This is the opaque *handle* the FFI / `flutter_rust_bridge` surface hands to Dart
+/// (ADR 0003 / ADR 0006). The 256-bit key it wraps is generated on-device by the OS
+/// CSPRNG and **never leaves the device in clear** — it exists in clear only in RAM, only
+/// for as long as this handle is alive.
+///
+/// ## Why a handle, not raw bytes (G8)
+/// The clear key crossing the FFI boundary is a leak surface. By exposing a handle, Dart
+/// holds only an opaque reference; the clear bytes cross the boundary exactly once, through
+/// the explicitly named [`MasterKeyHandle::export_sealable`], whose only caller is the
+/// immediate hardware-sealing step (Android Keystore StrongBox/TEE). The
+/// [`zeroize::Zeroizing`] inner buffer is overwritten on `Drop`, so an abandoned handle
+/// does not leave the key in freed memory (acceptance criterion #2 — no persistent leak).
+///
+/// The seal/unseal of the *clear* bytes by hardware is platform code (Kotlin/Swift); this
+/// type is the device-agnostic Rust anchor for the key's lifetime. The hardware-sealed blob
+/// is a separate, device-internal format and is **not** the [`encrypt_record`] wire format.
+pub struct MasterKeyHandle {
+    key: Zeroizing<[u8; KEY_LEN]>,
+}
+
+impl MasterKeyHandle {
+    /// Generate a fresh master key from the OS CSPRNG, owned by this handle (G1).
+    ///
+    /// The key is produced inside the Rust core — never in Dart/Kotlin/Swift — and is held
+    /// in a self-zeroizing buffer from the moment it exists.
+    pub fn generate() -> Self {
+        let mut key = [0u8; KEY_LEN];
+        // Panics only if the OS has no entropy source at all, which is unrecoverable.
+        getrandom::getrandom(&mut key).expect("OS CSPRNG unavailable");
+        let handle = Self {
+            key: Zeroizing::new(key),
+        };
+        // Wipe the transient stack copy; only the handle retains the key.
+        key.zeroize();
+        handle
+    }
+
+    /// Re-wrap clear bytes that hardware has just **unsealed** back into a handle (#14).
+    ///
+    /// The unseal path hands the Keystore-decrypted bytes straight back to the Rust core as
+    /// a handle, used, then dropped (which zeroizes). Keeping the unsealed key inside a
+    /// handle, not a loose buffer, bounds the post-unseal exposure window.
+    pub fn from_unsealed(bytes: [u8; KEY_LEN]) -> Self {
+        let mut bytes = bytes;
+        let handle = Self {
+            key: Zeroizing::new(bytes),
+        };
+        bytes.zeroize();
+        handle
+    }
+
+    /// Export the clear key **for immediate hardware sealing only** (G8).
+    ///
+    /// This is the single sanctioned point where the clear master key crosses the FFI
+    /// boundary. The caller (the Kotlin/Swift Keystore shim) must seal the returned bytes at
+    /// once and drop them; the returned buffer is itself [`zeroize::Zeroizing`], so a dropped
+    /// copy is overwritten. Do **not** persist, log, or transmit these bytes — by
+    /// construction only the hardware-sealed blob is ever written to disk (G4).
+    pub fn export_sealable(&self) -> Zeroizing<[u8; KEY_LEN]> {
+        Zeroizing::new(*self.key)
+    }
+
+    /// Explicitly wipe and consume the handle (G5).
+    ///
+    /// Dropping the handle already zeroizes the inner buffer; this consuming method makes
+    /// the "sealed → wipe the clear copy" step explicit and self-documenting at call sites
+    /// and across the FFI surface.
+    pub fn wipe(self) {
+        // `self` is dropped here; `Zeroizing` overwrites the key in place.
+    }
+
+    /// Borrow the clear key for an in-RAM operation (test-only for now; #14 will expose the
+    /// production borrow that wraps the SQLCipher DB key). The borrow stays within the
+    /// handle's lifetime, so the key is never copied out.
+    #[cfg(test)]
+    fn expose_for_test(&self) -> &[u8; KEY_LEN] {
+        &self.key
+    }
 }
 
 /// Encrypt a record with AES-256-GCM under `key`.
@@ -424,6 +518,39 @@ mod tests {
         let mut secret = [0xABu8; KEY_LEN];
         wipe(&mut secret);
         assert_eq!(secret, [0u8; KEY_LEN]);
+    }
+
+    #[test]
+    fn master_key_handle_generates_full_length_nonzero_key() {
+        let handle = MasterKeyHandle::generate();
+        // 256-bit key, and not the all-zero buffer (basic entropy sanity).
+        assert_eq!(handle.expose_for_test().len(), KEY_LEN);
+        assert_ne!(handle.expose_for_test(), &[0u8; KEY_LEN]);
+    }
+
+    #[test]
+    fn master_key_handles_differ_between_generations() {
+        // Two independent generations must not collide (CSPRNG entropy).
+        let a = MasterKeyHandle::generate();
+        let b = MasterKeyHandle::generate();
+        assert_ne!(a.expose_for_test(), b.expose_for_test());
+    }
+
+    #[test]
+    fn export_sealable_matches_handle_key() {
+        // The exported bytes (which go straight to hardware sealing) equal the handle's key.
+        let handle = MasterKeyHandle::generate();
+        let sealable = handle.export_sealable();
+        assert_eq!(&*sealable, handle.expose_for_test());
+    }
+
+    #[test]
+    fn from_unsealed_round_trips_clear_bytes() {
+        // Mirrors the unseal path: hardware returns clear bytes, Rust re-wraps them.
+        let original = MasterKeyHandle::generate();
+        let sealable = original.export_sealable();
+        let rewrapped = MasterKeyHandle::from_unsealed(*sealable);
+        assert_eq!(rewrapped.expose_for_test(), original.expose_for_test());
     }
 
     // TODO(#11): bind record metadata (id / version) as AES-GCM associated data via an
