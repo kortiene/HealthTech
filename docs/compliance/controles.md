@@ -52,7 +52,7 @@
 
 | ID | Preuve attendue | Démontre (CTRL) | Source (issue / fichier) | Disponibilité |
 | --- | --- | --- | --- | --- |
-| **PREUVE-01** | **Vecteurs de test NIST AES-GCM** passants | CTRL-01 | [#10](https://github.com/kortiene/HealthTech/issues/10) | Planifié |
+| **PREUVE-01** | **Vecteurs de test NIST AES-GCM** passants (gating CI) + revue de sécurité du module | CTRL-01 | [#10](https://github.com/kortiene/HealthTech/issues/10) ; [`crypto-core/tests/aes_gcm_nist_vectors.rs`](../../crypto-core/tests/aes_gcm_nist_vectors.rs), [`crypto-core/tests/vectors/PROVENANCE.md`](../../crypto-core/tests/vectors/PROVENANCE.md), [`docs/security/crypto-core-review.md`](../security/crypto-core-review.md) | **Existant** (vecteurs en gating ; revue interne livrée — revue indépendante = PREUVE-15/#26) |
 | **PREUVE-02** | Test **« le serveur ne peut pas déchiffrer »** | CTRL-02 | [#9](https://github.com/kortiene/HealthTech/issues/9) | Planifié |
 | **PREUVE-03** | **Capture réseau** « pas de PII en clair » à l'onboarding | CTRL-01, CTRL-02, CTRL-13 | [#13](https://github.com/kortiene/HealthTech/issues/13) | Planifié |
 | **PREUVE-04** | **Schéma de base de données** (métadonnées non identifiantes uniquement) | CTRL-13 | [ADR 0005](../adr/0005-storage-and-sovereign-hosting.md), [#9](https://github.com/kortiene/HealthTech/issues/9) | Planifié |

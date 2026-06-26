@@ -7,10 +7,16 @@
 // The FFI surface is intentionally tiny (ADR 0003): clients call only the
 // audited high-level functions. NO cipher logic ever lives in Dart.
 //
+// The Rust API + wire format are FROZEN by #10 — codegen must mirror it exactly,
+// never reinterpret it: encryptRecord returns `nonce(12) || ciphertext || tag(16)`
+// (28-byte overhead), and decryptRecord surfaces a single coarse error (no oracle)
+// and never returns plaintext on a bad key/tag/blob. See crypto-core/README.md and
+// docs/security/crypto-core-review.md.
+//
 // TODO(#11): wire flutter_rust_bridge codegen to crypto-core and expose:
 //   - generateMasterKey()          -> opaque handle, key never leaves Rust
-//   - encryptRecord(bytes)         -> AES-256-GCM ciphertext
-//   - decryptRecord(ciphertext)    -> plaintext (kept in Rust; minimise Dart copies)
+//   - encryptRecord(bytes)         -> AES-256-GCM blob (nonce || ciphertext || tag)
+//   - decryptRecord(blob)          -> plaintext (kept in Rust; minimise Dart copies)
 //   - deriveKey(passphrase, salt)  -> PBKDF2-HMAC-SHA256 (recovery, #12)
 //   - wipe(handle)                 -> zeroize secret in Rust
 
