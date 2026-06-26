@@ -9,18 +9,54 @@ indexed by an anonymous UUID. The server **never holds key material and has no d
 clients encrypt with `crypto-core` (AES-256-GCM) before any transit, and the backend only ever
 sees ciphertext.
 
-Current scaffold (issue #9, structure only):
+## HTTP API (issue #9)
 
-- `GET  /health` → `200 "ok"` (liveness)
-- `PUT  /blob/{uuid}` → stores opaque bytes (`201 Created`)
-- `GET  /blob/{uuid}` → returns the stored opaque bytes (`200`) or `404`
+| Method | Path | Body | Responses |
+| --- | --- | --- | --- |
+| `GET` | `/health` | — | `200 "ok"` (readiness) · `503` if the backing store is down |
+| `PUT` | `/blob/{uuid}` | opaque ciphertext (`application/octet-stream`) | `201 Created` (new) · `200 OK` (overwrite) · `400` invalid UUID · `413` over the size budget · `503` store down |
+| `GET` | `/blob/{uuid}` | — | `200` (ciphertext + `Content-Type: application/octet-stream`, `Content-Length`, `ETag`, `X-Blob-Version`) · `400` invalid UUID · `404` unknown · `503` store down |
 
-Storage is an in-memory map. `TODO(#9)` replaces it with MinIO + PostgreSQL; `TODO(#23)` adds
-presigned ephemeral media URLs and HTTP range / resumable (tus) transfers; `TODO(#8)` wires the
-sovereign in-country hosting / TLS reverse proxy.
+- **`{uuid}`** is an **anonymous index** (UUID v4), never derived from PII. A malformed UUID is
+  rejected with `400` by the path extractor.
+- **Size budget.** The plaintext record is **≤ 500 KB** (PRD §4); the server enforces this as a
+  ciphertext ceiling of `500 KB + AES-GCM overhead (12-byte nonce + 16-byte tag) + a small margin`
+  (`store::MAX_BLOB_BYTES`). A larger body is rejected with `413` before it is buffered or stored.
+- **Versioning.** Overwriting a UUID increments a monotonic version, surfaced as `ETag` and
+  `X-Blob-Version` for optimistic concurrency / offline sync (#22).
+- **Errors leak nothing.** A store failure maps to `503` with only a generic reason phrase — no DSN,
+  no backend detail. The request path never panics.
 
-The dependency on `crypto-core` is for **shared types and test-vector (KAT) verification only** —
-not to decrypt.
+## Storage backing
+
+Storage lives behind the `store::BlobStore` seam:
+
+- **`MemoryStore`** — process memory; the default in `dev` and in every test.
+- **`ObjectMeta` (MinIO + PostgreSQL 16)** — the durable in-country backing for `staging`/`prod`
+  (ADR 0005): the opaque ciphertext as a MinIO object (SSE-at-rest, defence in depth *under* the
+  client encryption) plus a `blob_metadata` Postgres row holding **only non-identifying** columns
+  (anonymous UUID, ciphertext size, version, timestamps, public KDF params — **no PII, no
+  plaintext, no keys**). It is **not wired yet**: the real MinIO/Postgres services are provisioned
+  by sovereign hosting (#8), so this variant + its SQL migration land with that bring-up. The seam,
+  size budget, metadata shape, error mapping, and zero-knowledge proofs already exist so it is a
+  drop-in — see `TODO(#9/#8)` in `src/store.rs`.
+
+`TODO(#23)` adds presigned ephemeral media URLs and HTTP range / resumable transfers; `TODO(#8)`
+wires the sovereign in-country hosting / TLS reverse proxy.
+
+## Zero-knowledge guarantees
+
+The server **never holds key material and has no decrypt path**. Clients encrypt with `crypto-core`
+(AES-256-GCM) before any transit; the backend only ever sees and stores **opaque bytes**. The
+dependency on `crypto-core` is limited to **shared types/constants and test-vector (KAT)
+verification** — never to decrypt. This is proven by tests (`cargo test -p backend`):
+
+- **no-plaintext-persisted** — a known plaintext marker, encrypted client-side, never appears in the
+  bytes the server holds;
+- **server-cannot-decrypt** — from the persisted bytes alone, decryption fails without the patient
+  key and succeeds only for the key holder;
+- **no-decrypt-symbol** — a static guard asserts the request-path modules never reference
+  `decrypt_record`.
 
 ## Configuration (injected from the secrets vault)
 
