@@ -80,7 +80,10 @@ mod tests {
         let store = MemoryStore::default();
         let uuid = Uuid::new_v4();
         let outcome = store.put(uuid, b(b"opaque")).await.unwrap();
-        assert_eq!(outcome, PutOutcome::Created(BlobMeta { size: 6, version: 1 }));
+        assert_eq!(
+            outcome,
+            PutOutcome::Created(BlobMeta { size: 6, version: 1 })
+        );
     }
 
     #[tokio::test]
@@ -89,7 +92,10 @@ mod tests {
         let uuid = Uuid::new_v4();
         store.put(uuid, b(b"v1")).await.unwrap();
         let outcome = store.put(uuid, b(b"v2-longer")).await.unwrap();
-        assert_eq!(outcome, PutOutcome::Replaced(BlobMeta { size: 9, version: 2 }));
+        assert_eq!(
+            outcome,
+            PutOutcome::Replaced(BlobMeta { size: 9, version: 2 })
+        );
     }
 
     #[tokio::test]
@@ -171,7 +177,10 @@ mod tests {
         let store = MemoryStore::default();
         let uuid = Uuid::new_v4();
         let outcome = store.put(uuid, Bytes::new()).await.unwrap();
-        assert_eq!(outcome, PutOutcome::Created(BlobMeta { size: 0, version: 1 }));
+        assert_eq!(
+            outcome,
+            PutOutcome::Created(BlobMeta { size: 0, version: 1 })
+        );
         let got = store.get(uuid).await.unwrap().unwrap();
         assert_eq!(got.bytes.len(), 0);
         assert_eq!(got.meta.size, 0);
@@ -221,7 +230,11 @@ mod tests {
         store.put(uuid, b(&[1u8; 40])).await.unwrap();
         let got = store.get(uuid).await.unwrap().unwrap();
         assert_eq!(got.bytes.len(), 40, "GET must return the latest blob bytes");
-        assert_eq!(got.meta.size, 40, "meta.size must reflect the replacement blob size");
+        assert_eq!(
+            got.meta.size,
+            40,
+            "meta.size must reflect the replacement blob size"
+        );
         assert_eq!(got.meta.version, 2);
     }
 
@@ -238,9 +251,12 @@ mod tests {
             .map(|i| {
                 let s = store.clone(); // cheap Arc clone — all tasks share the same store
                 tokio::spawn(async move {
-                    s.put(uuid, Bytes::from(format!("concurrent-payload-{i}").into_bytes()))
-                        .await
-                        .unwrap()
+                    s.put(
+                        uuid,
+                        Bytes::from(format!("concurrent-payload-{i}").into_bytes()),
+                    )
+                    .await
+                    .unwrap()
                 })
             })
             .collect();

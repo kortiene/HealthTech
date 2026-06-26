@@ -158,8 +158,8 @@ impl BlobStore {
 #[cfg(test)]
 mod tests {
     use super::{
-        AES_GCM_OVERHEAD, BLOB_SIZE_MARGIN, BlobMeta, BlobStore, MAX_BLOB_BYTES,
-        MAX_PLAINTEXT_BYTES, PutOutcome, StoreError,
+        BlobMeta, BlobStore, PutOutcome, StoreError, AES_GCM_OVERHEAD, BLOB_SIZE_MARGIN,
+        MAX_BLOB_BYTES, MAX_PLAINTEXT_BYTES,
     };
 
     #[test]
@@ -176,7 +176,10 @@ mod tests {
 
     #[test]
     fn max_blob_bytes_equals_sum_of_its_components() {
-        assert_eq!(MAX_BLOB_BYTES, MAX_PLAINTEXT_BYTES + AES_GCM_OVERHEAD + BLOB_SIZE_MARGIN);
+        assert_eq!(
+            MAX_BLOB_BYTES,
+            MAX_PLAINTEXT_BYTES + AES_GCM_OVERHEAD + BLOB_SIZE_MARGIN
+        );
     }
 
     #[test]
@@ -186,9 +189,18 @@ mod tests {
 
     #[test]
     fn blob_meta_equality_and_debug() {
-        let a = BlobMeta { size: 32, version: 1 };
-        let b = BlobMeta { size: 32, version: 1 };
-        let c = BlobMeta { size: 32, version: 2 };
+        let a = BlobMeta {
+            size: 32,
+            version: 1,
+        };
+        let b = BlobMeta {
+            size: 32,
+            version: 1,
+        };
+        let c = BlobMeta {
+            size: 32,
+            version: 2,
+        };
         assert_eq!(a, b);
         assert_ne!(a, c);
         let _ = format!("{a:?}");
@@ -199,16 +211,34 @@ mod tests {
         let msg = StoreError::Unavailable.to_string();
         assert!(!msg.is_empty());
         // Generic text only — no DSN, IP, or port number.
-        assert!(!msg.contains("://"), "display must not contain a connection string");
-        assert!(!msg.contains("127."), "display must not contain an IP address");
+        assert!(
+            !msg.contains("://"),
+            "display must not contain a connection string"
+        );
+        assert!(
+            !msg.contains("127."),
+            "display must not contain an IP address"
+        );
     }
 
     #[test]
     fn put_outcome_variants_are_not_equal() {
-        let meta = BlobMeta { size: 10, version: 1 };
-        assert_eq!(PutOutcome::Created(meta.clone()), PutOutcome::Created(meta.clone()));
-        assert_ne!(PutOutcome::Created(meta.clone()), PutOutcome::Replaced(meta.clone()));
-        assert_eq!(PutOutcome::Replaced(meta.clone()), PutOutcome::Replaced(meta));
+        let meta = BlobMeta {
+            size: 10,
+            version: 1,
+        };
+        assert_eq!(
+            PutOutcome::Created(meta.clone()),
+            PutOutcome::Created(meta.clone())
+        );
+        assert_ne!(
+            PutOutcome::Created(meta.clone()),
+            PutOutcome::Replaced(meta.clone())
+        );
+        assert_eq!(
+            PutOutcome::Replaced(meta.clone()),
+            PutOutcome::Replaced(meta)
+        );
     }
 
     /// `BlobStore::from_config` with a dev config (no env vars) must construct a working
@@ -243,6 +273,9 @@ mod tests {
     /// additions (e.g. AAD channel — `TODO(#11)`).
     #[test]
     fn blob_size_margin_is_positive() {
-        assert!(BLOB_SIZE_MARGIN > 0, "BLOB_SIZE_MARGIN must leave headroom above the strict overhead");
+        assert!(
+            BLOB_SIZE_MARGIN > 0,
+            "BLOB_SIZE_MARGIN must leave headroom above the strict overhead"
+        );
     }
 }

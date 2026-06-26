@@ -43,7 +43,10 @@ mod tests {
 
     #[test]
     fn store_unavailable_converts_to_api_unavailable() {
-        assert_eq!(ApiError::from(StoreError::Unavailable), ApiError::Unavailable);
+        assert_eq!(
+            ApiError::from(StoreError::Unavailable),
+            ApiError::Unavailable
+        );
     }
 
     #[test]
@@ -63,10 +66,16 @@ mod tests {
             .block_on(resp.into_body().collect())
             .unwrap()
             .to_bytes();
-        assert!(!body.is_empty(), "error response must include a reason phrase");
+        assert!(
+            !body.is_empty(),
+            "error response must include a reason phrase"
+        );
         let text = std::str::from_utf8(&body).expect("reason phrase must be UTF-8");
         // Generic text only — no stack traces, DSNs, or internal detail.
-        assert!(!text.contains("://"), "error body must not contain a connection string");
+        assert!(
+            !text.contains("://"),
+            "error body must not contain a connection string"
+        );
     }
 
     #[test]

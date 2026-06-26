@@ -66,11 +66,7 @@ async fn health(State(state): State<AppState>) -> Response {
 /// is rejected with `400` by the `Path<Uuid>` extractor; a body over [`MAX_BLOB_BYTES`] is rejected
 /// with `413` by the body-limit layer — both before any persistence. Logs carry only
 /// non-identifying fields (UUID, ciphertext size, version) — never the body.
-async fn put_blob(
-    State(state): State<AppState>,
-    Path(uuid): Path<Uuid>,
-    body: Bytes,
-) -> Response {
+async fn put_blob(State(state): State<AppState>, Path(uuid): Path<Uuid>, body: Bytes) -> Response {
     match state.store.put(uuid, body).await {
         Ok(PutOutcome::Created(meta)) => {
             tracing::debug!(%uuid, size = meta.size, version = meta.version, "blob created");
@@ -337,7 +333,9 @@ mod tests {
     /// persisted) and (b) the server cannot decrypt without the key, while the key holder can.
     #[tokio::test]
     async fn no_plaintext_persisted_and_server_cannot_decrypt() {
-        use crypto_core::{decrypt_record, encrypt_record, generate_master_key, CryptoError, KEY_LEN};
+        use crypto_core::{
+            decrypt_record, encrypt_record, generate_master_key, CryptoError, KEY_LEN,
+        };
 
         let key = generate_master_key();
         let marker = b"PLAINTEXT-MARKER blood-type:O- allergy:penicillin";
@@ -433,9 +431,9 @@ mod tests {
             &[0u8; 32],
             &[0xffu8; 32],
             &[
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-                0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
-                0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+                0x1c, 0x1d, 0x1e, 0x1f,
             ],
         ];
         for &payload in payloads {
@@ -608,7 +606,8 @@ mod tests {
         use crypto_core::{decrypt_record, encrypt_record, generate_master_key, CryptoError};
 
         let key = generate_master_key();
-        let mut ciphertext = encrypt_record(&key, b"sensitive-record").expect("client-side encrypt");
+        let mut ciphertext =
+            encrypt_record(&key, b"sensitive-record").expect("client-side encrypt");
         // Flip one bit in the GCM tag (the last byte of the wire format: nonce || ct || tag).
         let last = ciphertext.len() - 1;
         ciphertext[last] ^= 0x01;
@@ -633,16 +632,15 @@ mod tests {
 
         // Server returns exactly the bytes it received — no transformation.
         let got = app
-            .oneshot(
-                Request::builder()
-                    .uri(&uri)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::builder().uri(&uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
         let stored = got.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(&stored[..], &ciphertext[..], "server must return bytes verbatim");
+        assert_eq!(
+            &stored[..],
+            &ciphertext[..],
+            "server must return bytes verbatim"
+        );
 
         // Decryption fails: AES-GCM authentication catches the tampered tag.
         assert_eq!(
@@ -684,7 +682,10 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
-        assert!(body.is_empty(), "PUT 200 overwrite response must carry no body");
+        assert!(
+            body.is_empty(),
+            "PUT 200 overwrite response must carry no body"
+        );
     }
 
     /// The `ETag` returned by `PUT` and the `ETag` returned by the subsequent `GET` for the same
