@@ -82,7 +82,10 @@ mod tests {
         let outcome = store.put(uuid, b(b"opaque")).await.unwrap();
         assert_eq!(
             outcome,
-            PutOutcome::Created(BlobMeta { size: 6, version: 1 })
+            PutOutcome::Created(BlobMeta {
+                size: 6,
+                version: 1
+            })
         );
     }
 
@@ -94,7 +97,10 @@ mod tests {
         let outcome = store.put(uuid, b(b"v2-longer")).await.unwrap();
         assert_eq!(
             outcome,
-            PutOutcome::Replaced(BlobMeta { size: 9, version: 2 })
+            PutOutcome::Replaced(BlobMeta {
+                size: 9,
+                version: 2
+            })
         );
     }
 
@@ -179,7 +185,10 @@ mod tests {
         let outcome = store.put(uuid, Bytes::new()).await.unwrap();
         assert_eq!(
             outcome,
-            PutOutcome::Created(BlobMeta { size: 0, version: 1 })
+            PutOutcome::Created(BlobMeta {
+                size: 0,
+                version: 1
+            })
         );
         let got = store.get(uuid).await.unwrap().unwrap();
         assert_eq!(got.bytes.len(), 0);
@@ -231,8 +240,7 @@ mod tests {
         let got = store.get(uuid).await.unwrap().unwrap();
         assert_eq!(got.bytes.len(), 40, "GET must return the latest blob bytes");
         assert_eq!(
-            got.meta.size,
-            40,
+            got.meta.size, 40,
             "meta.size must reflect the replacement blob size"
         );
         assert_eq!(got.meta.version, 2);
