@@ -115,7 +115,9 @@ class KeystoreChannel {
   Future<void> clear() => _invoke<void>('clear', const {});
 
   /// Backwards-compatible alias kept for the earlier stub name; prefer [seal].
-  @Deprecated('Use seal(clearKey); the parameter is the raw key, native seals it')
+  @Deprecated(
+    'Use seal(clearKey); the parameter is the raw key, native seals it',
+  )
   Future<Uint8List> sealMasterKey(Uint8List clearKey) => seal(clearKey);
 
   Future<T?> _invoke<T>(String method, Map<String, Object?> args) async {
