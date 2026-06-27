@@ -10,12 +10,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app_patient/main.dart';
 
 void main() {
-  testWidgets('patient app skeleton renders home stub', (tester) async {
+  testWidgets('patient app renders home stub with key-state routing', (
+    tester,
+  ) async {
     await tester.pumpWidget(const PatientApp());
 
+    // First frame: the master-key state probe is still in flight.
     expect(find.text('HealthTech'), findsOneWidget);
     expect(
-      find.textContaining('skeleton'),
+      find.textContaining('HealthTech patient app'),
       findsOneWidget,
     );
     expect(find.byType(MaterialApp), findsOneWidget);

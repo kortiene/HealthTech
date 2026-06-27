@@ -31,6 +31,16 @@ record must remain RAM-only.
   where UX allows; it wraps the SQLCipher DB key and per-record data keys.
 - **Recovery (#12):** PBKDF2 from a passphrase / culturally-adapted security questions re-derives access on
   a new phone (US-1.4) without the original hardware key ever leaving the old device.
+
+> **Implementation note (#11) — envelope encryption.** A Rust-generated key cannot itself *be* a
+> non-exportable Keystore key, so the master key is sealed via **envelope encryption**: the Keystore
+> generates a non-exportable hardware **KEK** (AES-256-GCM, `setIsStrongBoxBacked(true)` → TEE fallback,
+> alias `healthtech.master.kek.v1`) that wraps the Rust master key; only the sealed blob
+> (`version || iv || ciphertext || tag`) is persisted. **No software fallback** — absence of a
+> hardware keystore fails loudly (typed `KEYSTORE_UNAVAILABLE`). `KeyPermanentlyInvalidatedException`
+> maps to `KEY_INVALIDATED` → recovery (#12). The clear key lives only in RAM inside a `MasterKeyHandle`
+> and is zeroized after sealing/use. (Alternative considered and rejected for #11: direct wrapped-key
+> import of the Rust key as a non-exportable Keystore key — more complex, less portable.)
 - **Doctor session key:** the per-session symmetric key arrives via the patient's 120 s QR, lives only in
   WASM/JS heap, and is zeroized on session end / 15-min timeout / tab close / upload completion. The QR
   grant is **single-use, short-TTL** and red-teamed in the threat model (#6).

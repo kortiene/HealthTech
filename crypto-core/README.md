@@ -13,6 +13,10 @@ Provide auditable, client-side encryption primitives:
 | Function / const | Role |
 | --- | --- |
 | `generate_master_key() -> [u8; 32]` | fresh 256-bit key from the OS CSPRNG |
+| `MasterKeyHandle::generate() -> MasterKeyHandle` | master key generated **inside the core**, held in a self-zeroizing `Zeroizing` buffer (#11, G1/G8) |
+| `MasterKeyHandle::export_sealable() -> Zeroizing<[u8; 32]>` | clear key **for immediate hardware sealing only** — the one sanctioned FFI crossing (#11, G8) |
+| `MasterKeyHandle::from_unsealed([u8; 32]) -> MasterKeyHandle` | re-wrap hardware-unsealed bytes back into a handle (#14 unseal path) |
+| `MasterKeyHandle::wipe(self)` | zeroize + consume the handle (also done on `Drop`) |
 | `encrypt_record(key, &[u8]) -> Result<Vec<u8>, CryptoError>` | AES-256-GCM; fresh random 96-bit nonce **prepended** (`nonce \|\| ciphertext \|\| tag`) |
 | `decrypt_record(key, &[u8]) -> Result<Vec<u8>, CryptoError>` | authenticated decrypt of that blob; coarse `Decrypt` error (no oracle) |
 | `derive_key(passphrase, salt, iters) -> [u8; 32]` | PBKDF2-HMAC-SHA256 recovery-key derivation (calibration deferred to #12) |
@@ -33,6 +37,21 @@ algorithm) is introduced *additively*, never by re-interpreting these bytes. Non
 freshly random per call and never reused under a key; a CSPRNG failure aborts with
 `CryptoError::Rng` rather than emitting a degenerate nonce. Full rationale + the crypto
 review checklist: [`docs/security/crypto-core-review.md`](../docs/security/crypto-core-review.md).
+
+## Master-key sealing boundary (#11)
+
+The master key is **generated in this core** and **never leaves the device in clear**. It
+crosses the FFI exactly once, through `MasterKeyHandle::export_sealable`, whose only caller
+is the platform Keystore shim that seals it immediately:
+
+- **Android (StrongBox/TEE):** a non-exportable hardware **KEK** wraps the master key
+  (envelope encryption, ADR 0006); only the sealed blob is persisted, never the clear key.
+  There is **no software-key fallback** — if no hardware keystore exists, sealing fails
+  loudly. The shim lives in the patient app (`KeystoreSealer.kt`), not here.
+- **Clear-key lifetime:** the clear key exists only in RAM, inside a `MasterKeyHandle`, for
+  the duration of sealing/use, then is `wipe()`-d (acceptance criterion #2 — no persistent
+  leak). The hardware-sealed blob format is device-internal and **separate** from the
+  `encrypt_record` wire format.
 
 ## ADR implemented
 
