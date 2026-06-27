@@ -41,11 +41,11 @@ class Demographics {
   final String? bloodType;
 
   Map<String, Object?> toJson() => {
-    if (givenName != null) 'given_name': givenName,
-    if (birthYear != null) 'birth_year': birthYear,
-    if (sex != null) 'sex': sex,
-    if (bloodType != null) 'blood_type': bloodType,
-  };
+        if (givenName != null) 'given_name': givenName,
+        if (birthYear != null) 'birth_year': birthYear,
+        if (sex != null) 'sex': sex,
+        if (bloodType != null) 'blood_type': bloodType,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -83,10 +83,10 @@ class Allergy {
   final String notedAt;
 
   Map<String, Object?> toJson() => {
-    'substance': substance,
-    'severity': severity,
-    'noted_at': notedAt,
-  };
+        'substance': substance,
+        'severity': severity,
+        'noted_at': notedAt,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -121,10 +121,10 @@ class ChronicCondition {
   final String? since;
 
   Map<String, Object?> toJson() => {
-    'name': name,
-    if (icd10 != null) 'icd10': icd10,
-    if (since != null) 'since': since,
-  };
+        'name': name,
+        if (icd10 != null) 'icd10': icd10,
+        if (since != null) 'since': since,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -167,12 +167,12 @@ class Medication {
   final String? prescribedBy;
 
   Map<String, Object?> toJson() => {
-    'name': name,
-    'dose': dose,
-    'frequency': frequency,
-    'prescribed_at': prescribedAt,
-    if (prescribedBy != null) 'prescribed_by': prescribedBy,
-  };
+        'name': name,
+        'dose': dose,
+        'frequency': frequency,
+        'prescribed_at': prescribedAt,
+        if (prescribedBy != null) 'prescribed_by': prescribedBy,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -228,13 +228,13 @@ class Consultation {
   final List<String> imageUrls;
 
   Map<String, Object?> toJson() => {
-    'id': id,
-    'date': date,
-    'practitioner_ref': practitionerRef,
-    'summary': summary,
-    if (prescription != null) 'prescription': prescription,
-    'image_urls': imageUrls,
-  };
+        'id': id,
+        'date': date,
+        'practitioner_ref': practitionerRef,
+        'summary': summary,
+        if (prescription != null) 'prescription': prescription,
+        'image_urls': imageUrls,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -248,13 +248,13 @@ class Consultation {
 
   @override
   int get hashCode => Object.hash(
-    id,
-    date,
-    practitionerRef,
-    summary,
-    prescription,
-    Object.hashAll(imageUrls),
-  );
+        id,
+        date,
+        practitionerRef,
+        summary,
+        prescription,
+        Object.hashAll(imageUrls),
+      );
 }
 
 class Immunization {
@@ -279,10 +279,10 @@ class Immunization {
   final int? dose;
 
   Map<String, Object?> toJson() => {
-    'name': name,
-    'date': date,
-    if (dose != null) 'dose': dose,
-  };
+        'name': name,
+        'date': date,
+        if (dose != null) 'dose': dose,
+      };
 
   @override
   bool operator ==(Object other) =>
@@ -345,8 +345,7 @@ class MedicalRecord {
           ChronicCondition.fromJson(e as Map<String, Object?>),
       ],
       medications: [
-        for (final e in rawMeds)
-          Medication.fromJson(e as Map<String, Object?>),
+        for (final e in rawMeds) Medication.fromJson(e as Map<String, Object?>),
       ],
       consultations: [
         for (final e in rawConsults)
@@ -382,17 +381,17 @@ class MedicalRecord {
   final String updatedAt;
 
   Map<String, Object?> toJson() => {
-    'v': v,
-    'patient_id': patientId,
-    'demographics': demographics.toJson(),
-    'allergies': allergies.map((e) => e.toJson()).toList(),
-    'chronic_conditions': chronicConditions.map((e) => e.toJson()).toList(),
-    'medications': medications.map((e) => e.toJson()).toList(),
-    'consultations': consultations.map((e) => e.toJson()).toList(),
-    'immunizations': immunizations.map((e) => e.toJson()).toList(),
-    'created_at': createdAt,
-    'updated_at': updatedAt,
-  };
+        'v': v,
+        'patient_id': patientId,
+        'demographics': demographics.toJson(),
+        'allergies': allergies.map((e) => e.toJson()).toList(),
+        'chronic_conditions': chronicConditions.map((e) => e.toJson()).toList(),
+        'medications': medications.map((e) => e.toJson()).toList(),
+        'consultations': consultations.map((e) => e.toJson()).toList(),
+        'immunizations': immunizations.map((e) => e.toJson()).toList(),
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 
   /// UTF-8 encoded JSON bytes — the plaintext payload for encryption.
   List<int> toUtf8Bytes() => utf8.encode(jsonEncode(toJson()));
@@ -436,17 +435,17 @@ class MedicalRecord {
 
   @override
   int get hashCode => Object.hash(
-    v,
-    patientId,
-    demographics,
-    Object.hashAll(allergies),
-    Object.hashAll(chronicConditions),
-    Object.hashAll(medications),
-    Object.hashAll(consultations),
-    Object.hashAll(immunizations),
-    createdAt,
-    updatedAt,
-  );
+        v,
+        patientId,
+        demographics,
+        Object.hashAll(allergies),
+        Object.hashAll(chronicConditions),
+        Object.hashAll(medications),
+        Object.hashAll(consultations),
+        Object.hashAll(immunizations),
+        createdAt,
+        updatedAt,
+      );
 }
 
 bool _listEq<T>(List<T> a, List<T> b) {

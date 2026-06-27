@@ -6,10 +6,10 @@ import 'package:app_patient/src/record/medical_record.dart';
 import 'package:app_patient/src/record/record_size_guard.dart';
 
 MedicalRecord _minimal() => MedicalRecord(
-  patientId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-  createdAt: '2024-01-01T00:00:00Z',
-  updatedAt: '2024-01-01T00:00:00Z',
-);
+      patientId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    );
 
 /// Produces a [Consultation] whose summary is exactly [payloadBytes] bytes.
 Consultation _consultationOfSize(String id, String date, int payloadBytes) {

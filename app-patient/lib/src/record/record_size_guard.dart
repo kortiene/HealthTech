@@ -30,8 +30,7 @@ class RecordTooLargeException implements Exception {
   final int sizeBytes;
 
   @override
-  String toString() =>
-      'RecordTooLargeException: record is $sizeBytes bytes '
+  String toString() => 'RecordTooLargeException: record is $sizeBytes bytes '
       '(limit: $maxPlaintextBytes bytes / 500 Kio).';
 }
 
@@ -44,8 +43,7 @@ class RecordSizeWarning implements Exception {
   final int sizeBytes;
 
   @override
-  String toString() =>
-      'RecordSizeWarning: record is $sizeBytes bytes '
+  String toString() => 'RecordSizeWarning: record is $sizeBytes bytes '
       '(≥ 80 % of the 500 Kio limit). '
       'Consider truncating old consultations.';
 }
