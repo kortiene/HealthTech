@@ -8,23 +8,23 @@ void main() {
   group('MedicalRecord', () {
     const sample = MedicalRecord(
       patientId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-      demographics: const Demographics(
+      demographics: Demographics(
         givenName: 'Awa',
         birthYear: 1996,
         sex: 'F',
         bloodType: 'O+',
       ),
-      allergies: const [
+      allergies: [
         Allergy(
           substance: 'Pénicilline',
           severity: 'severe',
           notedAt: '2024-01-15',
         ),
       ],
-      chronicConditions: const [
+      chronicConditions: [
         ChronicCondition(name: 'Diabète type 2', icd10: 'E11', since: '2020'),
       ],
-      medications: const [
+      medications: [
         Medication(
           name: 'Metformine',
           dose: '500 mg',
@@ -32,7 +32,7 @@ void main() {
           prescribedAt: '2024-01-15',
         ),
       ],
-      consultations: const [
+      consultations: [
         Consultation(
           id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
           date: '2024-01-15',
@@ -42,7 +42,7 @@ void main() {
           imageUrls: ['https://cdn.healthtech.ci/img/abc?token=xyz'],
         ),
       ],
-      immunizations: const [
+      immunizations: [
         Immunization(name: 'Hépatite B', date: '2010-03-01', dose: 1),
       ],
       createdAt: '2024-01-01T00:00:00Z',
