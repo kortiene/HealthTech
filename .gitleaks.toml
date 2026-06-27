@@ -30,6 +30,9 @@ paths = [
   '''^infra/dev/compose\.ya?ml$''',
   '''^\.gitleaks\.toml$''',
   '''^backend/tests/check_secrets_sh\.rs$''',
+  # NIST CAVP AES-256-GCM known-answer vectors — public test fixtures, not real keys.
+  '''^crypto-core/tests/vectors/nist_aes256gcm\.rs$''',
+  '''^crypto-core/src/lib\.rs$''',
 ]
 # Throwaway dev tokens and bootstrap placeholders are not secrets.
 regexes = [

@@ -10,13 +10,29 @@ there is exactly one audit surface for the zero-knowledge boundary.
 
 Provide auditable, client-side encryption primitives:
 
-| Function | Role |
+| Function / const | Role |
 | --- | --- |
 | `generate_master_key() -> [u8; 32]` | fresh 256-bit key from the OS CSPRNG |
-| `encrypt_record(key, &[u8]) -> Result<Vec<u8>>` | AES-256-GCM; random 96-bit nonce **prepended** (`nonce \|\| ciphertext \|\| tag`) |
-| `decrypt_record(key, &[u8]) -> Result<Vec<u8>>` | authenticated decrypt of that blob |
-| `derive_key(passphrase, salt, iters) -> [u8; 32]` | PBKDF2-HMAC-SHA256 recovery-key derivation |
+| `encrypt_record(key, &[u8]) -> Result<Vec<u8>, CryptoError>` | AES-256-GCM; fresh random 96-bit nonce **prepended** (`nonce \|\| ciphertext \|\| tag`) |
+| `decrypt_record(key, &[u8]) -> Result<Vec<u8>, CryptoError>` | authenticated decrypt of that blob; coarse `Decrypt` error (no oracle) |
+| `derive_key(passphrase, salt, iters) -> [u8; 32]` | PBKDF2-HMAC-SHA256 recovery-key derivation (calibration deferred to #12) |
 | `wipe(&mut [u8])` | zeroize a secret buffer in place |
+| `KEY_LEN` (32) · `NONCE_LEN` (12) · `TAG_LEN` (16) · `OVERHEAD_LEN` (28) | public layout constants |
+| `enum CryptoError { Rng, Decrypt }` | coarse, secret-independent error model |
+
+### Wire format (stable contract — frozen by #10)
+
+```text
+nonce (12 bytes) || ciphertext (= plaintext length) || GCM tag (16 bytes)
+```
+
+Fixed overhead **28 bytes** (`OVERHEAD_LEN`) — the storage budget of #9/#15 (plaintext
+≤ 500 KB) accounts for it. **No version byte in v1** (kept consistent with the 28-byte
+overhead already budgeted by the merged #9 blob store); future evolution (AAD #11, future
+algorithm) is introduced *additively*, never by re-interpreting these bytes. Nonces are
+freshly random per call and never reused under a key; a CSPRNG failure aborts with
+`CryptoError::Rng` rather than emitting a degenerate nonce. Full rationale + the crypto
+review checklist: [`docs/security/crypto-core-review.md`](../docs/security/crypto-core-review.md).
 
 ## ADR implemented
 
@@ -25,13 +41,19 @@ Provide auditable, client-side encryption primitives:
 
 ## Status
 
-Scaffold for issue **#2** — structure plus minimal *compiling* stubs. The cipher wiring
-is real and round-trips, but is **not** production-ready until the deferred work lands:
+AES-256-GCM module **hardened (#10)**: the official AES-256-GCM known-answer vectors pass
+as gating CI tests, the nonce policy is documented and enforced, and the public API + wire
+format are frozen. Vector provenance:
+[`tests/vectors/PROVENANCE.md`](./tests/vectors/PROVENANCE.md). Security review:
+[`docs/security/crypto-core-review.md`](../docs/security/crypto-core-review.md).
 
-- `TODO(#10)` — official **NIST AES-GCM** known-answer vectors as gating CI tests.
-- `TODO(#11)` — bind record metadata as AES-GCM **associated data (AAD)**.
+Still deferred to their own issues (do not assume implemented):
+
+- `TODO(#11)` — bind record metadata as AES-GCM **associated data (AAD)**, added as an
+  *additive* function so this API stays stable (the AAD path is already vector-tested).
 - `TODO(#12)` — **PBKDF2 iteration calibration** on entry-level Android + RFC 6070 / NIST
-  PBKDF2 gating vectors.
+  PBKDF2 gating vectors (`derive_key` is currently smoke-tested only).
+- Independent external crypto review (**#26**) before production.
 
 ## Build & test
 
@@ -42,6 +64,10 @@ no `[workspace]`). From the crate directory:
 # Build
 cargo build -p crypto-core
 
-# Test (runs the encrypt -> decrypt round-trip + tamper/short/derive/wipe checks)
+# Test — runs the NIST AES-256-GCM known-answer vectors (gating), the public-API
+# conformance + input-robustness suite, and the round-trip/tamper/derive/wipe checks.
 cargo test -p crypto-core
+
+# The canonical ADW gate runs them across the workspace:
+cargo test --workspace      # == `just test-rust`, part of `just test`
 ```
