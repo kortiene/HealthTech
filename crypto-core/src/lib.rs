@@ -586,8 +586,11 @@ mod tests {
         let original = *handle.expose_for_test();
         let mut exported = handle.export_sealable();
         exported.iter_mut().for_each(|b| *b ^= 0xFF);
-        assert_eq!(handle.expose_for_test(), &original,
-            "export_sealable must return an independent copy, not an alias");
+        assert_eq!(
+            handle.expose_for_test(),
+            &original,
+            "export_sealable must return an independent copy, not an alias"
+        );
     }
 
     #[test]
