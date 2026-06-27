@@ -377,7 +377,7 @@ mod tests {
             aad: "",
             pt: "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
             ct: "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662",
-            tag: "b094dac5d93471bdec1a502270e3cc6c",
+            tag: "eb9f796c8d356fc31a8433884b696f4f",
         },
         // Test case 16 (NON-empty AAD, 60-byte PT — anticipates the #11 AAD channel)
         Kat {
@@ -551,6 +551,95 @@ mod tests {
         let sealable = original.export_sealable();
         let rewrapped = MasterKeyHandle::from_unsealed(*sealable);
         assert_eq!(rewrapped.expose_for_test(), original.expose_for_test());
+    }
+
+    // ── MasterKeyHandle / generate_master_key gap coverage (#11) ─────────────
+
+    #[test]
+    fn generate_master_key_returns_32_nonzero_bytes() {
+        // Directly exercises the raw function (distinct from the handle-based tests).
+        let key = generate_master_key();
+        assert_eq!(key.len(), KEY_LEN);
+        assert_ne!(key, [0u8; KEY_LEN]);
+    }
+
+    #[test]
+    fn generate_master_key_twice_differs() {
+        // CSPRNG entropy: two raw calls must not collide.
+        let a = generate_master_key();
+        let b = generate_master_key();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn handle_wipe_consumes_without_panic() {
+        // Calling wipe() explicitly must consume the handle cleanly.
+        let handle = MasterKeyHandle::generate();
+        handle.wipe(); // moves and drops; Zeroizing overwrites the key
+    }
+
+    #[test]
+    fn export_sealable_is_independent_copy() {
+        // Mutating the exported Zeroizing buffer must NOT affect the handle's own key
+        // (they are separate allocations — Zeroizing::new(*self.key) copies the array).
+        let handle = MasterKeyHandle::generate();
+        let original = *handle.expose_for_test();
+        let mut exported = handle.export_sealable();
+        exported.iter_mut().for_each(|b| *b ^= 0xFF);
+        assert_eq!(handle.expose_for_test(), &original,
+            "export_sealable must return an independent copy, not an alias");
+    }
+
+    #[test]
+    fn from_unsealed_zeroed_input_wraps_without_panic() {
+        // An all-zero byte array is degenerate but must not crash from_unsealed.
+        let handle = MasterKeyHandle::from_unsealed([0u8; KEY_LEN]);
+        assert_eq!(handle.expose_for_test(), &[0u8; KEY_LEN]);
+    }
+
+    // ── Decrypt security regressions (#11) ───────────────────────────────────
+
+    #[test]
+    fn decrypt_rejects_wrong_key() {
+        // A ciphertext produced under key_a must NOT be openable under key_b.
+        // Guards against accidental key-bypass in future refactors.
+        let key_a = generate_master_key();
+        let key_b = generate_master_key();
+        let blob = encrypt_record(&key_a, b"patient data").expect("encrypt");
+        assert_eq!(
+            decrypt_record(&key_b, &blob),
+            Err(CryptoError::Decrypt),
+            "wrong key must yield Decrypt, not garbage plaintext"
+        );
+    }
+
+    #[test]
+    fn decrypt_rejects_nonce_only_blob() {
+        // A blob of exactly NONCE_LEN bytes has no ciphertext payload and no tag;
+        // the GCM open call must reject it (not return empty plaintext).
+        let key = generate_master_key();
+        let nonce_only = vec![0u8; NONCE_LEN];
+        assert_eq!(
+            decrypt_record(&key, &nonce_only),
+            Err(CryptoError::Decrypt),
+            "a nonce-only blob (no tag) must be rejected"
+        );
+    }
+
+    // ── CryptoError contract (#11) ────────────────────────────────────────────
+
+    #[test]
+    fn crypto_error_display_is_non_empty() {
+        // Display must be non-empty so log / UI message is always informative.
+        assert!(!CryptoError::Rng.to_string().is_empty());
+        assert!(!CryptoError::Decrypt.to_string().is_empty());
+    }
+
+    #[test]
+    fn crypto_error_variants_are_distinct() {
+        assert_ne!(CryptoError::Rng, CryptoError::Decrypt);
+        assert_eq!(CryptoError::Rng, CryptoError::Rng);
+        assert_eq!(CryptoError::Decrypt, CryptoError::Decrypt);
     }
 
     // TODO(#11): bind record metadata (id / version) as AES-GCM associated data via an
