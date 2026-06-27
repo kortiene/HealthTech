@@ -73,8 +73,7 @@ void main() {
     test('no binary data: image_urls are strings', () {
       final json = sample.toJson();
       final consultations = json['consultations'] as List<Object?>;
-      final firstConsultation =
-          consultations.first as Map<String, Object?>;
+      final firstConsultation = consultations.first as Map<String, Object?>;
       final imageUrls = firstConsultation['image_urls'] as List<Object?>;
       for (final url in imageUrls) {
         expect(url, isA<String>());

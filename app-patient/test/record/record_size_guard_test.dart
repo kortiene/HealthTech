@@ -46,8 +46,7 @@ MedicalRecord _recordNearBytes(int targetBytes) {
   final consultationOverhead = probeSize - baseSize;
 
   final payloadNeeded = targetBytes - baseSize - consultationOverhead;
-  final summary =
-      payloadNeeded > 0 ? 'x' * payloadNeeded : '';
+  final summary = payloadNeeded > 0 ? 'x' * payloadNeeded : '';
 
   return base.copyWith(
     consultations: [

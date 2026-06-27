@@ -24,12 +24,14 @@ class Demographics {
     this.bloodType,
   });
 
-  factory Demographics.fromJson(Map<String, Object?> json) => Demographics(
-    givenName: json['given_name'] as String?,
-    birthYear: json['birth_year'] as int?,
-    sex: json['sex'] as String?,
-    bloodType: json['blood_type'] as String?,
-  );
+  factory Demographics.fromJson(Map<String, Object?> json) {
+    return Demographics(
+      givenName: json['given_name'] as String?,
+      birthYear: json['birth_year'] as int?,
+      sex: json['sex'] as String?,
+      bloodType: json['blood_type'] as String?,
+    );
+  }
 
   final String? givenName;
   final int? birthYear;
@@ -54,8 +56,7 @@ class Demographics {
       other.bloodType == bloodType;
 
   @override
-  int get hashCode =>
-      Object.hash(givenName, birthYear, sex, bloodType);
+  int get hashCode => Object.hash(givenName, birthYear, sex, bloodType);
 }
 
 class Allergy {
@@ -65,11 +66,13 @@ class Allergy {
     required this.notedAt,
   });
 
-  factory Allergy.fromJson(Map<String, Object?> json) => Allergy(
-    substance: json['substance'] as String,
-    severity: json['severity'] as String,
-    notedAt: json['noted_at'] as String,
-  );
+  factory Allergy.fromJson(Map<String, Object?> json) {
+    return Allergy(
+      substance: json['substance'] as String,
+      severity: json['severity'] as String,
+      notedAt: json['noted_at'] as String,
+    );
+  }
 
   final String substance;
 
@@ -103,12 +106,13 @@ class ChronicCondition {
     this.since,
   });
 
-  factory ChronicCondition.fromJson(Map<String, Object?> json) =>
-      ChronicCondition(
-        name: json['name'] as String,
-        icd10: json['icd10'] as String?,
-        since: json['since'] as String?,
-      );
+  factory ChronicCondition.fromJson(Map<String, Object?> json) {
+    return ChronicCondition(
+      name: json['name'] as String,
+      icd10: json['icd10'] as String?,
+      since: json['since'] as String?,
+    );
+  }
 
   final String name;
   final String? icd10;
@@ -142,13 +146,15 @@ class Medication {
     this.prescribedBy,
   });
 
-  factory Medication.fromJson(Map<String, Object?> json) => Medication(
-    name: json['name'] as String,
-    dose: json['dose'] as String,
-    frequency: json['frequency'] as String,
-    prescribedAt: json['prescribed_at'] as String,
-    prescribedBy: json['prescribed_by'] as String?,
-  );
+  factory Medication.fromJson(Map<String, Object?> json) {
+    return Medication(
+      name: json['name'] as String,
+      dose: json['dose'] as String,
+      frequency: json['frequency'] as String,
+      prescribedAt: json['prescribed_at'] as String,
+      prescribedBy: json['prescribed_by'] as String?,
+    );
+  }
 
   final String name;
   final String dose;
@@ -194,18 +200,18 @@ class Consultation {
     this.imageUrls = const [],
   });
 
-  factory Consultation.fromJson(Map<String, Object?> json) => Consultation(
-    id: json['id'] as String,
-    date: json['date'] as String,
-    practitionerRef: json['practitioner_ref'] as String,
-    summary: json['summary'] as String,
-    prescription: json['prescription'] as String?,
-    imageUrls:
-        (json['image_urls'] as List<Object?>?)
-            ?.map((e) => e as String)
-            .toList() ??
-        const [],
-  );
+  factory Consultation.fromJson(Map<String, Object?> json) {
+    final rawUrls = json['image_urls'] as List<Object?>?;
+    final urls = rawUrls?.map((e) => e as String).toList() ?? const <String>[];
+    return Consultation(
+      id: json['id'] as String,
+      date: json['date'] as String,
+      practitionerRef: json['practitioner_ref'] as String,
+      summary: json['summary'] as String,
+      prescription: json['prescription'] as String?,
+      imageUrls: urls,
+    );
+  }
 
   /// Opaque UUID for this consultation entry.
   final String id;
@@ -258,11 +264,13 @@ class Immunization {
     this.dose,
   });
 
-  factory Immunization.fromJson(Map<String, Object?> json) => Immunization(
-    name: json['name'] as String,
-    date: json['date'] as String,
-    dose: json['dose'] as int?,
-  );
+  factory Immunization.fromJson(Map<String, Object?> json) {
+    return Immunization(
+      name: json['name'] as String,
+      date: json['date'] as String,
+      dose: json['dose'] as int?,
+    );
+  }
 
   final String name;
 
@@ -305,7 +313,8 @@ class MedicalRecord {
     required this.updatedAt,
   });
 
-  factory MedicalRecord.fromJson(Map<String, Object?> json) {
+  // ignore: prefer_constructors_over_static_methods
+  static MedicalRecord fromJson(Map<String, Object?> json) {
     final version = json['v'] as int? ?? 0;
     if (version != recordSchemaVersion) {
       throw UnsupportedError(
@@ -314,40 +323,39 @@ class MedicalRecord {
         'Run the record migrator before opening this record.',
       );
     }
+    final rawDemo = json['demographics'] as Map<String, Object?>?;
+    final rawAllergies = json['allergies'] as List<Object?>? ?? const [];
+    final rawConditions =
+        json['chronic_conditions'] as List<Object?>? ?? const [];
+    final rawMeds = json['medications'] as List<Object?>? ?? const [];
+    final rawConsults = json['consultations'] as List<Object?>? ?? const [];
+    final rawImm = json['immunizations'] as List<Object?>? ?? const [];
+
     return MedicalRecord(
       patientId: json['patient_id'] as String,
-      demographics: json['demographics'] != null
-          ? Demographics.fromJson(
-              json['demographics'] as Map<String, Object?>,
-            )
+      demographics: rawDemo != null
+          ? Demographics.fromJson(rawDemo)
           : const Demographics(),
-      allergies:
-          (json['allergies'] as List<Object?>?)
-              ?.map((e) => Allergy.fromJson(e as Map<String, Object?>))
-              .toList() ??
-          const [],
-      chronicConditions:
-          (json['chronic_conditions'] as List<Object?>?)
-              ?.map(
-                (e) => ChronicCondition.fromJson(e as Map<String, Object?>),
-              )
-              .toList() ??
-          const [],
-      medications:
-          (json['medications'] as List<Object?>?)
-              ?.map((e) => Medication.fromJson(e as Map<String, Object?>))
-              .toList() ??
-          const [],
-      consultations:
-          (json['consultations'] as List<Object?>?)
-              ?.map((e) => Consultation.fromJson(e as Map<String, Object?>))
-              .toList() ??
-          const [],
-      immunizations:
-          (json['immunizations'] as List<Object?>?)
-              ?.map((e) => Immunization.fromJson(e as Map<String, Object?>))
-              .toList() ??
-          const [],
+      allergies: [
+        for (final e in rawAllergies)
+          Allergy.fromJson(e as Map<String, Object?>),
+      ],
+      chronicConditions: [
+        for (final e in rawConditions)
+          ChronicCondition.fromJson(e as Map<String, Object?>),
+      ],
+      medications: [
+        for (final e in rawMeds)
+          Medication.fromJson(e as Map<String, Object?>),
+      ],
+      consultations: [
+        for (final e in rawConsults)
+          Consultation.fromJson(e as Map<String, Object?>),
+      ],
+      immunizations: [
+        for (final e in rawImm)
+          Immunization.fromJson(e as Map<String, Object?>),
+      ],
       createdAt: json['created_at'] as String,
       updatedAt: json['updated_at'] as String,
     );
@@ -356,7 +364,7 @@ class MedicalRecord {
   /// Schema version — always [recordSchemaVersion] for newly created records.
   final int v = recordSchemaVersion;
 
-  /// Locally generated opaque UUID — never correlated with CMU / phone number.
+  /// Locally generated opaque UUID — never correlated with CMU / phone.
   final String patientId;
   final Demographics demographics;
   final List<Allergy> allergies;
@@ -398,17 +406,19 @@ class MedicalRecord {
     List<ChronicCondition>? chronicConditions,
     List<Medication>? medications,
     List<Immunization>? immunizations,
-  }) => MedicalRecord(
-    patientId: patientId,
-    demographics: demographics ?? this.demographics,
-    allergies: allergies ?? this.allergies,
-    chronicConditions: chronicConditions ?? this.chronicConditions,
-    medications: medications ?? this.medications,
-    consultations: consultations ?? this.consultations,
-    immunizations: immunizations ?? this.immunizations,
-    createdAt: createdAt,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
+  }) {
+    return MedicalRecord(
+      patientId: patientId,
+      demographics: demographics ?? this.demographics,
+      allergies: allergies ?? this.allergies,
+      chronicConditions: chronicConditions ?? this.chronicConditions,
+      medications: medications ?? this.medications,
+      consultations: consultations ?? this.consultations,
+      immunizations: immunizations ?? this.immunizations,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
