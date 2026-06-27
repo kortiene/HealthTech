@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app_patient/src/record/medical_record.dart';
 import 'package:app_patient/src/record/record_size_guard.dart';
 
-MedicalRecord _minimal() => MedicalRecord(
+MedicalRecord _minimal() => const MedicalRecord(
       patientId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',

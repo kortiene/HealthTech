@@ -6,7 +6,7 @@ import 'package:app_patient/src/record/medical_record.dart';
 
 void main() {
   group('MedicalRecord', () {
-    final sample = MedicalRecord(
+    const sample = MedicalRecord(
       patientId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
       demographics: const Demographics(
         givenName: 'Awa',
@@ -97,7 +97,7 @@ void main() {
     });
 
     test('empty optional fields round-trip correctly', () {
-      final minimal = MedicalRecord(
+      const minimal = MedicalRecord(
         patientId: 'aaaaaaaa-0000-4000-8000-000000000001',
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
