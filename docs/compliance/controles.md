@@ -27,7 +27,7 @@
 | **CTRL-12** | **Budget 500 Ko** du dossier texte (garde-fou bloquant/avertissant) | Technique | [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
 | **CTRL-13** | **Métadonnées non identifiantes uniquement** en base (UUID, version/taille du chiffré, horodatages, paramètres KDF publics) | Technique | [ADR 0005](../adr/0005-storage-and-sovereign-hosting.md) | Planifié |
 | **CTRL-14** | **Redaction des logs** : config backend fail-fast qui **redige** tout secret ; pas de PII/clé/clair journalisée | Technique | [ADR 0007](../adr/0007-secrets-and-environments.md) | **Partiel** (contrat de config redacting décidé ; backend à implémenter) |
-| **CTRL-15** | **Écrans de consentement + CGU + politique de confidentialité** dans l'onboarding | Organisationnel | [#7](https://github.com/kortiene/HealthTech/issues/7), [#13](https://github.com/kortiene/HealthTech/issues/13) | Planifié |
+| **CTRL-15** | **Écrans de consentement + CGU + politique de confidentialité** dans l'onboarding | Organisationnel | [#7](https://github.com/kortiene/HealthTech/issues/7), [#13](https://github.com/kortiene/HealthTech/issues/13) | **Partiel** (textes draft v1.0 livrés [`docs/legal/consent-v1.md`](../../docs/legal/consent-v1.md) + modèle `ConsentRecord` ; validation juridique + intégration UX onboarding = [#13](https://github.com/kortiene/HealthTech/issues/13)) |
 | **CTRL-16** | **Horodatage de capture du consentement** (preuve de recueil) | Technique | [#13](https://github.com/kortiene/HealthTech/issues/13) | Planifié |
 | **CTRL-17** | **Modèle local-first** : le patient **détient et lit** son dossier sur son appareil | Technique | [#14](https://github.com/kortiene/HealthTech/issues/14), [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
 | **CTRL-18** | **Édition du dossier + rechiffrement** (note/ordonnance fusionnée puis re-chiffrée) | Technique | [#18](https://github.com/kortiene/HealthTech/issues/18), [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
@@ -43,7 +43,7 @@
 | **CTRL-28** | **Politique de rétention** documentée (durées + purge) | Organisationnel | **à définir** ([ECART-01](./ecarts.md)) | **Écart** (à instruire) |
 | **CTRL-29** | **Désignation d'un correspondant / DPO** (le cas échéant) | Organisationnel / Gouvernance | **décision de gouvernance** ([ECART-04](./ecarts.md)) | **Écart** (à confirmer) |
 | **CTRL-30** | **Dépôt de la formalité préalable ARTCI** (déclaration / autorisation) | Organisationnel | [#30](https://github.com/kortiene/HealthTech/issues/30) | Planifié |
-| **CTRL-31** | **Information / transparence** (politique de confidentialité accessible, mentions à la collecte) | Organisationnel | [#7](https://github.com/kortiene/HealthTech/issues/7) | Planifié |
+| **CTRL-31** | **Information / transparence** (politique de confidentialité accessible, mentions à la collecte) | Organisationnel | [#7](https://github.com/kortiene/HealthTech/issues/7) | **Partiel** (texte draft v1.0 dans [`docs/legal/consent-v1.md`](../../docs/legal/consent-v1.md) ; validation juridique + affichage UX = [#13](https://github.com/kortiene/HealthTech/issues/13)) |
 
 ## 2. Catalogue des preuves (`PREUVE-NN`)
 
@@ -62,7 +62,7 @@
 | **PREUVE-08** | **Test d'expiration QR** (refus après 120 s) | CTRL-05 | [#16](https://github.com/kortiene/HealthTech/issues/16) | Planifié |
 | **PREUVE-09** | **Analyse mémoire/disque** (aucune écriture en clair ; RAM-only + wipe) | CTRL-06, CTRL-07 | [#17](https://github.com/kortiene/HealthTech/issues/17), [#19](https://github.com/kortiene/HealthTech/issues/19) | Planifié |
 | **PREUVE-10** | **Garde-fou budget 500 Ko** (test bloquant/avertissant) | CTRL-12 | [#15](https://github.com/kortiene/HealthTech/issues/15) | Planifié |
-| **PREUVE-11** | **Texte de consentement validé** juridiquement | CTRL-15 | [#7](https://github.com/kortiene/HealthTech/issues/7) | À produire |
+| **PREUVE-11** | **Texte de consentement validé** juridiquement | CTRL-15 | [#7](https://github.com/kortiene/HealthTech/issues/7) | **Draft** ([`docs/legal/consent-v1.md`](../../docs/legal/consent-v1.md) — validation juridique à obtenir avant production) |
 | **PREUVE-12** | **Horodatage de capture du consentement** | CTRL-16 | [#13](https://github.com/kortiene/HealthTech/issues/13) | Planifié |
 | **PREUVE-13** | **Récépissé / décision d'autorisation ARTCI** | CTRL-02 *(formalité)*, CTRL-30 | [#30](https://github.com/kortiene/HealthTech/issues/30) | À produire |
 | **PREUVE-14** | **Rapport de pentest** | CTRL-21 | [#25](https://github.com/kortiene/HealthTech/issues/25) | Planifié |
@@ -78,7 +78,7 @@
 | **PREUVE-24** | **Runbook d'incident** + **modèle de notification** de violation | CTRL-27 | [ECART-03](./ecarts.md) | À produire (**écart**) |
 | **PREUVE-25** | **Politique de rétention** documentée | CTRL-28 | [ECART-01](./ecarts.md) | À produire (**écart**) |
 | **PREUVE-26** | **Acte de désignation** correspondant / DPO | CTRL-29 | [ECART-04](./ecarts.md) | À produire (**écart**) |
-| **PREUVE-27** | **Textes d'information / transparence** (politique de confidentialité, mentions) | CTRL-31, CTRL-15 | [#7](https://github.com/kortiene/HealthTech/issues/7) | À produire |
+| **PREUVE-27** | **Textes d'information / transparence** (politique de confidentialité, mentions) | CTRL-31, CTRL-15 | [#7](https://github.com/kortiene/HealthTech/issues/7) | **Draft** ([`docs/legal/consent-v1.md`](../../docs/legal/consent-v1.md) § 3 — validation juridique à obtenir avant production) |
 | **PREUVE-28** | **Démo TLS** (transit chiffré ; configuration reverse proxy) | CTRL-23 | [#8](https://github.com/kortiene/HealthTech/issues/8) | Planifié |
 | **PREUVE-29** | **Clé maîtresse scellée matériellement, jamais en clair persistant** (US-1.1) : génération en cœur Rust (`MasterKeyHandle`/`export_sealable`, copie en clair `wipe`-ée), scellement par KEK matérielle non-exportable (`KeystoreSealer.kt`), persistance du **seul blob scellé**, **aucun repli logiciel** ; tests unitaires (Rust génération/`wipe`, Dart mock-channel/no-fallback) + tests instrumentés StrongBox/TEE en device lab | CTRL-03 | [#11](https://github.com/kortiene/HealthTech/issues/11), device lab [#29](https://github.com/kortiene/HealthTech/issues/29) | **Partiel** (code livré ; preuve matérielle au device lab) |
 
