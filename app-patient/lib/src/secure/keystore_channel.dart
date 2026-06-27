@@ -94,7 +94,9 @@ class KeystoreChannel {
   /// The result must be handed straight to the Rust core and wiped after use; it
   /// is never written to disk or logged.
   Future<Uint8List> unseal(Uint8List sealedBlob) async {
-    final clear = await _invoke<Uint8List>('unseal', {'sealedBlob': sealedBlob});
+    final clear = await _invoke<Uint8List>('unseal', {
+      'sealedBlob': sealedBlob,
+    });
     if (clear == null) {
       throw const KeystoreUnavailable('unseal returned no key material');
     }
@@ -126,7 +128,9 @@ class KeystoreChannel {
         case _codeStrongBoxUnsupported:
           throw StrongBoxUnsupported(e.message ?? 'StrongBox unavailable');
         case _codeUnavailable:
-          throw KeystoreUnavailable(e.message ?? 'hardware keystore unavailable');
+          throw KeystoreUnavailable(
+            e.message ?? 'hardware keystore unavailable',
+          );
         default:
           // Unknown native failure: fail closed as unavailable — never fall back.
           throw KeystoreUnavailable('keystore error (${e.code})');
