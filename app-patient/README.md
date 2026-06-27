@@ -26,11 +26,39 @@ markers, not features.
 - **All cryptography comes ONLY from the Rust `crypto-core`** via `flutter_rust_bridge`.
   There is **no Dart cipher** — no `pointycastle`, no `dart:crypto` AES (forbidden by
   ADR 0001/0003). Dart holds only what the UI renders; plaintext stays in Rust.
-- The **StrongBox/TEE master-key sealing is a Kotlin platform-channel shim** and is
-  **`TODO(#11)`** — Flutter plugins do not expose `setIsStrongBoxBacked` / TEE fallback.
-  `flutter_secure_storage` is used **only** for non-critical items, never the master key.
+- The **StrongBox/TEE master-key sealing is a Kotlin platform-channel shim** (#11), in
+  `android/app/src/main/kotlin/com/healthtech/patient/` (`KeystoreSealer.kt` +
+  `MainActivity.kt`). Flutter plugins do not expose `setIsStrongBoxBacked` / TEE fallback,
+  so this shim is mandatory. `flutter_secure_storage` is used **only** for non-critical
+  items, never the master key.
 - The SQLCipher DB key is unsealed from the Keystore-wrapped blob **in-memory only**
   (`TODO(#14)`).
+
+### Master-key flow (#11)
+
+`lib/src/secure/master_key_service.dart` orchestrates the lifecycle:
+
+```
+generateMasterKey (Rust core) → exportSealable → KeystoreChannel.seal (hardware KEK)
+  → persist ONLY the sealed blob → wipe the clear copy
+```
+
+- `KeystoreChannel` (`lib/src/secure/keystore_channel.dart`) is the Dart side of the
+  `healthtech/keystore` `MethodChannel`. Contract: `seal(clearKey) -> sealedBlob`,
+  `unseal(sealedBlob) -> clearKey` (RAM-only), `exists() -> bool`, `clear()`. Native error
+  codes `KEYSTORE_UNAVAILABLE` / `STRONGBOX_UNSUPPORTED` / `KEY_INVALIDATED` map to typed
+  `KeystoreException`s. **No software fallback** (G3): keystore unavailability throws, it
+  never returns a software key.
+- The sealed blob (already hardware-wrapped, not a clear secret) is persisted via
+  `SealedBlobStore` (`lib/src/secure/sealed_blob_store.dart`) — a private app file by
+  default. The clear master key never touches disk.
+- `MasterKeyService.probeState()` routes at startup: absent → onboarding (#13); present →
+  open; `KEY_INVALIDATED` → recovery (#12, PBKDF2).
+- iOS is an **amorce** stub (`ios/Runner/KeystoreChannelPlugin.swift`, `TODO(#11/iOS)`):
+  same channel contract, fails loudly until the Secure Enclave path is hardened
+  (ADR 0001 — Android first).
+- The Rust↔Dart FRB seam (`lib/src/rust/crypto_core_bindings.dart`) defines `CryptoCore`
+  with an opaque `MasterKeyHandle`; the generated bindings are produced by FRB codegen.
 
 ## Gate before build-out (ADR 0001)
 

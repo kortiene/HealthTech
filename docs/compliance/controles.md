@@ -15,7 +15,7 @@
 | --- | --- | --- | --- | --- |
 | **CTRL-01** | Chiffrement **AES-256-GCM côté patient** avant tout transit (chiffrement authentifié) | Technique | [ADR 0003](../adr/0003-shared-crypto-core-rust.md), [#10](https://github.com/kortiene/HealthTech/issues/10) | Planifié |
 | **CTRL-02** | Architecture **zero-knowledge** : serveur ne stocke que des **blobs opaques** indexés par **UUID anonymes** ; aucune voie de déchiffrement serveur | Technique | [ADR 0004](../adr/0004-backend-rust-axum.md), [ADR 0005](../adr/0005-storage-and-sovereign-hosting.md), [#9](https://github.com/kortiene/HealthTech/issues/9) | Planifié |
-| **CTRL-03** | **Clé maîtresse** générée sur l'appareil, scellée dans l'**Android Keystore**, non exportée en clair | Technique | [ADR 0006](../adr/0006-offline-storage-and-keys.md), [#11](https://github.com/kortiene/HealthTech/issues/11) | Planifié |
+| **CTRL-03** | **Clé maîtresse** générée sur l'appareil, scellée dans l'**Android Keystore** (StrongBox→repli TEE, **sans repli logiciel**), non exportée en clair | Technique | [ADR 0006](../adr/0006-offline-storage-and-keys.md), [#11](https://github.com/kortiene/HealthTech/issues/11) | **Partiel** (génération en cœur Rust `MasterKeyHandle` + shim Keystore Kotlin `KeystoreSealer.kt` (chiffrement par enveloppe KEK matérielle) + service Dart sans repli logiciel livrés ; validation matérielle StrongBox/TEE en device lab [#29]) |
 | **CTRL-04** | **Récupération de clé PBKDF2** (phrase de passe / questions culturelles), paramètres anti-brute-force | Technique | [ADR 0006](../adr/0006-offline-storage-and-keys.md), [#12](https://github.com/kortiene/HealthTech/issues/12) | Planifié |
 | **CTRL-05** | **QR d'accès éphémère ~120 s**, à usage unique ; clé jamais persistée hors du QR | Technique | [ADR 0006](../adr/0006-offline-storage-and-keys.md), [#16](https://github.com/kortiene/HealthTech/issues/16) | Planifié |
 | **CTRL-06** | **Déchiffrement RAM-only** côté professionnel (jamais sur disque) | Technique | [ADR 0002](../adr/0002-doctor-interface-pwa.md), [#17](https://github.com/kortiene/HealthTech/issues/17) | Planifié |
@@ -80,6 +80,7 @@
 | **PREUVE-26** | **Acte de désignation** correspondant / DPO | CTRL-29 | [ECART-04](./ecarts.md) | À produire (**écart**) |
 | **PREUVE-27** | **Textes d'information / transparence** (politique de confidentialité, mentions) | CTRL-31, CTRL-15 | [#7](https://github.com/kortiene/HealthTech/issues/7) | À produire |
 | **PREUVE-28** | **Démo TLS** (transit chiffré ; configuration reverse proxy) | CTRL-23 | [#8](https://github.com/kortiene/HealthTech/issues/8) | Planifié |
+| **PREUVE-29** | **Clé maîtresse scellée matériellement, jamais en clair persistant** (US-1.1) : génération en cœur Rust (`MasterKeyHandle`/`export_sealable`, copie en clair `wipe`-ée), scellement par KEK matérielle non-exportable (`KeystoreSealer.kt`), persistance du **seul blob scellé**, **aucun repli logiciel** ; tests unitaires (Rust génération/`wipe`, Dart mock-channel/no-fallback) + tests instrumentés StrongBox/TEE en device lab | CTRL-03 | [#11](https://github.com/kortiene/HealthTech/issues/11), device lab [#29](https://github.com/kortiene/HealthTech/issues/29) | **Partiel** (code livré ; preuve matérielle au device lab) |
 
 ---
 
