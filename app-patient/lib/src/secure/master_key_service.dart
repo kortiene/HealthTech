@@ -110,6 +110,12 @@ class MasterKeyService {
     }
   }
 
+  /// Zeroize the clear key behind [handle] in the Rust core (G5).
+  ///
+  /// Callers that obtained a handle from [unsealForUse] must call this as soon
+  /// as the key is no longer needed — typically in a `finally` block.
+  Future<void> wipeHandle(MasterKeyHandle handle) => _crypto.wipe(handle);
+
   /// Seal the current master key into a PBKDF2 recovery envelope (#12, G2).
   ///
   /// Unseals the hardware-sealed master key, derives a recovery key from [secret]
@@ -162,7 +168,7 @@ class MasterKeyService {
   ///
   /// Returns an opaque handle; the clear bytes live in memory only for the
   /// re-wrap and are overwritten immediately. The caller owns the handle and must
-  /// [CryptoCore.wipe] it after use.
+  /// call [wipeHandle] after use.
   ///
   /// Throws [KeystoreUnavailable] if no blob is persisted, or [KeyInvalidated]
   /// if the hardware key is gone (route to recovery, #12).

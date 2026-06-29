@@ -87,6 +87,24 @@ class FakeCryptoCore implements CryptoCore {
     calls.add('normalizeRecoveryAnswers');
     return Uint8List.fromList(answers.join('\x1f').codeUnits);
   }
+
+  @override
+  Future<Uint8List> encryptRecord(
+    MasterKeyHandle handle,
+    Uint8List plaintext,
+  ) async {
+    calls.add('encryptRecord');
+    return Uint8List.fromList(plaintext.map((b) => b ^ 0x5A).toList());
+  }
+
+  @override
+  Future<Uint8List> decryptRecord(
+    MasterKeyHandle handle,
+    Uint8List ciphertext,
+  ) async {
+    calls.add('decryptRecord');
+    return Uint8List.fromList(ciphertext.map((b) => b ^ 0x5A).toList());
+  }
 }
 
 /// In-memory [KeystoreChannel] that simply stores and returns the same bytes.
