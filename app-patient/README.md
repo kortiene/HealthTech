@@ -76,6 +76,22 @@ gate is non-negotiable.
 | `#13` | onboarding | First-run flow, recovery passphrase/security questions |
 | `#16` | QR | Generate (`qr_flutter`, 120 s TTL) + scan (`mobile_scanner`) |
 | `#14` | backup | SQLCipher mirror + pending-upload queue, recovery restore |
+| `#17` | scan | Scan QR → fetch blob → decrypt **in RAM only** → read-only viewer |
+| `#18` | edit | Quick-edit note/ordonnance → append-only merge → **session-key re-encryption in RAM** |
+
+### Doctor consultation edit (#18)
+
+During an open consultation the doctor taps **« Ajouter une note / ordonnance »** in the
+record viewer. The note + structured prescription are merged **append-only** into the in-RAM
+record (`mergeConsultation` never overwrites existing history), then the updated record is
+**re-encrypted in RAM with the ephemeral session key** held in the `QrPayload`
+(`ConsultationEditService.reEncrypt`) — the doctor never holds the patient master key, and the
+transient key handle is wiped in a `finally` block. The plaintext lives only in the
+`TextEditingController`s and the in-RAM `MedicalRecord`; nothing is written to disk or logged.
+The `RecordSizeGuard` 500 Kio budget is enforced before encryption and guarantees the
+newly added consultation is never the entry truncated (it fails loudly with "dossier plein"
+instead). The re-encrypted blob is held on a RAM-only `ConsultationSession`; the cloud upload
+and the end-of-session RAM wipe are **#19's** responsibility.
 
 ## Build & test
 

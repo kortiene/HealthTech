@@ -1,45 +1,80 @@
-// Read-only medical record viewer (issue #17 — US-2.1).
+// Medical record viewer with doctor edit entry point (issues #17, #18).
 //
-// Displays the decrypted [MedicalRecord] in RAM only.  On [dispose], the
-// [QrPayload.wipe] is called to overwrite the session key bytes — this marks
-// the end of the doctor-side consultation session.  No field of [record] is
-// ever written to any storage layer.
+// Displays the decrypted [MedicalRecord] in RAM only.  #18 adds an "Ajouter une
+// note / ordonnance" action that opens [ConsultationEditScreen]; on save the
+// merged record + re-encrypted blob are stored on a RAM-only [ConsultationSession]
+// (the single source of truth threaded to the #19 upload/wipe flow) and the
+// appended consultation is shown immediately.  On [dispose] the session is wiped
+// (session key + pending blob) — this marks the end of the doctor-side session.
+// No field of the record is ever written to any storage layer.
 
 import 'package:flutter/material.dart';
 
+import '../doctor/consultation_edit_service.dart';
+import '../doctor/consultation_session.dart';
 import '../qr/access_token.dart';
 import '../record/medical_record.dart';
+import '../rust/crypto_core_bindings.dart';
+import 'consultation_edit_screen.dart';
 
-/// Read-only viewer for a decrypted [MedicalRecord].
+/// Viewer for a decrypted [MedicalRecord] with a doctor edit entry point.
 ///
 /// [payload] is held for the session key lifecycle and wiped in [dispose].
-/// [record] is rendered in RAM and never written to disk.
+/// [record] is rendered in RAM and never written to disk. Inject [editService]
+/// in tests; production defaults to [FrbCryptoCore]-backed re-encryption.
 class RecordViewScreen extends StatefulWidget {
-  const RecordViewScreen({
+  RecordViewScreen({
     super.key,
     required this.record,
     required this.payload,
-  });
+    ConsultationEditService? editService,
+  }) : editService = editService ??
+            ConsultationEditService(crypto: const FrbCryptoCore());
 
   final MedicalRecord record;
   final QrPayload payload;
+  final ConsultationEditService editService;
 
   @override
   State<RecordViewScreen> createState() => _RecordViewScreenState();
 }
 
 class _RecordViewScreenState extends State<RecordViewScreen> {
+  late final ConsultationSession _session = ConsultationSession(
+    payload: widget.payload,
+    record: widget.record,
+  );
+
   @override
   void dispose() {
-    widget.payload.wipe();
+    _session.wipe();
     super.dispose();
+  }
+
+  Future<void> _openEditScreen() async {
+    final result = await Navigator.of(context).push<ConsultationEditResult>(
+      MaterialPageRoute<ConsultationEditResult>(
+        builder: (_) => ConsultationEditScreen(
+          record: _session.current,
+          payload: _session.payload,
+          service: widget.editService,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _session.applyMerge(result.record, result.blob));
   }
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.record;
+    final r = _session.current;
     return Scaffold(
       appBar: AppBar(title: const Text('Dossier médical')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openEditScreen,
+        icon: const Icon(Icons.note_add),
+        label: const Text('Ajouter une note / ordonnance'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -71,6 +106,20 @@ class _RecordViewScreenState extends State<RecordViewScreen> {
                     (m) => _InfoRow(
                       label: m.name,
                       value: '${m.dose} · ${m.frequency}',
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (r.consultations.isNotEmpty)
+            _SectionCard(
+              title: 'Consultations',
+              children: r.consultations
+                  .map(
+                    (c) => _InfoRow(
+                      label: c.date,
+                      value: c.prescription == null || c.prescription!.isEmpty
+                          ? c.summary
+                          : '${c.summary}\n${c.prescription}',
                     ),
                   )
                   .toList(),
