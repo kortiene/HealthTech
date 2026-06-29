@@ -19,6 +19,19 @@ import '../rust/crypto_core_bindings.dart';
 import 'keystore_channel.dart';
 import 'sealed_blob_store.dart';
 
+/// Thrown when a recovery envelope is looked up but none has been stored yet.
+///
+/// This is a *lookup* failure — the caller asked for an envelope that does not
+/// exist on this device — distinct from [WrongRecoverySecret], which signals that
+/// an envelope was found but the supplied secret is wrong or the bytes are corrupt
+/// (threat model THR-05 / issue #12).
+class RecoveryEnvelopeNotFound implements Exception {
+  const RecoveryEnvelopeNotFound();
+
+  @override
+  String toString() => 'recovery envelope not found';
+}
+
 /// State of the device master key at startup, used to route the user.
 enum MasterKeyState {
   /// No sealed blob yet — first run; route to onboarding (#13).
@@ -94,6 +107,54 @@ class MasterKeyService {
           : MasterKeyState.invalidated;
     } on KeyInvalidated {
       return MasterKeyState.invalidated;
+    }
+  }
+
+  /// Seal the current master key into a PBKDF2 recovery envelope (#12, G2).
+  ///
+  /// Unseals the hardware-sealed master key, derives a recovery key from [secret]
+  /// (passphrase bytes or output of [CryptoCore.normalizeRecoveryAnswers]), wraps
+  /// the master key under it, then immediately wipes all clear material.
+  ///
+  /// Returns the opaque envelope bytes for the caller to store off-device.
+  /// Throws [KeystoreUnavailable] / [KeyInvalidated] if the hardware key is gone.
+  Future<Uint8List> setUpRecovery(Uint8List secret, {int? iterations}) async {
+    final blob = await _blobStore.read();
+    if (blob == null) throw const KeystoreUnavailable('no master key to wrap');
+    Uint8List? clear;
+    try {
+      clear = await _keystore.unseal(blob);
+      return await _crypto.sealRecoveryEnvelope(
+        clear,
+        secret,
+        iterations ?? 600000,
+      );
+    } finally {
+      if (clear != null) clear.fillRange(0, clear.length, 0);
+    }
+  }
+
+  /// Restore master-key access on a new device (#12, G1).
+  ///
+  /// Decrypts [envelopeBytes] with [secret] (PBKDF2-derived key), then
+  /// re-seals the recovered master key in the new device's hardware keystore.
+  /// On success the device is in [MasterKeyState.present].
+  ///
+  /// Throws [WrongRecoverySecret] on bad secret or corrupted envelope.
+  /// Throws [KeystoreUnavailable] if the hardware keystore is unavailable.
+  Future<void> recoverFromSecret(
+    Uint8List secret,
+    Uint8List envelopeBytes,
+  ) async {
+    final handle = await _crypto.openRecoveryEnvelope(secret, envelopeBytes);
+    Uint8List? clear;
+    try {
+      clear = await _crypto.exportSealable(handle);
+      final sealed = await _keystore.seal(clear);
+      await _blobStore.write(sealed);
+    } finally {
+      await _crypto.wipe(handle);
+      if (clear != null) clear.fillRange(0, clear.length, 0);
     }
   }
 
