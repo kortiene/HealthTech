@@ -37,6 +37,10 @@ dependencies:
   # Kotlin platform-channel shim). ADR 0001. TODO(#11).
   flutter_secure_storage: ^9.2.2
 
+  # HTTP client for cloud backup transport (issue #14).
+  # Used by BackendClient (PUT/GET /blob/{uuid}); injectable in tests via MockClient.
+  http: ^1.2.0
+
   path_provider: ^2.1.4
   path: ^1.9.0
 
