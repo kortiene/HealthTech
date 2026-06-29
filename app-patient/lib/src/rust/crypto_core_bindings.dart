@@ -66,6 +66,33 @@ abstract class CryptoCore {
   ///
   /// Throws [DecryptError] on a bad tag, wrong key, or corrupted blob.
   Future<Uint8List> decryptRecord(MasterKeyHandle handle, Uint8List ciphertext);
+
+  /// Seal the master key under a PBKDF2-derived recovery key (#12, G2).
+  ///
+  /// [masterKeyClear] is the 32-byte clear key (immediately wiped after).
+  /// [secret] is the passphrase or normalized cultural answers.
+  /// [iterations] is the PBKDF2 iteration count (clamped to floor internally).
+  /// Returns the self-describing recovery envelope bytes.
+  Future<Uint8List> sealRecoveryEnvelope(
+    Uint8List masterKeyClear,
+    Uint8List secret,
+    int iterations,
+  );
+
+  /// Open a recovery envelope, returning a [MasterKeyHandle] (#12, G1).
+  ///
+  /// [secret] is the passphrase or normalized answers (must match what was
+  /// used to seal). Throws [WrongRecoverySecret] on bad secret or corrupted
+  /// envelope (coarse error, no oracle).
+  Future<MasterKeyHandle> openRecoveryEnvelope(
+    Uint8List secret,
+    Uint8List envelopeBytes,
+  );
+
+  /// Normalize and concatenate security-question answers (G6).
+  ///
+  /// Delegates to the Rust normalize_recovery_answers function for determinism.
+  Future<Uint8List> normalizeRecoveryAnswers(List<String> answers);
 }
 
 /// Raised when [CryptoCore.decryptRecord] detects a bad tag, wrong key,
@@ -75,6 +102,20 @@ class DecryptError implements Exception {
 
   @override
   String toString() => 'decryption failed: bad key, tag mismatch, or corrupted blob';
+}
+
+/// Raised when a recovery envelope cannot be opened — wrong secret, corrupted
+/// envelope, or a tampered blob.  The error is deliberately coarse (no oracle):
+/// it does not distinguish the failure cause (wrong passphrase vs. bad bytes).
+///
+/// This is the Dart-side mirror of `CryptoError::Decrypt` on the recovery path
+/// (#12, THR-05). "Envelope not found" is a separate concern handled above this
+/// layer (typed separately by the caller).
+class WrongRecoverySecret implements Exception {
+  const WrongRecoverySecret();
+
+  @override
+  String toString() => 'recovery failed: wrong secret or corrupted envelope';
 }
 
 /// Raised when the generated FRB bindings (and the native `crypto-core` library)
@@ -128,5 +169,24 @@ class FrbCryptoCore implements CryptoCore {
     MasterKeyHandle handle,
     Uint8List ciphertext,
   ) async =>
+      throw const CryptoCoreUnavailable();
+
+  @override
+  Future<Uint8List> sealRecoveryEnvelope(
+    Uint8List masterKeyClear,
+    Uint8List secret,
+    int iterations,
+  ) async =>
+      throw const CryptoCoreUnavailable();
+
+  @override
+  Future<MasterKeyHandle> openRecoveryEnvelope(
+    Uint8List secret,
+    Uint8List envelopeBytes,
+  ) async =>
+      throw const CryptoCoreUnavailable();
+
+  @override
+  Future<Uint8List> normalizeRecoveryAnswers(List<String> answers) async =>
       throw const CryptoCoreUnavailable();
 }

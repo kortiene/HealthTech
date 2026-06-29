@@ -56,6 +56,25 @@ class _FakeCryptoCore implements CryptoCore {
     Uint8List ciphertext,
   ) async =>
       _xor(ciphertext);
+
+  @override
+  Future<Uint8List> sealRecoveryEnvelope(
+    Uint8List masterKeyClear,
+    Uint8List secret,
+    int iterations,
+  ) async =>
+      _xor(masterKeyClear);
+
+  @override
+  Future<MasterKeyHandle> openRecoveryEnvelope(
+    Uint8List secret,
+    Uint8List envelopeBytes,
+  ) async =>
+      const _FakeMasterKeyHandle();
+
+  @override
+  Future<Uint8List> normalizeRecoveryAnswers(List<String> answers) async =>
+      Uint8List.fromList(answers.join('\x1f').codeUnits);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

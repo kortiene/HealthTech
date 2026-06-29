@@ -66,6 +66,31 @@ class _FakeCryptoCore implements CryptoCore {
     calls.add('decryptRecord');
     return Uint8List.fromList(ciphertext.map((b) => b ^ 0x5A).toList());
   }
+
+  @override
+  Future<Uint8List> sealRecoveryEnvelope(
+    Uint8List masterKeyClear,
+    Uint8List secret,
+    int iterations,
+  ) async {
+    calls.add('sealRecoveryEnvelope');
+    return Uint8List(32);
+  }
+
+  @override
+  Future<MasterKeyHandle> openRecoveryEnvelope(
+    Uint8List secret,
+    Uint8List envelopeBytes,
+  ) async {
+    calls.add('openRecoveryEnvelope');
+    return const _FakeMasterKeyHandle();
+  }
+
+  @override
+  Future<Uint8List> normalizeRecoveryAnswers(List<String> answers) async {
+    calls.add('normalizeRecoveryAnswers');
+    return Uint8List.fromList(answers.join('\x1f').codeUnits);
+  }
 }
 
 class _FakeKeystoreChannel extends KeystoreChannel {
