@@ -138,7 +138,7 @@ void main() {
     test('ZK: cloud blob does not contain plaintext medical data', () async {
       // Marker must not appear in any wire-level representation.
       const marker = 'blood-type:O-NEG';
-      final record = const MedicalRecord(
+      const record = MedicalRecord(
         patientId: _uuid,
         demographics: Demographics(bloodType: marker),
         createdAt: '2025-01-01T00:00:00Z',
