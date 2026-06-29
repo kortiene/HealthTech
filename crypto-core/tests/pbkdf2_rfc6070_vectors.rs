@@ -142,9 +142,8 @@ fn open_recovery_envelope_wrong_secret_returns_decrypt_error() {
     let envelope =
         seal_recovery_envelope(&master_key, b"correct", RECOVERY_PBKDF2_MIN_ITERS).expect("seal");
 
-    assert_eq!(
-        open_recovery_envelope(b"wrong", &envelope),
-        Err(CryptoError::Decrypt),
+    assert!(
+        matches!(open_recovery_envelope(b"wrong", &envelope), Err(CryptoError::Decrypt)),
         "wrong secret must yield CryptoError::Decrypt"
     );
 }
@@ -167,9 +166,8 @@ fn seal_recovery_envelope_enforces_min_iterations() {
 /// Empty slice → CryptoError::Decrypt (trivial truncation).
 #[test]
 fn open_recovery_envelope_rejects_truncated_blob() {
-    assert_eq!(
-        open_recovery_envelope(b"secret", &[]),
-        Err(CryptoError::Decrypt),
+    assert!(
+        matches!(open_recovery_envelope(b"secret", &[]), Err(CryptoError::Decrypt)),
         "empty envelope must be rejected"
     );
 }
@@ -184,9 +182,11 @@ fn open_recovery_envelope_rejects_unknown_version() {
     // Byte 0 is the version; flip it.
     envelope[0] ^= 0xFF;
 
-    assert_eq!(
-        open_recovery_envelope(b"secret", &envelope),
-        Err(CryptoError::Decrypt),
+    assert!(
+        matches!(
+            open_recovery_envelope(b"secret", &envelope),
+            Err(CryptoError::Decrypt)
+        ),
         "unknown version byte must be rejected"
     );
 }
@@ -208,9 +208,11 @@ fn open_recovery_envelope_rejects_below_min_iterations() {
     envelope[4] = bytes[2];
     envelope[5] = bytes[3];
 
-    assert_eq!(
-        open_recovery_envelope(b"secret", &envelope),
-        Err(CryptoError::Decrypt),
+    assert!(
+        matches!(
+            open_recovery_envelope(b"secret", &envelope),
+            Err(CryptoError::Decrypt)
+        ),
         "iteration count below floor must be rejected"
     );
 }
