@@ -79,11 +79,11 @@ class _FakeCryptoCore implements CryptoCore {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-PatientAccount _fakeAccount() => PatientAccount(
+PatientAccount _fakeAccount() => const PatientAccount(
       anonymousUuid: '00000000-0000-4000-8000-000000000001',
       cmuNumber: 'CMU-2025-TEST01',
       phone: '+225 07 00 00 00 01',
-      consent: const ConsentRecord(
+      consent: ConsentRecord(
         version: consentBundleVersion,
         acceptedAt: '2025-01-01T00:00:00Z',
       ),

@@ -50,8 +50,8 @@ class OnboardingController {
     String Function()? nowFactory,
   })  : _masterKey = masterKey ?? const MasterKeyService(),
         _accountStore = accountStore ??
-            PatientAccountStore(
-              crypto: const FrbCryptoCore(),
+            const PatientAccountStore(
+              crypto: FrbCryptoCore(),
               blobStore: FileSealedBlobStore(
                 fileName: 'patient_account.sealed',
               ),
