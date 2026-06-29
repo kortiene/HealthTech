@@ -78,8 +78,7 @@ class MedicalRecordStore {
       await _localStore.write(blob);
     }
     final plaintext = await _crypto.decryptRecord(handle, blob);
-    final json =
-        jsonDecode(utf8.decode(plaintext)) as Map<String, Object?>;
+    final json = jsonDecode(utf8.decode(plaintext)) as Map<String, Object?>;
     return MedicalRecord.fromJson(json);
   }
 
