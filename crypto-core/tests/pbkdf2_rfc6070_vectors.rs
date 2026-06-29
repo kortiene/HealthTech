@@ -143,7 +143,10 @@ fn open_recovery_envelope_wrong_secret_returns_decrypt_error() {
         seal_recovery_envelope(&master_key, b"correct", RECOVERY_PBKDF2_MIN_ITERS).expect("seal");
 
     assert!(
-        matches!(open_recovery_envelope(b"wrong", &envelope), Err(CryptoError::Decrypt)),
+        matches!(
+            open_recovery_envelope(b"wrong", &envelope),
+            Err(CryptoError::Decrypt)
+        ),
         "wrong secret must yield CryptoError::Decrypt"
     );
 }
@@ -167,7 +170,10 @@ fn seal_recovery_envelope_enforces_min_iterations() {
 #[test]
 fn open_recovery_envelope_rejects_truncated_blob() {
     assert!(
-        matches!(open_recovery_envelope(b"secret", &[]), Err(CryptoError::Decrypt)),
+        matches!(
+            open_recovery_envelope(b"secret", &[]),
+            Err(CryptoError::Decrypt)
+        ),
         "empty envelope must be rejected"
     );
 }
