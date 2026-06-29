@@ -16,9 +16,19 @@
 
 import 'package:flutter/material.dart';
 
+import 'src/cloud/backend_client.dart';
+import 'src/qr/access_token.dart';
+import 'src/record/medical_record_store.dart';
+import 'src/rust/crypto_core_bindings.dart';
 import 'src/secure/keystore_channel.dart';
 import 'src/secure/master_key_service.dart';
+import 'src/secure/patient_account.dart';
+import 'src/secure/sealed_blob_store.dart';
 import 'src/ui/onboarding_screen.dart';
+import 'src/ui/qr_screen.dart';
+
+/// Backend base URL — production sovereign endpoint (ADR 0004 / ARTCI hosting).
+const String _kBackendBaseUrl = 'https://api.healthtech.ci';
 
 void main() {
   runApp(const PatientApp());
@@ -85,11 +95,8 @@ class _RootRouterState extends State<_RootRouter> {
                 _stateFuture = widget.masterKey.probeState();
               }),
             ),
-          // Key present: route to the main app screen.
-          // TODO(#16): replace stub with QR + record screen.
-          MasterKeyState.present => const Scaffold(
-              body: Center(child: Text('HealthTech — dossier médical')),
-            ),
+          // Key present: route to the home screen (#16 QR access).
+          MasterKeyState.present => _HomeScreen(masterKey: widget.masterKey),
           // Key invalidated: route to PBKDF2 recovery (#12).
           // TODO(#12): replace stub with RecoveryScreen.
           MasterKeyState.invalidated => const Scaffold(
@@ -97,6 +104,59 @@ class _RootRouterState extends State<_RootRouter> {
             ),
         };
       },
+    );
+  }
+}
+
+/// Home screen shown when the master key is ready.
+///
+/// Provides a button to generate a QR access token (#16) for the current
+/// consultation session.  All dependencies are created on demand so the
+/// production crypto stack is only reached when the user initiates a session.
+class _HomeScreen extends StatelessWidget {
+  const _HomeScreen({required this.masterKey});
+
+  final MasterKeyService masterKey;
+
+  DefaultQrController _buildController() {
+    return DefaultQrController(
+      masterKey: masterKey,
+      accountStore: const PatientAccountStore(
+        crypto: FrbCryptoCore(),
+        blobStore: FileSealedBlobStore(
+          fileName: 'patient_account.sealed',
+        ),
+      ),
+      tokenService: AccessTokenService(
+        crypto: const FrbCryptoCore(),
+        recordStore: MedicalRecordStore(
+          crypto: const FrbCryptoCore(),
+          client: BackendClient(_kBackendBaseUrl),
+          localStore: const FileSealedBlobStore(
+            fileName: 'medical_record.sealed',
+          ),
+        ),
+        client: BackendClient(_kBackendBaseUrl),
+      ),
+      backendUrl: _kBackendBaseUrl,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('HealthTech')),
+      body: Center(
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.qr_code),
+          label: const Text('Partager mon dossier'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => QrScreen(controller: _buildController()),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
