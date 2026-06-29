@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app_patient/src/rust/crypto_core_bindings.dart';
 import 'package:app_patient/src/legal/consent_model.dart';
+import 'package:app_patient/src/secure/keystore_channel.dart';
 import 'package:app_patient/src/secure/master_key_service.dart';
 import 'package:app_patient/src/secure/patient_account.dart';
 import 'package:app_patient/src/secure/sealed_blob_store.dart';

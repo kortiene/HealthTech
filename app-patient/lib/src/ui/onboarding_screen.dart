@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 
 import '../legal/consent_model.dart';
 import '../rust/crypto_core_bindings.dart';
+import '../secure/keystore_channel.dart';
 import '../secure/master_key_service.dart';
 import '../secure/patient_account.dart';
 import '../secure/sealed_blob_store.dart';
