@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 
 import 'src/cloud/backend_client.dart';
+import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
 import 'src/record/medical_record_store.dart';
 import 'src/rust/crypto_core_bindings.dart';
@@ -26,6 +27,7 @@ import 'src/secure/patient_account.dart';
 import 'src/secure/sealed_blob_store.dart';
 import 'src/ui/onboarding_screen.dart';
 import 'src/ui/qr_screen.dart';
+import 'src/ui/scan_screen.dart';
 
 /// Backend base URL — production sovereign endpoint (ADR 0004 / ARTCI hosting).
 const String _kBackendBaseUrl = 'https://api.healthtech.ci';
@@ -142,19 +144,39 @@ class _HomeScreen extends StatelessWidget {
     );
   }
 
+  ScanService _buildScanService() => ScanService(
+        crypto: const FrbCryptoCore(),
+        client: BackendClient(_kBackendBaseUrl),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('HealthTech')),
       body: Center(
-        child: ElevatedButton.icon(
-          icon: const Icon(Icons.qr_code),
-          label: const Text('Partager mon dossier'),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => QrScreen(controller: _buildController()),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.qr_code),
+              label: const Text('Partager mon dossier'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => QrScreen(controller: _buildController()),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scanner (médecin)'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ScanScreen(service: _buildScanService()),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
