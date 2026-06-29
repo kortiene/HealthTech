@@ -97,6 +97,12 @@ class MasterKeyService {
     }
   }
 
+  /// Zeroize the clear key behind [handle] in the Rust core (G5).
+  ///
+  /// Callers that obtained a handle from [unsealForUse] must call this as soon
+  /// as the key is no longer needed — typically in a `finally` block.
+  Future<void> wipeHandle(MasterKeyHandle handle) => _crypto.wipe(handle);
+
   /// Unseal the master key into the Rust core for use (#14 / local session open).
   ///
   /// Returns an opaque handle; the clear bytes live in memory only for the

@@ -54,6 +54,27 @@ abstract class CryptoCore {
 
   /// Zeroize the clear key behind [handle] inside the Rust core (G5).
   Future<void> wipe(MasterKeyHandle handle);
+
+  /// Encrypt [plaintext] with the key behind [handle] (AES-256-GCM, #10).
+  ///
+  /// Returns `nonce(12) || ciphertext || tag(16)`. Wire format matches
+  /// the Rust `encrypt_record` function (28-byte overhead). The clear key
+  /// never leaves the Rust core.
+  Future<Uint8List> encryptRecord(MasterKeyHandle handle, Uint8List plaintext);
+
+  /// Decrypt a blob from [encryptRecord] (#10).
+  ///
+  /// Throws [DecryptError] on a bad tag, wrong key, or corrupted blob.
+  Future<Uint8List> decryptRecord(MasterKeyHandle handle, Uint8List ciphertext);
+}
+
+/// Raised when [CryptoCore.decryptRecord] detects a bad tag, wrong key,
+/// or corrupted blob.  Deliberately coarse — no decryption oracle.
+class DecryptError implements Exception {
+  const DecryptError();
+
+  @override
+  String toString() => 'decryption failed: bad key, tag mismatch, or corrupted blob';
 }
 
 /// Raised when the generated FRB bindings (and the native `crypto-core` library)
@@ -93,5 +114,19 @@ class FrbCryptoCore implements CryptoCore {
 
   @override
   Future<void> wipe(MasterKeyHandle handle) async =>
+      throw const CryptoCoreUnavailable();
+
+  @override
+  Future<Uint8List> encryptRecord(
+    MasterKeyHandle handle,
+    Uint8List plaintext,
+  ) async =>
+      throw const CryptoCoreUnavailable();
+
+  @override
+  Future<Uint8List> decryptRecord(
+    MasterKeyHandle handle,
+    Uint8List ciphertext,
+  ) async =>
       throw const CryptoCoreUnavailable();
 }

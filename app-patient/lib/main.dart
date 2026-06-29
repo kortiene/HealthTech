@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import 'src/secure/keystore_channel.dart';
 import 'src/secure/master_key_service.dart';
+import 'src/ui/onboarding_screen.dart';
 
 void main() {
   runApp(const PatientApp());
@@ -34,51 +35,68 @@ class PatientApp extends StatelessWidget {
     return MaterialApp(
       title: 'HealthTech Patient',
       theme: ThemeData(useMaterial3: true),
-      home: _HomeStub(masterKey: masterKey),
+      home: _RootRouter(masterKey: masterKey),
     );
   }
 }
 
-/// Placeholder home screen that performs the #11 startup routing decision.
-///
-/// It probes the master-key state and shows which path the real UI (#13 onboarding
-/// vs #12 recovery) would take. The actual screens are out of scope for #11.
-class _HomeStub extends StatelessWidget {
-  const _HomeStub({required this.masterKey});
+/// Start-up router: probes the master-key state and navigates accordingly.
+class _RootRouter extends StatefulWidget {
+  const _RootRouter({required this.masterKey});
 
   final MasterKeyService masterKey;
 
-  Future<String> _route() async {
-    try {
-      switch (await masterKey.probeState()) {
-        case MasterKeyState.absent:
-          return 'No master key yet → onboarding (#13): generate + seal in Keystore.';
-        case MasterKeyState.present:
-          return 'Master key sealed in hardware → open record.';
-        case MasterKeyState.invalidated:
-          return 'Hardware key invalidated → recovery (#12, PBKDF2).';
-      }
-    } on KeystoreException catch (e) {
-      // No silent software fallback (G3): surface the failure honestly.
-      return 'Keystore unavailable — ${e.message}. (No software fallback by design.)';
-    }
+  @override
+  State<_RootRouter> createState() => _RootRouterState();
+}
+
+class _RootRouterState extends State<_RootRouter> {
+  late final Future<MasterKeyState> _stateFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _stateFuture = widget.masterKey.probeState();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('HealthTech')),
-      body: Center(
-        child: FutureBuilder<String>(
-          future: _route(),
-          builder: (context, snap) {
-            // TODO(#16): patient QR (generate w/ 120 s TTL, scan w/ mobile_scanner).
-            // TODO(#14): open SQLCipher mirror (DB key unsealed in-memory only).
-            final status = snap.data ?? 'Checking device key…';
-            return Text('HealthTech patient app — $status');
-          },
-        ),
-      ),
+    return FutureBuilder<MasterKeyState>(
+      future: _stateFuture,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snap.hasError) {
+          final err = snap.error;
+          final msg = err is KeystoreException ? err.message : err.toString();
+          return Scaffold(
+            body: Center(
+              child: Text('Erreur démarrage — $msg'),
+            ),
+          );
+        }
+        return switch (snap.data!) {
+          // First run: show the onboarding flow (#13).
+          MasterKeyState.absent => OnboardingScreen(
+              onComplete: () => setState(() {
+                _stateFuture = widget.masterKey.probeState();
+              }),
+            ),
+          // Key present: route to the main app screen.
+          // TODO(#16): replace stub with QR + record screen.
+          MasterKeyState.present => const Scaffold(
+              body: Center(child: Text('HealthTech — dossier médical')),
+            ),
+          // Key invalidated: route to PBKDF2 recovery (#12).
+          // TODO(#12): replace stub with RecoveryScreen.
+          MasterKeyState.invalidated => const Scaffold(
+              body: Center(child: Text('Clé invalidée — récupération (#12)')),
+            ),
+        };
+      },
     );
   }
 }
