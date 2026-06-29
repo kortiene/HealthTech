@@ -274,18 +274,248 @@ pub fn decrypt_record(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>, Crypt
     open(key, nonce_bytes, &[], ciphertext)
 }
 
-/// Derive a 256-bit key from a passphrase via PBKDF2-HMAC-SHA256.
+/// Derive a 256-bit key from a memorable secret via PBKDF2-HMAC-SHA256 (#12).
 ///
-/// `salt` is public by design and stored alongside the record; `iterations` is
-/// benchmarked per device class and stored too, so it is forward-tunable (ADR 0003).
+/// This is the low-level KDF primitive behind the recovery envelope. Policy (frozen by
+/// #12, ADR 0003 / ADR 0006):
 ///
-/// `TODO(#12)`: calibrate the default iteration count on entry-level Android (Infinix
-/// SoC class), add the RFC 6070 / NIST PBKDF2 gating vectors, and evaluate Argon2id if
-/// the PRD's "PBKDF2" wording is relaxed. Out of scope for #10.
+/// - `salt` is **public by design**, mandatory, and stored alongside the envelope. It MUST
+///   be random and at least [`RECOVERY_SALT_LEN`] bytes for production use (anti
+///   rainbow-table, per-patient). PBKDF2 itself tolerates any salt — the length policy is
+///   enforced by [`seal_recovery_envelope`], the only sanctioned producer.
+/// - `iterations` is stored with the envelope (never guessed) so it is **forward-tunable**:
+///   the count can be raised over time, and a future KDF migration is carried by the
+///   envelope's version/kdf bytes (G4). The calibrated default is
+///   [`RECOVERY_PBKDF2_DEFAULT_ITERS`] with a hard floor of [`RECOVERY_PBKDF2_MIN_ITERS`].
+/// - The secret is **never** persisted, logged, or transmitted; the derived key is held in
+///   [`Zeroizing`] by callers (G8).
+///
+/// The exact byte output of this function is pinned by the **gating** RFC 6070 / NIST
+/// PBKDF2-HMAC-SHA256 known-answer vectors in `tests/pbkdf2_rfc6070_vectors.rs` (ADR 0003):
+/// `derive_key` is proven against the spec, not merely against itself.
+///
+/// Brute-force note (acceptance criterion #2): PBKDF2-HMAC-SHA256 is **not memory-hard**.
+/// A low-entropy secret (culturally-adapted answers) is defended by the high iteration
+/// count + the per-patient salt; a higher-entropy passphrase is strongly recommended. A
+/// memory-hard KDF (Argon2id) would raise the bar further and is *prepared* by the version
+/// byte but not adopted while the PRD mandates "PBKDF2" (see ADR 0003).
 pub fn derive_key(passphrase: &[u8], salt: &[u8], iterations: u32) -> [u8; KEY_LEN] {
     let mut key = [0u8; KEY_LEN];
     pbkdf2_hmac::<Sha256>(passphrase, salt, iterations, &mut key);
     key
+}
+
+// ─── Recovery envelope (#12, US-1.4) ─────────────────────────────────────────────────
+//
+// A hardware-sealed master key (#11) is NOT recoverable on its own — there is nothing to
+// re-derive if the phone (and its non-exportable Keystore KEK) is lost. #12 adds a SECOND
+// way to decrypt the same master key, from a memorable secret, independent of hardware:
+//
+//   recovery_key = PBKDF2-HMAC-SHA256(secret, salt, iterations)   // 256-bit, Zeroizing
+//   recovery_blob = encrypt_record(recovery_key, master_key)      // #10 wire format
+//
+// Only the (encrypted) envelope ever leaves the device; the secret and the clear master
+// key never do (zero-knowledge, G2/G8). On a new device the patient re-enters the secret,
+// the envelope is re-derived + decrypted, and the master key is re-sealed into the new
+// device's hardware (#11). The server, holding only opaque envelope bytes, can neither
+// derive the secret nor decrypt anything.
+
+/// Recovery-envelope schema version (leading byte). Bump only for an incompatible layout
+/// change; readers MUST reject unknown versions (no silent re-interpretation).
+pub const RECOVERY_ENVELOPE_VERSION: u8 = 1;
+
+/// KDF identifier stored in the envelope: PBKDF2-HMAC-SHA256. A future memory-hard KDF
+/// (Argon2id) would take a new id, carried additively by this byte (G4).
+pub const RECOVERY_KDF_PBKDF2_HMAC_SHA256: u8 = 1;
+
+/// Random salt length, in bytes, minted for each recovery envelope (256-bit — matches
+/// threat-model control CTRL-04 and exceeds the ≥16-byte floor). Public, per-patient,
+/// anti rainbow-table.
+pub const RECOVERY_SALT_LEN: usize = 32;
+
+/// Calibrated default PBKDF2-HMAC-SHA256 iteration count for recovery-key derivation.
+///
+/// Set to the OWASP 2023 recommendation for PBKDF2-HMAC-SHA256 (600 000). The value is
+/// **stored with each envelope**, so it can be re-tuned per device class without breaking
+/// existing envelopes (G4). It MUST be re-benchmarked on the entry-level Android device
+/// lab (#29): targeting a ≤ ~1–2 s derivation on an Infinix-class SoC. Tuning DOWN for UX
+/// is permitted only above [`RECOVERY_PBKDF2_MIN_ITERS`]; going below the floor requires a
+/// documented security re-review (ADR 0003).
+pub const RECOVERY_PBKDF2_DEFAULT_ITERS: u32 = 600_000;
+
+/// Hard floor on the iteration count. [`seal_recovery_envelope`] raises any lower request
+/// up to this value, and [`open_recovery_envelope`] rejects envelopes that claim fewer —
+/// an anti-regression guard so a calibration mistake can never silently weaken brute-force
+/// resistance (acceptance criterion #2).
+pub const RECOVERY_PBKDF2_MIN_ITERS: u32 = 210_000;
+
+/// Byte placed between normalized answers when concatenating them into a single secret.
+/// It is an ASCII control character (Unit Separator, U+001F) that [`normalize_recovery_answers`]
+/// strips from the answers themselves, so it cannot be forged by user input.
+const ANSWER_SEPARATOR: char = '\u{1f}';
+
+/// Fixed envelope header length: version(1) + kdf_id(1) + iterations(4, big-endian) +
+/// salt_len(1).
+const RECOVERY_HEADER_LEN: usize = 1 + 1 + 4 + 1;
+
+/// Fold a single (already-lowercased) character to its unaccented Latin base, so that
+/// re-typing an answer with or without diacritics derives the same key (G6).
+///
+/// Deliberately conservative and dependency-free: it covers the Latin-1 / French diacritics
+/// relevant to the Ivorian (francophone) context. Characters outside this set pass through
+/// unchanged, so non-Latin scripts keep their entropy. Full Unicode NFD folding is a future
+/// option if local-language question sets need it.
+fn fold_diacritic(c: char) -> char {
+    match c {
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+        'ç' => 'c',
+        'è' | 'é' | 'ê' | 'ë' => 'e',
+        'ì' | 'í' | 'î' | 'ï' => 'i',
+        'ñ' => 'n',
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' => 'o',
+        'ù' | 'ú' | 'û' | 'ü' => 'u',
+        'ý' | 'ÿ' => 'y',
+        other => other,
+    }
+}
+
+/// Deterministically normalize one security-question answer (G6).
+///
+/// Stable and reproducible across the old and new device so the derivation is reliable
+/// despite typing variation: lowercase (Unicode), fold Latin diacritics, drop punctuation,
+/// and collapse any run of whitespace to a single space (with leading/trailing space
+/// removed). Entropy-preserving where it matters — it never destroys the actual answer
+/// tokens, only the cosmetic variation around them.
+fn normalize_one_answer(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut pending_space = false;
+    // `to_lowercase` is locale-independent and may expand a char to several; flatten it.
+    for ch in s.chars().flat_map(char::to_lowercase) {
+        if ch.is_whitespace() {
+            // Only a separator between real tokens; never leading/trailing.
+            pending_space = !out.is_empty();
+            continue;
+        }
+        let folded = fold_diacritic(ch);
+        if folded.is_alphanumeric() {
+            if pending_space {
+                out.push(' ');
+                pending_space = false;
+            }
+            out.push(folded);
+        }
+        // Punctuation and the like are dropped (they reduce re-typing reliability).
+    }
+    out
+}
+
+/// Normalize and concatenate a set of security-question answers into the secret bytes fed
+/// to PBKDF2 (G6/G7).
+///
+/// Each answer is normalized independently by [`normalize_one_answer`], then joined with an
+/// in-band separator the normalization strips, so `["Abidjan", "Yopougon"]` cannot collide
+/// with `["AbidjanYopougon"]`. The result is UTF-8 bytes suitable for [`derive_key`] /
+/// [`MasterKeyHandle::seal_recovery_envelope`]. Passphrases take the higher-entropy path
+/// and are NOT folded — pass their raw UTF-8 bytes directly instead of going through here.
+pub fn normalize_recovery_answers(answers: &[&str]) -> Vec<u8> {
+    let mut joined = String::new();
+    for (i, a) in answers.iter().enumerate() {
+        if i > 0 {
+            joined.push(ANSWER_SEPARATOR);
+        }
+        joined.push_str(&normalize_one_answer(a));
+    }
+    joined.into_bytes()
+}
+
+/// Build a recovery envelope wrapping `master_key` under a key derived from `secret` (G2).
+///
+/// Layout (self-describing, so a new device can re-derive without out-of-band parameters):
+///
+/// ```text
+/// version(1) || kdf_id(1) || iterations(4, big-endian) || salt_len(1) || salt || recovery_blob
+/// ```
+///
+/// where `recovery_blob = encrypt_record(recovery_key, master_key)` is the #10 wire format
+/// (`nonce || ciphertext || tag`, 60 bytes for a 32-byte key). A fresh
+/// [`RECOVERY_SALT_LEN`]-byte salt is minted per call from the OS CSPRNG; `iterations` is
+/// raised to [`RECOVERY_PBKDF2_MIN_ITERS`] if a lower value is requested.
+///
+/// The derived recovery key is held in [`Zeroizing`] and wiped on return; the secret and
+/// the clear master key are never persisted, logged, or transmitted (G8). Returns
+/// [`CryptoError::Rng`] if the CSPRNG fails.
+pub fn seal_recovery_envelope(
+    master_key: &[u8; KEY_LEN],
+    secret: &[u8],
+    iterations: u32,
+) -> Result<Vec<u8>, CryptoError> {
+    let iterations = iterations.max(RECOVERY_PBKDF2_MIN_ITERS);
+
+    let mut salt = [0u8; RECOVERY_SALT_LEN];
+    getrandom::getrandom(&mut salt).map_err(|_| CryptoError::Rng)?;
+
+    let recovery_key = Zeroizing::new(derive_key(secret, &salt, iterations));
+    // The master key is the "plaintext" sealed under the recovery key (#10 format).
+    let recovery_blob = encrypt_record(&recovery_key, master_key)?;
+
+    let mut out = Vec::with_capacity(RECOVERY_HEADER_LEN + RECOVERY_SALT_LEN + recovery_blob.len());
+    out.push(RECOVERY_ENVELOPE_VERSION);
+    out.push(RECOVERY_KDF_PBKDF2_HMAC_SHA256);
+    out.extend_from_slice(&iterations.to_be_bytes());
+    out.push(RECOVERY_SALT_LEN as u8);
+    out.extend_from_slice(&salt);
+    out.extend_from_slice(&recovery_blob);
+    Ok(out)
+}
+
+/// Re-derive and unwrap a recovery envelope produced by [`seal_recovery_envelope`] (G1).
+///
+/// Parses the self-describing header, re-derives the recovery key from `secret` + the
+/// stored salt/iterations, and authenticated-decrypts the wrapped master key. On success
+/// the recovered master key is returned **inside a [`MasterKeyHandle`]** — it never crosses
+/// the FFI as raw bytes; the caller re-seals it into the new device's hardware (#11) via the
+/// single sanctioned [`MasterKeyHandle::export_sealable`] crossing.
+///
+/// Every failure mode — wrong secret, tampered/truncated envelope, unknown version/KDF,
+/// or an iteration count below the floor — collapses to the single coarse
+/// [`CryptoError::Decrypt`] (no oracle distinguishing "wrong secret" from "bad blob",
+/// threat model THR-05). "Envelope not found" is a *lookup* concern handled above this
+/// layer (typed separately in Dart), never here.
+pub fn open_recovery_envelope(secret: &[u8], envelope: &[u8]) -> Result<MasterKeyHandle, CryptoError> {
+    if envelope.len() < RECOVERY_HEADER_LEN {
+        return Err(CryptoError::Decrypt);
+    }
+    if envelope[0] != RECOVERY_ENVELOPE_VERSION || envelope[1] != RECOVERY_KDF_PBKDF2_HMAC_SHA256 {
+        return Err(CryptoError::Decrypt);
+    }
+    let iterations = u32::from_be_bytes([envelope[2], envelope[3], envelope[4], envelope[5]]);
+    if iterations < RECOVERY_PBKDF2_MIN_ITERS {
+        return Err(CryptoError::Decrypt);
+    }
+    let salt_len = envelope[6] as usize;
+    let salt_start = RECOVERY_HEADER_LEN;
+    let blob_start = salt_start + salt_len;
+    // Salt must meet the ≥16-byte floor and fit, leaving room for the recovery blob.
+    if salt_len < 16 || envelope.len() <= blob_start {
+        return Err(CryptoError::Decrypt);
+    }
+    let salt = &envelope[salt_start..blob_start];
+    let recovery_blob = &envelope[blob_start..];
+
+    let recovery_key = Zeroizing::new(derive_key(secret, salt, iterations));
+    let mut master = decrypt_record(&recovery_key, recovery_blob)?;
+    // A correct secret must yield exactly a 32-byte master key; anything else is treated as
+    // a (coarse) decrypt failure rather than handing back an ill-sized key.
+    if master.len() != KEY_LEN {
+        master.zeroize();
+        return Err(CryptoError::Decrypt);
+    }
+    let mut key = [0u8; KEY_LEN];
+    key.copy_from_slice(&master);
+    master.zeroize();
+    let handle = MasterKeyHandle::from_unsealed(key);
+    key.zeroize();
+    Ok(handle)
 }
 
 /// Overwrite a secret buffer in place so it cannot be recovered from freed memory.
