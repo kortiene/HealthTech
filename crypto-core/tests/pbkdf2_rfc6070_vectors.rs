@@ -12,7 +12,7 @@
 
 use crypto_core::{
     derive_key, generate_master_key, normalize_recovery_answers, open_recovery_envelope,
-    seal_recovery_envelope, CryptoError, KEY_LEN, RECOVERY_PBKDF2_MIN_ITERS,
+    seal_recovery_envelope, CryptoError, RECOVERY_PBKDF2_MIN_ITERS,
 };
 
 fn hexd(s: &str) -> Vec<u8> {
