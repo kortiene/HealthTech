@@ -101,7 +101,8 @@ class DecryptError implements Exception {
   const DecryptError();
 
   @override
-  String toString() => 'decryption failed: bad key, tag mismatch, or corrupted blob';
+  String toString() =>
+      'decryption failed: bad key, tag mismatch, or corrupted blob';
 }
 
 /// Raised when a recovery envelope cannot be opened — wrong secret, corrupted

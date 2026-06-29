@@ -122,7 +122,10 @@ void main() {
 
     test('toJson includes all fields', () {
       final json = _fakeAccount().toJson();
-      expect(json.keys, containsAll(['uuid', 'cmu', 'phone', 'consent', 'created_at']));
+      expect(
+        json.keys,
+        containsAll(['uuid', 'cmu', 'phone', 'consent', 'created_at']),
+      );
     });
   });
 
@@ -182,10 +185,16 @@ void main() {
       final blob = await store.read();
 
       final blobString = utf8.decode(blob!, allowMalformed: true);
-      expect(blobString, isNot(contains('CMU-2025-TEST01')),
-          reason: 'CMU must not appear in clear in the stored blob');
-      expect(blobString, isNot(contains('+225 07 00 00 00 01')),
-          reason: 'phone must not appear in clear in the stored blob');
+      expect(
+        blobString,
+        isNot(contains('CMU-2025-TEST01')),
+        reason: 'CMU must not appear in clear in the stored blob',
+      );
+      expect(
+        blobString,
+        isNot(contains('+225 07 00 00 00 01')),
+        reason: 'phone must not appear in clear in the stored blob',
+      );
     });
   });
 
