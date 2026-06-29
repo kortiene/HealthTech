@@ -1,4 +1,4 @@
-// Patient identity model and encrypted local storage (issue #13).
+// Patient identity model and encrypted local storage (issue #13, closes #13).
 //
 // The patient account stores CMU number, phone, UUID, and consent record.
 // ALL fields are encrypted with the master key before persisting — the clear
