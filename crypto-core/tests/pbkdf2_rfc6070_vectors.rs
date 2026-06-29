@@ -100,10 +100,7 @@ fn derive_key_is_sensitive_to_salt() {
 fn derive_key_is_sensitive_to_iterations() {
     let a = derive_key(b"passphrase", b"salt", 1);
     let b = derive_key(b"passphrase", b"salt", 2);
-    assert_ne!(
-        a, b,
-        "different iteration counts must yield different keys"
-    );
+    assert_ne!(a, b, "different iteration counts must yield different keys");
 }
 
 // ─── Recovery envelope round-trip ─────────────────────────────────────────────────────
@@ -127,9 +124,8 @@ fn seal_open_recovery_envelope_round_trip() {
     //
     // Direct comparison: derive a blob from the recovered handle and check it
     // round-trips, then verify same-key by encrypting/decrypting the original.
-    let recovered_blob =
-        seal_recovery_envelope(&master_key, b"verify", RECOVERY_PBKDF2_MIN_ITERS)
-            .expect("re-seal with known key");
+    let recovered_blob = seal_recovery_envelope(&master_key, b"verify", RECOVERY_PBKDF2_MIN_ITERS)
+        .expect("re-seal with known key");
     let handle2 = open_recovery_envelope(b"verify", &recovered_blob).expect("re-open");
     drop(handle2);
 

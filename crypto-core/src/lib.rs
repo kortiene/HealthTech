@@ -481,7 +481,10 @@ pub fn seal_recovery_envelope(
 /// [`CryptoError::Decrypt`] (no oracle distinguishing "wrong secret" from "bad blob",
 /// threat model THR-05). "Envelope not found" is a *lookup* concern handled above this
 /// layer (typed separately in Dart), never here.
-pub fn open_recovery_envelope(secret: &[u8], envelope: &[u8]) -> Result<MasterKeyHandle, CryptoError> {
+pub fn open_recovery_envelope(
+    secret: &[u8],
+    envelope: &[u8],
+) -> Result<MasterKeyHandle, CryptoError> {
     if envelope.len() < RECOVERY_HEADER_LEN {
         return Err(CryptoError::Decrypt);
     }
