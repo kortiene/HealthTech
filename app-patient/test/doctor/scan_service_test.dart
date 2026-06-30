@@ -11,6 +11,8 @@
 //   - fetchAndDecrypt: propagates BlobNotFound on 404.
 //   - fetchAndDecrypt: propagates BackendUnavailable on 5xx.
 //   - ZK: fetchAndDecrypt never issues PUT (read-only cloud operation).
+//   - ExpiredQrCode: toString returns a localized message without leaking
+//     key material or PII (consistent with RecordFullException.toString()).
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -300,6 +302,28 @@ void main() {
       );
       await svc.fetchAndDecrypt(_freshPayload());
       expect(puts, isEmpty);
+    });
+  });
+
+  group('ExpiredQrCode', () {
+    test('is an Exception', () {
+      expect(const ExpiredQrCode(), isA<Exception>());
+    });
+
+    test('toString returns a non-empty localized message', () {
+      expect(const ExpiredQrCode().toString(), isNotEmpty);
+    });
+
+    test('toString mentions QR expiry', () {
+      // The message is in French and must be user-facing, not an internal dump.
+      expect(const ExpiredQrCode().toString(), contains('expiré'));
+    });
+
+    test('toString does not expose key material or technical internals', () {
+      final msg = const ExpiredQrCode().toString().toLowerCase();
+      expect(msg, isNot(contains('key')));
+      expect(msg, isNot(contains('plaintext')));
+      expect(msg, isNot(contains('sessionkey')));
     });
   });
 }
