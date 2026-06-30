@@ -85,6 +85,15 @@ class _FailingQueue implements OfflineUploadQueue {
 
   @override
   Future<int> count() async => 0;
+
+  @override
+  Future<void> markAttempt(String id, {required String redactedError}) async {}
+
+  @override
+  Future<void> markConflict(
+    String id, {
+    required String redactedReason,
+  }) async {}
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

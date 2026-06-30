@@ -46,9 +46,37 @@ class $PendingUploadsTable extends PendingUploads
   late final GeneratedColumn<String> enqueuedAt = GeneratedColumn<String>(
       'enqueued_at', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _lastAttemptAtMeta =
+      const VerificationMeta('lastAttemptAt');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, blobUuid, ciphertext, ciphertextHash, attempts, enqueuedAt];
+  late final GeneratedColumn<String> lastAttemptAt = GeneratedColumn<String>(
+      'last_attempt_at', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _lastErrorMeta =
+      const VerificationMeta('lastError');
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+      'last_error', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+      'state', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pending'));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        blobUuid,
+        ciphertext,
+        ciphertextHash,
+        attempts,
+        enqueuedAt,
+        lastAttemptAt,
+        lastError,
+        state
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -98,6 +126,20 @@ class $PendingUploadsTable extends PendingUploads
     } else if (isInserting) {
       context.missing(_enqueuedAtMeta);
     }
+    if (data.containsKey('last_attempt_at')) {
+      context.handle(
+          _lastAttemptAtMeta,
+          lastAttemptAt.isAcceptableOrUnknown(
+              data['last_attempt_at']!, _lastAttemptAtMeta));
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(_lastErrorMeta,
+          lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta));
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+          _stateMeta, state.isAcceptableOrUnknown(data['state']!, _stateMeta));
+    }
     return context;
   }
 
@@ -123,6 +165,12 @@ class $PendingUploadsTable extends PendingUploads
           .read(DriftSqlType.int, data['${effectivePrefix}attempts'])!,
       enqueuedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}enqueued_at'])!,
+      lastAttemptAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}last_attempt_at']),
+      lastError: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}last_error']),
+      state: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}state'])!,
     );
   }
 
@@ -151,13 +199,26 @@ class PendingUploadRow extends DataClass
 
   /// ISO-8601 enqueue timestamp (FIFO order).
   final String enqueuedAt;
+
+  /// (#22 / v2) ISO-8601 timestamp of the last drain attempt — drives backoff.
+  final String? lastAttemptAt;
+
+  /// (#22 / v2) REDACTED last-failure category (HTTP status / exception type) —
+  /// NEVER bytes, keys or PII.
+  final String? lastError;
+
+  /// (#22 / v2) Sync lifecycle state name (`pending` / `conflict`).
+  final String state;
   const PendingUploadRow(
       {required this.id,
       required this.blobUuid,
       required this.ciphertext,
       required this.ciphertextHash,
       required this.attempts,
-      required this.enqueuedAt});
+      required this.enqueuedAt,
+      this.lastAttemptAt,
+      this.lastError,
+      required this.state});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -167,6 +228,13 @@ class PendingUploadRow extends DataClass
     map['ciphertext_hash'] = Variable<String>(ciphertextHash);
     map['attempts'] = Variable<int>(attempts);
     map['enqueued_at'] = Variable<String>(enqueuedAt);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<String>(lastAttemptAt);
+    }
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['state'] = Variable<String>(state);
     return map;
   }
 
@@ -178,6 +246,13 @@ class PendingUploadRow extends DataClass
       ciphertextHash: Value(ciphertextHash),
       attempts: Value(attempts),
       enqueuedAt: Value(enqueuedAt),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      state: Value(state),
     );
   }
 
@@ -191,6 +266,9 @@ class PendingUploadRow extends DataClass
       ciphertextHash: serializer.fromJson<String>(json['ciphertextHash']),
       attempts: serializer.fromJson<int>(json['attempts']),
       enqueuedAt: serializer.fromJson<String>(json['enqueuedAt']),
+      lastAttemptAt: serializer.fromJson<String?>(json['lastAttemptAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      state: serializer.fromJson<String>(json['state']),
     );
   }
   @override
@@ -203,6 +281,9 @@ class PendingUploadRow extends DataClass
       'ciphertextHash': serializer.toJson<String>(ciphertextHash),
       'attempts': serializer.toJson<int>(attempts),
       'enqueuedAt': serializer.toJson<String>(enqueuedAt),
+      'lastAttemptAt': serializer.toJson<String?>(lastAttemptAt),
+      'lastError': serializer.toJson<String?>(lastError),
+      'state': serializer.toJson<String>(state),
     };
   }
 
@@ -212,7 +293,10 @@ class PendingUploadRow extends DataClass
           Uint8List? ciphertext,
           String? ciphertextHash,
           int? attempts,
-          String? enqueuedAt}) =>
+          String? enqueuedAt,
+          Value<String?> lastAttemptAt = const Value.absent(),
+          Value<String?> lastError = const Value.absent(),
+          String? state}) =>
       PendingUploadRow(
         id: id ?? this.id,
         blobUuid: blobUuid ?? this.blobUuid,
@@ -220,6 +304,10 @@ class PendingUploadRow extends DataClass
         ciphertextHash: ciphertextHash ?? this.ciphertextHash,
         attempts: attempts ?? this.attempts,
         enqueuedAt: enqueuedAt ?? this.enqueuedAt,
+        lastAttemptAt:
+            lastAttemptAt.present ? lastAttemptAt.value : this.lastAttemptAt,
+        lastError: lastError.present ? lastError.value : this.lastError,
+        state: state ?? this.state,
       );
   PendingUploadRow copyWithCompanion(PendingUploadsCompanion data) {
     return PendingUploadRow(
@@ -233,6 +321,11 @@ class PendingUploadRow extends DataClass
       attempts: data.attempts.present ? data.attempts.value : this.attempts,
       enqueuedAt:
           data.enqueuedAt.present ? data.enqueuedAt.value : this.enqueuedAt,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      state: data.state.present ? data.state.value : this.state,
     );
   }
 
@@ -244,7 +337,10 @@ class PendingUploadRow extends DataClass
           ..write('ciphertext: $ciphertext, ')
           ..write('ciphertextHash: $ciphertextHash, ')
           ..write('attempts: $attempts, ')
-          ..write('enqueuedAt: $enqueuedAt')
+          ..write('enqueuedAt: $enqueuedAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('state: $state')
           ..write(')'))
         .toString();
   }
@@ -256,7 +352,10 @@ class PendingUploadRow extends DataClass
       $driftBlobEquality.hash(ciphertext),
       ciphertextHash,
       attempts,
-      enqueuedAt);
+      enqueuedAt,
+      lastAttemptAt,
+      lastError,
+      state);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -266,7 +365,10 @@ class PendingUploadRow extends DataClass
           $driftBlobEquality.equals(other.ciphertext, this.ciphertext) &&
           other.ciphertextHash == this.ciphertextHash &&
           other.attempts == this.attempts &&
-          other.enqueuedAt == this.enqueuedAt);
+          other.enqueuedAt == this.enqueuedAt &&
+          other.lastAttemptAt == this.lastAttemptAt &&
+          other.lastError == this.lastError &&
+          other.state == this.state);
 }
 
 class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
@@ -276,6 +378,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
   final Value<String> ciphertextHash;
   final Value<int> attempts;
   final Value<String> enqueuedAt;
+  final Value<String?> lastAttemptAt;
+  final Value<String?> lastError;
+  final Value<String> state;
   final Value<int> rowid;
   const PendingUploadsCompanion({
     this.id = const Value.absent(),
@@ -284,6 +389,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
     this.ciphertextHash = const Value.absent(),
     this.attempts = const Value.absent(),
     this.enqueuedAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.state = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PendingUploadsCompanion.insert({
@@ -293,6 +401,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
     required String ciphertextHash,
     this.attempts = const Value.absent(),
     required String enqueuedAt,
+    this.lastAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.state = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         blobUuid = Value(blobUuid),
@@ -306,6 +417,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
     Expression<String>? ciphertextHash,
     Expression<int>? attempts,
     Expression<String>? enqueuedAt,
+    Expression<String>? lastAttemptAt,
+    Expression<String>? lastError,
+    Expression<String>? state,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -315,6 +429,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
       if (ciphertextHash != null) 'ciphertext_hash': ciphertextHash,
       if (attempts != null) 'attempts': attempts,
       if (enqueuedAt != null) 'enqueued_at': enqueuedAt,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (lastError != null) 'last_error': lastError,
+      if (state != null) 'state': state,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -326,6 +443,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
       Value<String>? ciphertextHash,
       Value<int>? attempts,
       Value<String>? enqueuedAt,
+      Value<String?>? lastAttemptAt,
+      Value<String?>? lastError,
+      Value<String>? state,
       Value<int>? rowid}) {
     return PendingUploadsCompanion(
       id: id ?? this.id,
@@ -334,6 +454,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
       ciphertextHash: ciphertextHash ?? this.ciphertextHash,
       attempts: attempts ?? this.attempts,
       enqueuedAt: enqueuedAt ?? this.enqueuedAt,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      lastError: lastError ?? this.lastError,
+      state: state ?? this.state,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -359,6 +482,15 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
     if (enqueuedAt.present) {
       map['enqueued_at'] = Variable<String>(enqueuedAt.value);
     }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<String>(lastAttemptAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -374,6 +506,9 @@ class PendingUploadsCompanion extends UpdateCompanion<PendingUploadRow> {
           ..write('ciphertextHash: $ciphertextHash, ')
           ..write('attempts: $attempts, ')
           ..write('enqueuedAt: $enqueuedAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('state: $state, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -399,6 +534,9 @@ typedef $$PendingUploadsTableCreateCompanionBuilder = PendingUploadsCompanion
   required String ciphertextHash,
   Value<int> attempts,
   required String enqueuedAt,
+  Value<String?> lastAttemptAt,
+  Value<String?> lastError,
+  Value<String> state,
   Value<int> rowid,
 });
 typedef $$PendingUploadsTableUpdateCompanionBuilder = PendingUploadsCompanion
@@ -409,6 +547,9 @@ typedef $$PendingUploadsTableUpdateCompanionBuilder = PendingUploadsCompanion
   Value<String> ciphertextHash,
   Value<int> attempts,
   Value<String> enqueuedAt,
+  Value<String?> lastAttemptAt,
+  Value<String?> lastError,
+  Value<String> state,
   Value<int> rowid,
 });
 
@@ -439,6 +580,15 @@ class $$PendingUploadsTableFilterComposer
 
   ColumnFilters<String> get enqueuedAt => $composableBuilder(
       column: $table.enqueuedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get lastAttemptAt => $composableBuilder(
+      column: $table.lastAttemptAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+      column: $table.lastError, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get state => $composableBuilder(
+      column: $table.state, builder: (column) => ColumnFilters(column));
 }
 
 class $$PendingUploadsTableOrderingComposer
@@ -468,6 +618,16 @@ class $$PendingUploadsTableOrderingComposer
 
   ColumnOrderings<String> get enqueuedAt => $composableBuilder(
       column: $table.enqueuedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lastAttemptAt => $composableBuilder(
+      column: $table.lastAttemptAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+      column: $table.lastError, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get state => $composableBuilder(
+      column: $table.state, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PendingUploadsTableAnnotationComposer
@@ -496,6 +656,15 @@ class $$PendingUploadsTableAnnotationComposer
 
   GeneratedColumn<String> get enqueuedAt => $composableBuilder(
       column: $table.enqueuedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get lastAttemptAt => $composableBuilder(
+      column: $table.lastAttemptAt, builder: (column) => column);
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
 }
 
 class $$PendingUploadsTableTableManager extends RootTableManager<
@@ -532,6 +701,9 @@ class $$PendingUploadsTableTableManager extends RootTableManager<
             Value<String> ciphertextHash = const Value.absent(),
             Value<int> attempts = const Value.absent(),
             Value<String> enqueuedAt = const Value.absent(),
+            Value<String?> lastAttemptAt = const Value.absent(),
+            Value<String?> lastError = const Value.absent(),
+            Value<String> state = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PendingUploadsCompanion(
@@ -541,6 +713,9 @@ class $$PendingUploadsTableTableManager extends RootTableManager<
             ciphertextHash: ciphertextHash,
             attempts: attempts,
             enqueuedAt: enqueuedAt,
+            lastAttemptAt: lastAttemptAt,
+            lastError: lastError,
+            state: state,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -550,6 +725,9 @@ class $$PendingUploadsTableTableManager extends RootTableManager<
             required String ciphertextHash,
             Value<int> attempts = const Value.absent(),
             required String enqueuedAt,
+            Value<String?> lastAttemptAt = const Value.absent(),
+            Value<String?> lastError = const Value.absent(),
+            Value<String> state = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PendingUploadsCompanion.insert(
@@ -559,6 +737,9 @@ class $$PendingUploadsTableTableManager extends RootTableManager<
             ciphertextHash: ciphertextHash,
             attempts: attempts,
             enqueuedAt: enqueuedAt,
+            lastAttemptAt: lastAttemptAt,
+            lastError: lastError,
+            state: state,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

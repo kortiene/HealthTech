@@ -30,6 +30,7 @@ the runner-up proposals per the judges' recommendations.
 | Secrets & environments | **SOPS + age (in-country keys); per-env dev/staging/prod; OpenBao deferred for prod** | [0007](./0007-secrets-and-environments.md) |
 | CI/CD pipeline | **GitHub Actions: per-package lint/test/build, cargo-deny + osv-scanner SCA, APK + distroless backend image artifacts** | [0008](./0008-ci-cd-pipeline.md) |
 | Sovereign operator | **National ARTCI-eligible operator selected against a criteria grid (final pick pending procurement)** | [0009](./0009-sovereign-operator-selection.md) |
+| Offline-sync conflicts | **Blind last-writer-wins + idempotent at-least-once drain (A); divergence-detection hooks wired-but-inactive (B); patient reconciliation deferred (C)** | [0010](./0010-offline-sync-conflict-resolution.md) |
 
 ## Security documentation
 

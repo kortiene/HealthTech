@@ -37,7 +37,8 @@ part 'sqlcipher_upload_queue.g.dart';
 /// Pending uploads table. `ciphertext` is opaque (`nonce||ct||tag`); nothing in
 /// clear. `ciphertextHash` is a cheap non-cryptographic digest used ONLY for the
 /// idempotence uniqueness key — it is not a security primitive. The schema is
-/// versioned because #22 will add columns (`last_attempt_at`, `last_error`).
+/// versioned: #21 shipped v1; #22 adds the drain bookkeeping columns
+/// (`last_attempt_at`, `last_error`, `state`) at v2 (see [UploadQueueDatabase]).
 @DataClassName('PendingUploadRow')
 class PendingUploads extends Table {
   /// Local queue id (RFC-4122 v4) — primary key.
@@ -58,6 +59,16 @@ class PendingUploads extends Table {
   /// ISO-8601 enqueue timestamp (FIFO order).
   TextColumn get enqueuedAt => text()();
 
+  /// (#22 / v2) ISO-8601 timestamp of the last drain attempt — drives backoff.
+  TextColumn get lastAttemptAt => text().nullable()();
+
+  /// (#22 / v2) REDACTED last-failure category (HTTP status / exception type) —
+  /// NEVER bytes, keys or PII.
+  TextColumn get lastError => text().nullable()();
+
+  /// (#22 / v2) Sync lifecycle state name (`pending` / `conflict`).
+  TextColumn get state => text().withDefault(const Constant('pending'))();
+
   @override
   Set<Column> get primaryKey => {id};
 
@@ -75,7 +86,22 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
   UploadQueueDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  // v1 (#21) → v2 (#22): add the drain bookkeeping columns. `state` defaults to
+  // 'pending' so any row queued offline under v1 is drained normally after the
+  // upgrade — no data loss across the migration. (The real SQLCipher migration
+  // is exercised by a device-backed e2e; CI is host-only — see file header.)
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(pendingUploads, pendingUploads.lastAttemptAt);
+            await m.addColumn(pendingUploads, pendingUploads.lastError);
+            await m.addColumn(pendingUploads, pendingUploads.state);
+          }
+        },
+      );
 }
 
 /// Drift + SQLCipher implementation of [OfflineUploadQueue].
@@ -179,12 +205,13 @@ class SqlCipherUploadQueue implements OfflineUploadQueue {
       final db = await _open();
       await db.transaction(() async {
         await db.into(db.pendingUploads).insert(
-              PendingUploadRow(
+              // Companion so `attempts`/`state` take their column defaults (0 /
+              // 'pending'); #22 owns those after enqueue.
+              PendingUploadsCompanion.insert(
                 id: _idFactory(),
                 blobUuid: blobUuid,
                 ciphertext: bytes,
                 ciphertextHash: _hash(bytes),
-                attempts: 0,
                 enqueuedAt: _clock().toIso8601String(),
               ),
               // Idempotent on (blobUuid, ciphertextHash): a re-tap is a no-op.
@@ -213,6 +240,9 @@ class SqlCipherUploadQueue implements OfflineUploadQueue {
             ciphertext: r.ciphertext,
             enqueuedAtIso: r.enqueuedAt,
             attempts: r.attempts,
+            lastAttemptAtIso: r.lastAttemptAt,
+            lastError: r.lastError,
+            state: uploadStateFromName(r.state),
           ),
         )
         .toList(growable: false);
@@ -222,6 +252,40 @@ class SqlCipherUploadQueue implements OfflineUploadQueue {
   Future<void> remove(String id) async {
     final db = await _open();
     await (db.delete(db.pendingUploads)..where((t) => t.id.equals(id))).go();
+  }
+
+  @override
+  Future<void> markAttempt(String id, {required String redactedError}) async {
+    final db = await _open();
+    // Read-modify-write the attempt counter in one transaction; never touch the
+    // ciphertext. `redactedError` is a category only (validated by the caller).
+    await db.transaction(() async {
+      final row = await (db.select(db.pendingUploads)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (row == null) return;
+      await (db.update(db.pendingUploads)..where((t) => t.id.equals(id))).write(
+        PendingUploadsCompanion(
+          attempts: Value(row.attempts + 1),
+          lastAttemptAt: Value(_clock().toIso8601String()),
+          lastError: Value(redactedError),
+        ),
+      );
+    });
+  }
+
+  @override
+  Future<void> markConflict(
+    String id, {
+    required String redactedReason,
+  }) async {
+    final db = await _open();
+    await (db.update(db.pendingUploads)..where((t) => t.id.equals(id))).write(
+      PendingUploadsCompanion(
+        state: const Value('conflict'),
+        lastError: Value(redactedReason),
+      ),
+    );
   }
 
   @override
