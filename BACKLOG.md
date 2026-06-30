@@ -152,6 +152,7 @@
   Scénario de bout en bout (patient génère QR → médecin scanne, édite, termine → patient voit la mise à jour) automatisé en test d'intégration.
   *Acceptation :* test e2e vert couvrant le cycle complet.
   *Dépend de :* #16–#19.
+  *Avancement :* test d'intégration « à fakes » livré (`app-patient/test/e2e/consultation_loop_e2e_test.dart`) enchaînant les services **réels** #16→#19 — premier *end-to-end* M2 atteint. Asserte le câblage (clé de session round-trip QR, fusion append-only survivant au renvoi cloud, mise à jour observable), les invariants transverses (opacité serveur, wipe clé + blob) et les variantes (QR expiré, 5xx en fin de session). Fakes partagés extraits dans `app-patient/test/support/consultation_loop_harness.dart`. **Restant :** e2e *device-backed* (crypto-core natif via FRB, scan réel) et sync patient post-consultation (ré-import master-key) — suivis hors #20.
 
 ---
 

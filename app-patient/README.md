@@ -93,6 +93,21 @@ newly added consultation is never the entry truncated (it fails loudly with "dos
 instead). The re-encrypted blob is held on a RAM-only `ConsultationSession`; the cloud upload
 and the end-of-session RAM wipe are **#19's** responsibility.
 
+### Consultation-loop e2e (#20)
+
+`test/e2e/consultation_loop_e2e_test.dart` chains the **real** #16–#19 services end to
+end — patient generates the QR → doctor scans, decrypts in RAM, appends a note +
+ordonnance, re-encrypts with the session key, terminates (cloud PUT + RAM wipe) → the
+update is observable by re-decrypting the server blob within the 120 s window. It runs
+on the host (no device/emulator) via shared fakes in
+`test/support/consultation_loop_harness.dart` (a stateful in-memory blob backend +
+a deterministic XOR `CryptoCore`).
+
+> **This is a wiring test, not a crypto proof.** The XOR fake does **not** validate
+> AES-256-GCM, the `nonce||ct||tag` format, or "wrong key" rejection — real cryptography
+> is covered by the crypto-core NIST vectors (#10) and, later, by a device-backed e2e
+> (`integration_test/`, follow-up). Run it like any other test: `flutter test`.
+
 ## Build & test
 
 > Flutter SDK is **not installed in the scaffolding environment**, so these files were

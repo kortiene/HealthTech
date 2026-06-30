@@ -7,6 +7,8 @@
 //   - Session key encoding: base64url-encoded in the QR string.
 //   - Wipe: wipe() zeros all session key bytes in place.
 //   - AccessTokenService.generate: 32-byte session key, non-expired, PUT sent.
+//   - AccessTokenService.generate: BackendUnavailable propagates when the
+//     session blob PUT fails (no QrPayload is issued without a stored blob).
 //   - ZK: local blob unchanged after generate() — session blob goes to cloud.
 
 import 'dart:convert';
@@ -219,6 +221,22 @@ void main() {
       await svc.generate(_uuid, _handle, _base);
       expect(puts, hasLength(1));
       expect(puts.first.url.path, '/blob/$_uuid');
+    });
+
+    test('throws BackendUnavailable when the session blob PUT fails', () async {
+      final (store, _) = await _buildStore();
+      final svc = AccessTokenService(
+        crypto: _crypto,
+        recordStore: store,
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 503)),
+        ),
+      );
+      await expectLater(
+        svc.generate(_uuid, _handle, _base),
+        throwsA(isA<BackendUnavailable>()),
+      );
     });
 
     test('ZK: local blob unchanged — session blob goes to cloud only',
