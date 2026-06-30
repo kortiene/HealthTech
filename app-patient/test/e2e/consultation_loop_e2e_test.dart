@@ -37,6 +37,7 @@ import 'package:app_patient/src/cloud/backend_client.dart';
 import 'package:app_patient/src/doctor/consultation_edit_service.dart';
 import 'package:app_patient/src/doctor/consultation_merge.dart';
 import 'package:app_patient/src/doctor/consultation_session.dart';
+import 'package:app_patient/src/doctor/offline_upload_queue.dart';
 import 'package:app_patient/src/doctor/scan_service.dart';
 import 'package:app_patient/src/doctor/session_end_service.dart';
 import 'package:app_patient/src/qr/access_token.dart';
@@ -129,9 +130,11 @@ void main() {
       )..applyMerge(merged, updatedBlob);
 
       // 4. DOCTOR — terminate: cloud PUT of the updated blob, then RAM wipe.
-      await SessionEndService(
+      final outcome = await SessionEndService(
         client: BackendClient(_baseUrl, httpClient: backend.client),
+        queue: InMemoryUploadQueue(),
       ).terminate(session);
+      expect(outcome, SessionEndOutcome.uploaded);
       expect(session.pendingBlob, isNull);
       expect(doctorPayload.sessionKey, everyElement(0));
 
@@ -179,8 +182,8 @@ void main() {
     });
 
     test(
-        'variant: 5xx at session end propagates BackendUnavailable but wipes RAM',
-        () async {
+        'variant (#21): offline session-end queues the blob, validates, '
+        'wipes RAM — no plaintext lost', () async {
       final backend = FakeBlobBackend();
       final seed = referenceRecord();
 
@@ -201,27 +204,142 @@ void main() {
         doctorPayload,
         newConsultationId: _newConsultationId,
       );
+      // Snapshot the opaque ciphertext before wipe zeroes the source.
+      final blobSnapshot = Uint8List.fromList(updatedBlob);
       final session = ConsultationSession(
         payload: doctorPayload,
         record: seenByDoctor,
       )..applyMerge(merged, updatedBlob);
 
-      // The cloud PUT fails at session end.
+      // The cloud PUT fails at session end (network down).
+      final queue = InMemoryUploadQueue();
       final failingEnd = SessionEndService(
         client: BackendClient(
           _baseUrl,
           httpClient: FakeBlobBackend(failPut: true).client,
         ),
+        queue: queue,
       );
-      await expectLater(
-        failingEnd.terminate(session),
-        throwsA(isA<BackendUnavailable>()),
-      );
+      // Consultation is VALIDATED offline — no exception, no data loss.
+      final outcome = await failingEnd.terminate(session);
+      expect(outcome, SessionEndOutcome.queued);
+
+      // The encrypted blob is durably queued for the #22 drain...
+      expect(await queue.count(), 1);
+      final queued = (await queue.pending()).single;
+      expect(queued.blobUuid, kPatientUuid);
+      // ...holding the opaque ciphertext, never plaintext.
+      expect(queued.ciphertext, equals(blobSnapshot));
+      expect(queued.ciphertext, isNot(equals(merged.toUtf8Bytes())));
 
       // RAM is wiped regardless of the sync failure.
       expect(session.pendingBlob, isNull);
       expect(doctorPayload.sessionKey, everyElement(0));
       expect(updatedBlob, everyElement(0));
+
+      // The queued ciphertext decrypts back to the merged record (FakeCryptoCore
+      // is XOR-symmetric: decrypt == re-XOR, key is ignored in the fake). This
+      // confirms the full reEncrypt → queue → decrypt round-trip: the
+      // consultation data is recoverable from the offline queue, not corrupted
+      // by the in-place wipe of the source blob.
+      final recovered = await const FakeCryptoCore()
+          .decryptRecord(const FakeMasterKeyHandle(), queued.ciphertext);
+      expect(recovered, equals(Uint8List.fromList(merged.toUtf8Bytes())));
+    });
+
+    test(
+        'variant (#21-b): two offline consultations for separate patients queue '
+        'in FIFO order — both blobs are opaque, both sessions are wiped '
+        '(Dr. Koné multi-patient offline scenario, precursor to #22 drain)',
+        () async {
+      // A second patient with a distinct patientId so the serialised records
+      // differ — ensuring the two ciphertexts are not identical even in the XOR fake.
+      const patientBUuid = '00000000-0000-4000-8000-000000000021';
+      const seedB = MedicalRecord(
+        patientId: patientBUuid,
+        consultations: [
+          Consultation(
+            id: 'consult-b-initial-0001',
+            date: '2026-01-15',
+            practitionerRef: 'practitioner-b-initial',
+            summary: 'Hypertension — bilan initial',
+          ),
+        ],
+        createdAt: '2026-01-15T09:00:00Z',
+        updatedAt: '2026-01-15T09:00:00Z',
+      );
+
+      final queue = InMemoryUploadQueue();
+
+      // ── Patient A (kPatientUuid) — full loop then offline terminate ──
+      final backendA = FakeBlobBackend();
+      final qrA = await _tokenService(backendA, referenceRecord())
+          .generate(kPatientUuid, const FakeMasterKeyHandle(), _baseUrl);
+      final payloadA = ScanService.parseQr(qrA.toQrString());
+      final seenA = await _scanService(backendA).fetchAndDecrypt(payloadA);
+      final mergedA = _mergeVisit(seenA);
+      final blobA =
+          await ConsultationEditService(crypto: const FakeCryptoCore())
+              .reEncrypt(
+        mergedA,
+        payloadA,
+        newConsultationId: _newConsultationId,
+      );
+      final sessionA = ConsultationSession(payload: payloadA, record: seenA)
+        ..applyMerge(mergedA, blobA);
+      expect(
+        await SessionEndService(
+          client: BackendClient(
+            _baseUrl,
+            httpClient: FakeBlobBackend(failPut: true).client,
+          ),
+          queue: queue,
+        ).terminate(sessionA),
+        SessionEndOutcome.queued,
+      );
+
+      // ── Patient B (patientBUuid) — full loop then offline terminate ──
+      final backendB = FakeBlobBackend();
+      final qrB = await _tokenService(backendB, seedB)
+          .generate(patientBUuid, const FakeMasterKeyHandle(), _baseUrl);
+      final payloadB = ScanService.parseQr(qrB.toQrString());
+      final seenB = await _scanService(backendB).fetchAndDecrypt(payloadB);
+      final mergedB = _mergeVisit(seenB);
+      final blobB =
+          await ConsultationEditService(crypto: const FakeCryptoCore())
+              .reEncrypt(
+        mergedB,
+        payloadB,
+        newConsultationId: _newConsultationId,
+      );
+      final sessionB = ConsultationSession(payload: payloadB, record: seenB)
+        ..applyMerge(mergedB, blobB);
+      expect(
+        await SessionEndService(
+          client: BackendClient(
+            _baseUrl,
+            httpClient: FakeBlobBackend(failPut: true).client,
+          ),
+          queue: queue,
+        ).terminate(sessionB),
+        SessionEndOutcome.queued,
+      );
+
+      // Both consultations are queued in FIFO (insertion) order.
+      expect(await queue.count(), 2);
+      final items = await queue.pending();
+      expect(items[0].blobUuid, kPatientUuid); // A was queued first
+      expect(items[1].blobUuid, patientBUuid); // B was queued second
+
+      // Both ciphertexts are opaque — neither leaks its plaintext record.
+      expect(items[0].ciphertext, isNot(equals(mergedA.toUtf8Bytes())));
+      expect(items[1].ciphertext, isNot(equals(mergedB.toUtf8Bytes())));
+
+      // Both sessions' RAM is fully wiped.
+      expect(sessionA.pendingBlob, isNull);
+      expect(sessionB.pendingBlob, isNull);
+      expect(payloadA.sessionKey, everyElement(0));
+      expect(payloadB.sessionKey, everyElement(0));
     });
   });
 }

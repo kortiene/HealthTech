@@ -12,7 +12,10 @@
 // lifecycle; the onboarding/record UI itself is #13.
 //   #13 onboarding  — first-run flow, recovery passphrase/security questions.
 //   #16 QR          — generate (qr_flutter, 120 s TTL) + scan (mobile_scanner).
-//   #14 backup      — SQLCipher local mirror + pending-upload queue; recovery.
+//   #14 backup      — SQLCipher local mirror; recovery.
+//   #21 offline q.  — SQLCipher pending-upload queue (SqlCipherUploadQueue),
+//                     wired into the end-of-session flow via RecordViewScreen so
+//                     an offline consultation is queued, not lost. Drain = #22.
 
 import 'package:flutter/material.dart';
 
