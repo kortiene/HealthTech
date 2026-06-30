@@ -1,17 +1,22 @@
-// Unit tests for SessionEndService (issue #19 — US-2.3).
+// Unit tests for SessionEndService (issues #19 — US-2.3, and #21 — US-2.4).
 //
 // Verified properties:
 //   - terminate with pendingBlob: issues PUT /blob/{uuid} with the blob bytes.
 //   - PUT body carries the exact pending blob bytes.
-//   - terminate without pendingBlob: no PUT issued.
+//   - terminate without pendingBlob: no PUT issued, returns nothingToUpload.
+//   - successful PUT returns uploaded and nothing is queued.
 //   - session key is zeroed after successful terminate.
 //   - pending blob bytes are zeroed in-place after successful terminate.
 //   - pendingBlob is null after terminate.
-//   - session key is zeroed even when PUT throws BackendUnavailable.
-//   - pending blob bytes are zeroed even when PUT throws BackendUnavailable.
-//   - BackendUnavailable propagates after wipe when PUT fails.
-//   - no error thrown when pendingBlob is null (no PUT attempted).
+//   - #21 offline: a failed PUT enqueues the blob (queued) instead of throwing.
+//   - #21 offline: session key + pending blob bytes are still zeroed.
+//   - #21 offline: the queued ciphertext is opaque and survives the wipe.
+//   - #21 double-failure: PUT fails AND enqueue throws → OfflineQueueUnavailable
+//     propagated; session (key + blob + pendingBlob) still fully wiped.
+//   - #21 double-failure: pendingBlob == null with failing queue → nothingToUpload
+//     (OfflineQueueUnavailable is never thrown when there is nothing to enqueue).
 //   - ZK: terminate never issues GET (write-only cloud operation).
+//   - repeated call: second terminate on an already-wiped session → nothingToUpload.
 
 import 'dart:typed_data';
 
@@ -21,6 +26,7 @@ import 'package:http/testing.dart';
 
 import 'package:app_patient/src/cloud/backend_client.dart';
 import 'package:app_patient/src/doctor/consultation_session.dart';
+import 'package:app_patient/src/doctor/offline_upload_queue.dart';
 import 'package:app_patient/src/doctor/session_end_service.dart';
 import 'package:app_patient/src/qr/access_token.dart';
 import 'package:app_patient/src/record/medical_record.dart';
@@ -58,8 +64,28 @@ ConsultationSession _session({Uint8List? blob, Uint8List? key}) {
   return session;
 }
 
-SessionEndService _svc(http.Client httpClient) =>
-    SessionEndService(client: BackendClient(_base, httpClient: httpClient));
+SessionEndService _svc(http.Client httpClient, {OfflineUploadQueue? queue}) =>
+    SessionEndService(
+      client: BackendClient(_base, httpClient: httpClient),
+      queue: queue ?? InMemoryUploadQueue(),
+    );
+
+/// Offline queue that always throws [OfflineQueueUnavailable] on [enqueue] —
+/// simulates a Keystore failure or disk-full condition.
+class _FailingQueue implements OfflineUploadQueue {
+  @override
+  Future<void> enqueue(String blobUuid, Uint8List ciphertext) async =>
+      throw const OfflineQueueUnavailable('keystore failure (test)');
+
+  @override
+  Future<List<PendingUpload>> pending() async => const [];
+
+  @override
+  Future<void> remove(String id) async {}
+
+  @override
+  Future<int> count() async => 0;
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -139,50 +165,84 @@ void main() {
       expect(session.pendingBlob, isNull);
     });
 
-    test('zeroes session key even when PUT throws BackendUnavailable',
-        () async {
+    test('zeroes session key even when PUT fails (offline → queued)', () async {
       final key = Uint8List.fromList(List.filled(32, 0x42));
       final session = _session(
         blob: Uint8List.fromList([1, 2, 3]),
         key: key,
       );
       final svc = _svc(MockClient((_) async => http.Response('error', 503)));
-      await expectLater(
-        svc.terminate(session),
-        throwsA(isA<BackendUnavailable>()),
-      );
+      final outcome = await svc.terminate(session);
+      expect(outcome, SessionEndOutcome.queued);
       expect(key, everyElement(0));
     });
 
-    test('zeroes pending blob bytes even when PUT throws BackendUnavailable',
+    test('zeroes pending blob bytes even when PUT fails (offline → queued)',
         () async {
       final blob = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF]);
       final session = _session(blob: blob);
       final svc = _svc(MockClient((_) async => http.Response('error', 503)));
-      await expectLater(
-        svc.terminate(session),
-        throwsA(isA<BackendUnavailable>()),
-      );
+      await svc.terminate(session);
       expect(blob, everyElement(0));
     });
   });
 
-  group('SessionEndService.terminate — error propagation', () {
-    test('propagates BackendUnavailable when server returns 5xx', () async {
+  group('SessionEndService.terminate — #21 offline queue', () {
+    test('successful PUT returns uploaded and queues nothing', () async {
+      final queue = InMemoryUploadQueue();
+      final svc = _svc(
+        MockClient((_) async => http.Response('', 200)),
+        queue: queue,
+      );
+      final outcome = await svc.terminate(
+        _session(blob: Uint8List.fromList([1, 2, 3])),
+      );
+      expect(outcome, SessionEndOutcome.uploaded);
+      expect(await queue.count(), 0);
+    });
+
+    test('failed PUT enqueues the blob and returns queued', () async {
+      final queue = InMemoryUploadQueue();
       final session = _session(blob: Uint8List.fromList([1, 2, 3]));
-      final svc = _svc(MockClient((_) async => http.Response('error', 503)));
-      await expectLater(
-        svc.terminate(session),
-        throwsA(isA<BackendUnavailable>()),
+      final svc = _svc(
+        MockClient((_) async => http.Response('error', 503)),
+        queue: queue,
+      );
+      final outcome = await svc.terminate(session);
+      expect(outcome, SessionEndOutcome.queued);
+      expect(await queue.count(), 1);
+      final queued = await queue.pending();
+      expect(queued.single.blobUuid, _uuid);
+    });
+
+    test('queued ciphertext survives the post-enqueue wipe (defensive copy)',
+        () async {
+      final queue = InMemoryUploadQueue();
+      final blob = Uint8List.fromList([0xCA, 0xFE, 0xBA, 0xBE]);
+      final session = _session(blob: blob);
+      final svc = _svc(
+        MockClient((_) async => http.Response('error', 503)),
+        queue: queue,
+      );
+      await svc.terminate(session);
+      // The source blob was zeroed by wipe; the stored copy is intact + opaque.
+      expect(blob, everyElement(0));
+      expect(
+        (await queue.pending()).single.ciphertext,
+        equals(Uint8List.fromList([0xCA, 0xFE, 0xBA, 0xBE])),
       );
     });
 
-    test('completes without error when pendingBlob is null', () async {
-      // No PUT is attempted → BackendUnavailable is never thrown, even when
-      // the MockClient would return an error status.
-      final session = _session();
-      final svc = _svc(MockClient((_) async => http.Response('error', 503)));
-      await expectLater(svc.terminate(session), completes);
+    test('returns nothingToUpload when pendingBlob is null (no PUT, no queue)',
+        () async {
+      final queue = InMemoryUploadQueue();
+      final svc = _svc(
+        MockClient((_) async => http.Response('error', 503)),
+        queue: queue,
+      );
+      final outcome = await svc.terminate(_session());
+      expect(outcome, SessionEndOutcome.nothingToUpload);
+      expect(await queue.count(), 0);
     });
   });
 
@@ -198,6 +258,113 @@ void main() {
       );
       await svc.terminate(session);
       expect(gets, isEmpty);
+    });
+  });
+
+  group('SessionEndService.terminate — double-failure (queue unavailable)', () {
+    // PUT fails (503) AND the offline queue itself throws OfflineQueueUnavailable.
+    // This is the only remaining path where data can be lost — the spec mandates
+    // that the session is STILL fully wiped and the exception is propagated so
+    // the UI can alert the doctor.
+
+    test(
+        'propagates OfflineQueueUnavailable when both PUT fails and enqueue throws',
+        () async {
+      final session = _session(blob: Uint8List.fromList([1, 2, 3]));
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient:
+              MockClient((_) async => http.Response('unavailable', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      await expectLater(
+        () => svc.terminate(session),
+        throwsA(isA<OfflineQueueUnavailable>()),
+      );
+    });
+
+    test('wipes session key even when OfflineQueueUnavailable is thrown',
+        () async {
+      final key = Uint8List.fromList(List.filled(32, 0x42));
+      final session = _session(
+        blob: Uint8List.fromList([1, 2, 3]),
+        key: key,
+      );
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient:
+              MockClient((_) async => http.Response('unavailable', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      try {
+        await svc.terminate(session);
+      } on OfflineQueueUnavailable {
+        // expected — verify wipe happened despite the exception
+      }
+      expect(key, everyElement(0));
+    });
+
+    test('wipes pending blob bytes even when OfflineQueueUnavailable is thrown',
+        () async {
+      final blob = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF]);
+      final session = _session(blob: blob);
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient:
+              MockClient((_) async => http.Response('unavailable', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      try {
+        await svc.terminate(session);
+      } on OfflineQueueUnavailable {
+        // expected
+      }
+      expect(blob, everyElement(0));
+      expect(session.pendingBlob, isNull);
+    });
+
+    test(
+        'pendingBlob == null with a failing queue returns nothingToUpload — '
+        'OfflineQueueUnavailable is NOT thrown when there is nothing to enqueue',
+        () async {
+      // The double-failure path is only reachable when a blob exists. A null
+      // pendingBlob must short-circuit before any PUT or enqueue attempt, even
+      // with a queue that would always throw.
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient:
+              MockClient((_) async => http.Response('unavailable', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      final outcome = await svc.terminate(_session());
+      expect(outcome, SessionEndOutcome.nothingToUpload);
+    });
+  });
+
+  group('SessionEndService.terminate — repeated calls', () {
+    test(
+        'second terminate on the same session returns nothingToUpload — '
+        'pendingBlob was already wiped by the first call', () async {
+      final queue = InMemoryUploadQueue();
+      final svc = _svc(
+        MockClient((_) async => http.Response('', 200)),
+        queue: queue,
+      );
+      final session = _session(blob: Uint8List.fromList([1, 2, 3]));
+      final first = await svc.terminate(session);
+      expect(first, SessionEndOutcome.uploaded);
+      // Second call: session was wiped — pendingBlob is null.
+      final second = await svc.terminate(session);
+      expect(second, SessionEndOutcome.nothingToUpload);
+      expect(await queue.count(), 0);
     });
   });
 }

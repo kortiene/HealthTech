@@ -2,6 +2,16 @@
 
 **Status:** Accepted (2026-06-19) · Issue [#1](https://github.com/kortiene/HealthTech/issues/1) · Implements Epics E1 (#11, #12), E2 (#21, #22)
 
+> **Implementation note (#21, 2026-06-30).** The offline **pending-upload queue** is
+> delivered for the patient/Android (Flutter) target: `drift` + `sqlcipher_flutter_libs`
+> retained (not `sqflite_sqlcipher`), DB key sealed by the Keystore (envelope, #11), opened
+> with `PRAGMA key` + WAL. See `app-patient/lib/src/doctor/{offline_upload_queue,sqlcipher_upload_queue}.dart`.
+> The native SQLCipher binding is **not** exercised in host-only CI (the queue logic is
+> covered by an in-memory impl; a device-backed e2e is a follow-up). The **web PWA variant**
+> (ciphertext-in-IndexedDB) remains a deliberate, logged deviation and is **not yet delivered**
+> (the doctor loop currently lives in `app-patient/`, not `app-medecin/`). The network drain
+> on reconnect is #22.
+
 ## Context
 
 A consultation must complete with **no data loss** during total network/power cuts (offline prescription

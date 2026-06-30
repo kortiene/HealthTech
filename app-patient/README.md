@@ -78,6 +78,7 @@ gate is non-negotiable.
 | `#14` | backup | SQLCipher mirror + pending-upload queue, recovery restore |
 | `#17` | scan | Scan QR → fetch blob → decrypt **in RAM only** → read-only viewer |
 | `#18` | edit | Quick-edit note/ordonnance → append-only merge → **session-key re-encryption in RAM** |
+| `#21` | offline queue | Failed end-of-session PUT → **enqueue encrypted blob** (SQLCipher) instead of losing it |
 
 ### Doctor consultation edit (#18)
 
@@ -107,6 +108,38 @@ a deterministic XOR `CryptoCore`).
 > AES-256-GCM, the `nonce||ct||tag` format, or "wrong key" rejection — real cryptography
 > is covered by the crypto-core NIST vectors (#10) and, later, by a device-backed e2e
 > (`integration_test/`, follow-up). Run it like any other test: `flutter test`.
+
+### Secure offline upload queue (#21)
+
+When the doctor validates a consultation **offline**, the end-of-session PUT (#19)
+fails with `BackendUnavailable`. Before #21 that lost the freshly re-encrypted
+prescription, because `ConsultationSession.wipe` zeroes the pending blob in a
+`finally`. `#21` makes that loss impossible: the **opaque AES-256-GCM ciphertext**
+(never plaintext, never the session key) is persisted to a durable queue and the
+consultation is *validated offline, awaiting sync*.
+
+- **`OfflineUploadQueue`** (`lib/src/doctor/offline_upload_queue.dart`) — the queue
+  contract `enqueue / pending / remove / count`, the `PendingUpload` row model, the
+  `SessionEndOutcome` enum (`uploaded` / `queued` / `nothingToUpload`) and the
+  `OfflineQueueUnavailable` exception. `enqueue` is idempotent on
+  `(blobUuid, ciphertext)` and takes a **defensive copy** of the bytes (the caller's
+  blob is wiped immediately after). `InMemoryUploadQueue` is the host-only impl used
+  in tests.
+- **`SqlCipherUploadQueue`** (`lib/src/doctor/sqlcipher_upload_queue.dart`) — the
+  production impl: a dedicated **SQLCipher** (AES-256 full-DB) `drift` database whose
+  key is 32 CSPRNG bytes **sealed by the hardware Keystore** (envelope encryption, same
+  model as the master key #11), opened with `PRAGMA key` + WAL. Defence in depth: even
+  an unlocked DB reveals only the already-opaque ciphertext. No software fallback —
+  `KeystoreUnavailable` fails loudly (ADR 0006).
+- **`SessionEndService.terminate`** now returns a `SessionEndOutcome` and **enqueues
+  instead of losing** `pendingBlob` on `BackendUnavailable`, preserving the RAM wipe in
+  `finally`. `RecordViewScreen` surfaces a "enregistrée hors-ligne" snackbar.
+
+> The network **drain** of this queue on reconnect (retry, conflict resolution, the
+> `attempts` increment) is **#22** — no network logic lives in #21. The real SQLCipher
+> binding is not exercised by host-only `flutter test` (no native lib, like
+> `path_provider`/FRB); the queue **logic** is covered by `InMemoryUploadQueue` tests
+> and a device-backed e2e is a follow-up.
 
 ## Build & test
 

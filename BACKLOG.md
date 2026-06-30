@@ -166,6 +166,7 @@
   En cas de coupure réseau, l'ordonnance chiffrée est placée dans une file locale chiffrée (SQLCipher).
   *Acceptation :* consultation validée hors-ligne ; donnée stockée chiffrée localement ; rien en clair.
   *Implémente :* US-2.4 · *Dépend de :* #10, #19.
+  *Avancement :* file `OfflineUploadQueue` (`doctor/offline_upload_queue.dart`) — interface `enqueue/pending/remove/count` + modèle `PendingUpload` + `InMemoryUploadQueue` (FIFO, idempotence, copie défensive) ; impl. prod drift + SQLCipher (`doctor/sqlcipher_upload_queue.dart`, clé de base scellée Keystore via enveloppe #11, ouverture `PRAGMA key` + WAL, table versionnée `pending_uploads`). `SessionEndService.terminate` retourne désormais `SessionEndOutcome` (`uploaded`/`queued`/`nothingToUpload`) et **enfile au lieu de perdre** `pendingBlob` sur `BackendUnavailable`, en préservant le wipe RAM en `finally` ; double-échec → `OfflineQueueUnavailable`. Câblé dans `ui/record_view_screen.dart` (snackbar « enregistrée hors-ligne »). Tests host-only : logique in-memory + chemin hors-ligne de `terminate` + variante e2e hors-ligne. **Restant :** drain réseau au retour de connexion (#22) ; e2e *device-backed* de la liaison SQLCipher (durabilité WAL + illisibilité sans clé, non exécutable en CI host-only) ; sync patient post-consultation (ré-import master-key, hors issue).
 
 - **#22 — Synchronisation au retour du réseau** · `Must` · `M` · `feature` `tech-debt`
   Dès le retour réseau, la file se synchronise vers le cloud ; gestion des conflits et des renvois.

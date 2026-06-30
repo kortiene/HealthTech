@@ -15,7 +15,9 @@ import 'package:flutter/material.dart';
 import '../cloud/backend_client.dart';
 import '../doctor/consultation_edit_service.dart';
 import '../doctor/consultation_session.dart';
+import '../doctor/offline_upload_queue.dart';
 import '../doctor/session_end_service.dart';
+import '../doctor/sqlcipher_upload_queue.dart';
 import '../qr/access_token.dart';
 import '../record/medical_record.dart';
 import '../rust/crypto_core_bindings.dart';
@@ -37,7 +39,10 @@ class RecordViewScreen extends StatefulWidget {
   })  : editService = editService ??
             ConsultationEditService(crypto: const FrbCryptoCore()),
         endService = endService ??
-            SessionEndService(client: BackendClient(payload.backendUrl));
+            SessionEndService(
+              client: BackendClient(payload.backendUrl),
+              queue: SqlCipherUploadQueue(),
+            );
 
   final MedicalRecord record;
   final QrPayload payload;
@@ -80,19 +85,33 @@ class _RecordViewScreenState extends State<RecordViewScreen> {
     _idleTimer?.cancel();
     setState(() => _terminating = true);
     try {
-      await widget.endService.terminate(_session);
+      final outcome = await widget.endService.terminate(_session);
       if (!mounted) return;
+      // #21: an offline session is VALIDATED — the encrypted blob is safely
+      // queued and will sync later (#22). Reassure the doctor; never an error.
+      if (outcome == SessionEndOutcome.queued) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Consultation enregistrée hors-ligne — synchro à la reconnexion.',
+            ),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
       Navigator.of(context).pop();
-    } on BackendUnavailable {
+    } on OfflineQueueUnavailable {
       if (!mounted) return;
       // Session is already wiped in SessionEndService.terminate's finally.
-      // Inform the doctor before closing — ScaffoldMessenger survives the pop.
+      // Both the upload AND the local queue failed — the only path that can
+      // still lose the edit. Alert the doctor loudly before closing.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "Synchro échouée — les modifications n'ont pas été sauvegardées.",
+            "Échec d'enregistrement local — les modifications n'ont pas pu "
+            'être sauvegardées.',
           ),
-          duration: Duration(seconds: 5),
+          duration: Duration(seconds: 8),
         ),
       );
       Navigator.of(context).pop();

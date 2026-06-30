@@ -27,6 +27,9 @@ dependencies:
   # SQLCipher native lib it ships.
   drift: ^2.21.0
   sqlcipher_flutter_libs: ^0.6.4
+  # Direct sqlite3 use: PRAGMA-key setup hook + the SQLCipher open() override
+  # (sqlcipher_flutter_libs ships the native lib; sqlite3 is the Dart binding).
+  sqlite3: ^2.4.0
 
   # QR: scan (mobile_scanner, one package Android+iOS) + generate (qr_flutter).
   # 120 s TTL lives in app logic. TODO(#16).
