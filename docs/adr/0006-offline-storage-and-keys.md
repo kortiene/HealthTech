@@ -10,7 +10,8 @@
 > covered by an in-memory impl; a device-backed e2e is a follow-up). The **web PWA variant**
 > (ciphertext-in-IndexedDB) remains a deliberate, logged deviation and is **not yet delivered**
 > (the doctor loop currently lives in `app-patient/`, not `app-medecin/`). The network drain
-> on reconnect is #22.
+> on reconnect is #22, delivered in `app-patient/lib/src/doctor/sync_service.dart`; its
+> conflict-resolution strategy is recorded in [ADR 0010](./0010-offline-sync-conflict-resolution.md).
 
 ## Context
 

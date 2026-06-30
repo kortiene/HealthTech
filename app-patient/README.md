@@ -79,6 +79,7 @@ gate is non-negotiable.
 | `#17` | scan | Scan QR → fetch blob → decrypt **in RAM only** → read-only viewer |
 | `#18` | edit | Quick-edit note/ordonnance → append-only merge → **session-key re-encryption in RAM** |
 | `#21` | offline queue | Failed end-of-session PUT → **enqueue encrypted blob** (SQLCipher) instead of losing it |
+| `#22` | sync drain | On network return, **drain the queue** to the backend — no loss, no duplicate; conflict strategy documented |
 
 ### Doctor consultation edit (#18)
 
@@ -136,10 +137,44 @@ consultation is *validated offline, awaiting sync*.
   `finally`. `RecordViewScreen` surfaces a "enregistrée hors-ligne" snackbar.
 
 > The network **drain** of this queue on reconnect (retry, conflict resolution, the
-> `attempts` increment) is **#22** — no network logic lives in #21. The real SQLCipher
+> `attempts` increment) is **#22** (below) — no network logic lives in #21. The real SQLCipher
 > binding is not exercised by host-only `flutter test` (no native lib, like
 > `path_provider`/FRB); the queue **logic** is covered by `InMemoryUploadQueue` tests
 > and a device-backed e2e is a follow-up.
+
+### Synchronisation on network return (#22)
+
+`#21` guaranteed no offline data loss; `#22` delivers the missing half — the **drain**. On network
+return, the queue is replayed to the sovereign backend with **no loss and no duplicate**.
+
+- **`SyncService`** (`lib/src/doctor/sync_service.dart`) — `drain()` walks
+  `OfflineUploadQueue.pending()` in **FIFO** order and, for each eligible item, `PUT /blob/{uuid}`
+  via `BackendClient`, then `remove(id)` **only after** a confirmed 2xx. The ordering is the whole
+  point: **put then remove**, so a crash in between re-PUTs an identical blob next drain (idempotent
+  UUID) — *at-least-once delivery + idempotent PUT = exactly one final server state, no duplicate*.
+  A single-drain **mutex** makes it re-entrant-safe. On a network outage it stops early and returns a
+  `SyncSummary { synced, failed, conflicts, skipped, persistentFailures, remaining }` — it never
+  throws to the caller. **No new cryptography**: the queued bytes are PUT as-is; the drain never needs
+  the (wiped) session key.
+- **`RetryPolicy`** — bounded exponential backoff (`baseBackoff·2^(n-1)` capped at `maxBackoff`) and a
+  `maxAttempts` cap. Past the cap an item is a **persistent failure**: kept in the queue and flagged to
+  the UI, **never silently purged**.
+- **`SyncTrigger`** (`lib/src/doctor/sync_trigger.dart`) — the "network is back" signal, decoupled from
+  any connectivity package (a #1 decision). Ships with dependency-free triggers: `AppLifecycleSyncTrigger`
+  (app resume / start) and `ManualSyncTrigger` (the "Synchroniser" button + the opportunistic post-PUT
+  signal). `SyncService` subscribes and drains per event (the mutex debounces overlaps).
+- **Queue extension** — `OfflineUploadQueue` gains `markAttempt` / `markConflict`; `PendingUpload`
+  gains read-only `lastAttemptAtIso` / `lastError` (redacted) / `state`. The SQLCipher table moves to
+  **schemaVersion 2** (`last_attempt_at`, `last_error`, `state`) with a v1→v2 migration.
+- **UI** — `RecordViewScreen` shows a "N en attente" badge, a "Synchroniser" action, drains
+  opportunistically after a successful end-of-session PUT, and alerts on conflict / persistent failure.
+
+> **Conflict strategy ([ADR 0010](../docs/adr/0010-offline-sync-conflict-resolution.md)).** The device
+> cannot decrypt the queued blob (session key wiped, #19) so it cannot merge. Default is **(A) blind
+> last-writer-wins** via the idempotent PUT; **(B)** divergence detection + preservation (`markConflict`,
+> `UploadState.conflict`) is wired but **inactive** until the backend (#9) exposes conditional PUT /
+> versioning; **(C)** patient-side reconciliation (master key) is a follow-up. The real SQLCipher
+> migration v1→v2 is a device-backed e2e (not run in host-only CI).
 
 ## Build & test
 

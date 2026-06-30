@@ -104,18 +104,29 @@ class FakeCryptoCore implements CryptoCore {
 ///   - `GET /blob/{uuid}` returns the stored bytes (200) or 404 when absent.
 ///
 /// It never inspects, logs, or decodes the bodies — they are opaque ciphertext.
-/// [blobs], [putCount], and [getCount] are exposed for flow-level assertions.
+/// [blobs], [putCount], [getCount] and [putCountByUuid] are exposed for
+/// flow-level assertions.
+///
+/// [failPut] is MUTABLE so the #22 drain tests can simulate the NETWORK COMING
+/// BACK: start with `failPut: true` (session-end queues offline), flip it to
+/// `false`, fire a [SyncService] drain, and assert the queue empties with no
+/// duplicate PUT ([putCountByUuid] stays 1 per UUID).
 class FakeBlobBackend {
   FakeBlobBackend({this.failPut = false});
 
   /// When true, every PUT returns 503 without storing — simulates a sync outage.
-  final bool failPut;
+  /// Flip to false mid-test to simulate the network returning.
+  bool failPut;
 
   /// The opaque ciphertext store, keyed by anonymous UUID.
   final Map<String, Uint8List> blobs = {};
 
   int putCount = 0;
   int getCount = 0;
+
+  /// PUT count per UUID — proves idempotence (a re-PUT after a crash between
+  /// `put` and `remove` re-uses the same UUID and leaves one final blob).
+  final Map<String, int> putCountByUuid = {};
 
   /// An [http.Client] that routes PUT/GET /blob/{uuid} to this in-memory store.
   http.Client get client => MockClient(_handle);
@@ -125,6 +136,7 @@ class FakeBlobBackend {
     switch (request.method) {
       case 'PUT':
         putCount++;
+        putCountByUuid.update(uuid, (n) => n + 1, ifAbsent: () => 1);
         if (failPut) return http.Response('unavailable', 503);
         blobs[uuid] = Uint8List.fromList(request.bodyBytes);
         return http.Response('', 201);
