@@ -36,7 +36,9 @@ Approche en couches (chaque couche est un fichier de ce répertoire) :
    porteuse, existante ou à créer).
 7. **Faire valider** ligne à ligne par le conseil juridique → [`journal-validation-juridique.md`](./journal-validation-juridique.md).
 8. **Alimenter [#30](https://github.com/kortiene/HealthTech/issues/30)** : la matrice validée + le registre
-   + l'attestation de localisation deviennent des pièces du dossier d'homologation.
+   + l'attestation de localisation deviennent des pièces du **dossier d'homologation ARTCI** consolidé sous
+   [`homologation-artci/`](./homologation-artci/README.md) (index probatoire `PIECE-NN ↔ PREUVE-NN`,
+   tableau de readiness, procédure de formalité, checklist de dépôt).
 
 ## 3. Arborescence des livrables
 
@@ -50,6 +52,7 @@ Approche en couches (chaque couche est un fichier de ce répertoire) :
 | [`cartographie-donnees-et-flux.md`](./cartographie-donnees-et-flux.md) | Inventaire des données + flux (frontière zero-knowledge). |
 | [`journal-validation-juridique.md`](./journal-validation-juridique.md) | Journal de **sign-off** du conseil juridique. |
 | [`ecarts.md`](./ecarts.md) | Registre des **écarts** → issue porteuse. |
+| [`homologation-artci/`](./homologation-artci/README.md) | **Dossier d'homologation ARTCI** consolidé ([#30](https://github.com/kortiene/HealthTech/issues/30)) : index probatoire (`PIECE-NN`), readiness, formalité, checklist de dépôt. |
 
 ## 4. Conventions d'identifiants
 

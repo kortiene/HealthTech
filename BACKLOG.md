@@ -225,6 +225,7 @@
   Constituer et soumettre le dossier d'homologation ; preuves de conformité (#5, #25).
   *Acceptation :* homologation ARTCI obtenue à 100 % avant lancement commercial (Objectif KPI).
   *Dépend de :* #5, #25.
+  *Avancement :* **dossier consolidé constitué** sous [`docs/compliance/homologation-artci/`](./docs/compliance/homologation-artci/README.md) — README maître (résumé opposable ZK/crypto/QR/résidence/500 Ko), index probatoire `PIECE-01…18 ↔ PREUVE-NN` avec statut dérivé honnêtement ([`piece-list.md`](./docs/compliance/homologation-artci/piece-list.md)), tableau de readiness (5 Prêtes / 2 Partielles / 6 À produire / 5 Bloquantes ; **0/22 `Must` juridiquement validées**), note de formalité `[à confirmer — conseil juridique]` et checklist de dépôt (gate humain). Gate de complétude/cohérence [`scripts/check-homologation-dossier.sh`](./scripts/check-homologation-dossier.sh) câblé (`just homologation-check`, dans `just lint`). **Soumission bloquée** (chemin critique) par : sign-off juridique 0/22 (#5), attestation de localisation non signée (#8), rapport de pentest non produit (#25), écarts ECART-01…04. Le **dépôt ARTCI et l'obtention du récépissé** (`PREUVE-13`) restent une **démarche humaine/juridique** hors périmètre agent.
 
 - **#31 — Pilote terrain à Abidjan (beta)** · `Should` · `L` · `feature` `ux`
   Déploiement pilote (Cocody/Yopougon) avec un panel de patients et médecins ; collecte de retours.

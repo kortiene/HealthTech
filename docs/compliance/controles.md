@@ -50,6 +50,10 @@
 
 > **Disponibilité :** `Existant` (artefact présent dans le dépôt) · `Planifié` (sera produit par l'issue
 > citée) · `À produire` (artefact externe / organisationnel attendu).
+>
+> 🔗 **Renvoi dossier d'homologation (#30) :** ces preuves sont indexées comme **pièces** (`PIECE-NN`) du
+> dossier ARTCI dans [`homologation-artci/piece-list.md`](./homologation-artci/piece-list.md). Le **statut
+> dossier** y est dérivé de la **disponibilité** ci-dessous (une preuve non `Existant` n'est jamais « Prête »).
 
 | ID | Preuve attendue | Démontre (CTRL) | Source (issue / fichier) | Disponibilité |
 | --- | --- | --- | --- | --- |
