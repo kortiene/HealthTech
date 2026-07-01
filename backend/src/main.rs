@@ -178,7 +178,10 @@ async fn post_media_access(State(state): State<AppState>, Path(uuid): Path<Uuid>
             let json = format!(r#"{{"url":"{url}","expires_at":"{expires_at}"}}"#);
             (
                 StatusCode::OK,
-                [(header::CONTENT_TYPE, HeaderValue::from_static("application/json"))],
+                [(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                )],
                 json,
             )
                 .into_response()
