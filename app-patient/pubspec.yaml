@@ -44,6 +44,11 @@ dependencies:
   # Used by BackendClient (PUT/GET /blob/{uuid}); injectable in tests via MockClient.
   http: ^1.2.0
 
+  # SHA-256 for the media content-integrity HASH only (issue #23) — NOT a cipher.
+  # AES stays in crypto-core (ADR 0001/0003); this computes the descriptor's
+  # end-to-end content_hash, an integrity check on top of the GCM tag.
+  crypto: ^3.0.0
+
   path_provider: ^2.1.4
   path: ^1.9.0
 

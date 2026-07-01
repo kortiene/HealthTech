@@ -106,6 +106,80 @@ void main() {
       expect(restored, equals(minimal));
     });
 
+    group('MediaDescriptor', () {
+      const desc = MediaDescriptor(
+        uuid: 'aaaabbbb-0000-4000-8000-111111111111',
+        contentKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        contentHash:
+            'abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abcd',
+        mime: 'image/jpeg',
+        sizeBytes: 102400,
+        addedAt: '2099-06-01T00:00:00Z',
+      );
+
+      test('toJson / fromJson round-trip', () {
+        expect(MediaDescriptor.fromJson(desc.toJson()), equals(desc));
+      });
+
+      test('toJson includes all required fields', () {
+        final json = desc.toJson();
+        expect(json['uuid'], desc.uuid);
+        expect(json['content_key'], desc.contentKey);
+        expect(json['content_hash'], desc.contentHash);
+        expect(json['mime'], desc.mime);
+        expect(json['size_bytes'], desc.sizeBytes);
+        expect(json['added_at'], desc.addedAt);
+        expect(json['alg'], 'A256GCM');
+      });
+
+      test('alg defaults to A256GCM when absent from JSON (backward compat)',
+          () {
+        final json = desc.toJson()..remove('alg');
+        final restored = MediaDescriptor.fromJson(json);
+        expect(restored.alg, 'A256GCM');
+      });
+
+      test('Consultation with media round-trips through MedicalRecord JSON',
+          () {
+        const consultation = Consultation(
+          id: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a00',
+          date: '2099-06-01',
+          practitionerRef: 'doc-ref-1',
+          summary: 'Test with media.',
+          media: [desc],
+        );
+        const record = MedicalRecord(
+          patientId: 'eeeeeeee-0000-4000-8000-000000000099',
+          createdAt: '2099-06-01T00:00:00Z',
+          updatedAt: '2099-06-01T00:00:00Z',
+          consultations: [consultation],
+        );
+        final restored = MedicalRecord.fromJson(record.toJson());
+        expect(restored.consultations.first.media.first, equals(desc));
+      });
+
+      test('Consultation without media: media field absent from JSON', () {
+        const consultation = Consultation(
+          id: 'a2eebc99-0000-4000-8000-000000000001',
+          date: '2099-06-01',
+          practitionerRef: 'doc-ref-1',
+          summary: 'No media.',
+        );
+        final json = consultation.toJson();
+        expect(json.containsKey('media'), isFalse,
+            reason:
+                'empty media list must be omitted (G3: no binary in record)');
+      });
+
+      test('content_key field contains no image bytes (G3)', () {
+        final json = desc.toJson();
+        // content_key is base64 of key bytes — must be a string, not binary
+        expect(json['content_key'], isA<String>());
+        // size_bytes is an int, not the actual bytes
+        expect(json['size_bytes'], isA<int>());
+      });
+    });
+
     group('Demographics', () {
       test('null fields are omitted from JSON', () {
         const demo = Demographics(givenName: 'Koné');

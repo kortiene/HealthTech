@@ -17,6 +17,35 @@ sees ciphertext.
 | `PUT` | `/blob/{uuid}` | opaque ciphertext (`application/octet-stream`) | `201 Created` (new) · `200 OK` (overwrite) · `400` invalid UUID · `413` over the size budget · `503` store down |
 | `GET` | `/blob/{uuid}` | — | `200` (ciphertext + `Content-Type: application/octet-stream`, `Content-Length`, `ETag`, `X-Blob-Version`) · `400` invalid UUID · `404` unknown · `503` store down |
 
+## Heavy-media API (issue #23)
+
+Radiographs / scans are too large for the ≤ 500 KB record and never live on the patient phone.
+They are encrypted **client-side** under a per-media content key, offloaded here as **opaque
+ciphertext** keyed by an anonymous media UUID, and read through a **short-TTL, per-object,
+revocable** capability URL.
+
+| Method | Path | Body | Responses |
+| --- | --- | --- | --- |
+| `PUT` | `/media/{uuid}` | opaque ciphertext (`application/octet-stream`) | `201 Created` · `200 OK` (overwrite) · `400` invalid UUID · `413` over `media::MAX_MEDIA_BYTES` · `503` store down |
+| `POST` | `/media/{uuid}/access` | — | `200 { "url", "expires_at" }` (ephemeral URL minted) · `404` unknown object · `503` |
+| `GET` | `/media/{uuid}?exp=…&sig=…` | — | `200` (ciphertext + `ETag`, `X-Media-Version`) · `400` missing/garbage params · `403` invalid **or expired** URL · `404` unknown/deleted · `503` |
+| `DELETE` | `/media/{uuid}` | — | `204` (revoked/erased) · `404` · `503` |
+
+- **Ephemeral URL (acceptance #2).** `POST …/access` mints `/media/{uuid}?exp=<unix>&sig=<hmac>`,
+  signed (HMAC-SHA256 over `uuid:exp`) with `PRESIGNED_URL_SIGNING_KEY` and valid for
+  `media::access::MEDIA_URL_TTL_SECS` (5 min). `GET` verifies the signature **and** expiry: a forged
+  or expired URL is `403` (uniform — no oracle distinguishing the two). The signature binds the
+  exact UUID (per-object scope). **Revocation:** by expiry (time), by rotating the signing key
+  (global), or by `DELETE /media/{uuid}` (per-object) — after which an outstanding URL resolves to
+  `404`. The minted URL is a **bearer secret**: never logged, never persisted client-side.
+- **Distinct size budget.** `media::MAX_MEDIA_BYTES` (25 MiB) is far above the record blob budget; a
+  larger body is rejected with `413` before buffering. The text record stays ≤ 500 KB (media is
+  off-record).
+- **Zero-knowledge.** The server holds no per-media content key and has **no decrypt path**; the key
+  lives inside the patient's encrypted record (the client-side media descriptor). The `media_metadata`
+  Postgres row (durable backing, lands with #8) holds **only** non-identifying columns (anonymous
+  UUID, ciphertext size, version, timestamps) — no PII, no plaintext, no key, no MIME/hash.
+
 - **`{uuid}`** is an **anonymous index** (UUID v4), never derived from PII. A malformed UUID is
   rejected with `400` by the path extractor.
 - **Size budget.** The plaintext record is **≤ 500 KB** (PRD §4); the server enforces this as a
@@ -41,8 +70,11 @@ Storage lives behind the `store::BlobStore` seam:
   size budget, metadata shape, error mapping, and zero-knowledge proofs already exist so it is a
   drop-in — see `TODO(#9/#8)` in `src/store.rs`.
 
-`TODO(#23)` adds presigned ephemeral media URLs and HTTP range / resumable transfers; `TODO(#8)`
-wires the sovereign in-country hosting / TLS reverse proxy.
+Heavy media (#23) uses a **sibling** seam, `media::MediaStore` (a **dedicated** bucket + size
+budget), with the same posture: `MemoryMediaStore` in dev/test, durable MinIO + Postgres
+`media_metadata` landing with #8. The ephemeral capability-URL signer (`media::access::MediaAccess`)
+is wired now. `TODO(#23)` still leaves HTTP range / resumable (tus) transfers for large media on
+degraded links (else #24); `TODO(#8)` wires the sovereign in-country hosting / TLS reverse proxy.
 
 ## Zero-knowledge guarantees
 
