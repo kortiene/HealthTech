@@ -5,10 +5,20 @@
 // stores the opaque encrypted blob.
 //
 // Design rules (PRD §4, zero-knowledge boundary):
-//   - No binary data: images are stored remotely; only ephemeral URLs here.
+//   - No binary data: heavy images are encrypted + offloaded to the server (#23)
+//     and the record carries only a small, stable MEDIA DESCRIPTOR (anonymous
+//     media UUID + per-media content key + integrity hash) — never the bytes, and
+//     never a baked-in ephemeral URL (that is minted on demand, see MediaClient).
 //   - patient_id is a local opaque UUID, never correlated with CMU/phone.
-//   - Serialised UTF-8 JSON must stay ≤ 500 Kio (enforced by RecordSizeGuard).
+//   - Serialised UTF-8 JSON must stay ≤ 500 Kio (enforced by RecordSizeGuard); the
+//     media descriptor is tiny, so the budget holds (the bytes live off-record).
 //   - Version field `v` enables migration without breaking decryption.
+//
+// The media descriptor is added additively within schema v1 (issue #23): the new
+// `media` field on a Consultation is optional and defaults to empty, so records
+// written before #23 round-trip unchanged and no migration/version bump is needed.
+// The legacy `image_urls` field is retained for back-compat (deprecated; superseded
+// by `media`).
 
 import 'dart:convert';
 
@@ -188,8 +198,97 @@ class Medication {
       Object.hash(name, dose, frequency, prescribedAt, prescribedBy);
 }
 
-/// A single consultation record. Binary images are NEVER stored here —
-/// only ephemeral CDN URLs (PRD §4).
+/// Stable, off-record pointer to one heavy medical image (radiograph / scan) that
+/// has been encrypted client-side and offloaded to the server (issue #23).
+///
+/// The bytes NEVER live on the patient phone — only this small descriptor does.
+/// It is itself stored INSIDE the AES-256-GCM-encrypted record, so the
+/// [contentKey] is protected by the record's own zero-knowledge encryption and the
+/// server (which holds only opaque ciphertext keyed by [uuid]) can never read it.
+///
+/// No ephemeral URL is baked in: an access URL is minted on demand (and expires),
+/// so a durable record never carries a stale link. See `cloud/media_client.dart`.
+class MediaDescriptor {
+  const MediaDescriptor({
+    required this.uuid,
+    required this.contentKey,
+    required this.contentHash,
+    required this.mime,
+    required this.sizeBytes,
+    required this.addedAt,
+    this.alg = 'A256GCM',
+  });
+
+  factory MediaDescriptor.fromJson(Map<String, Object?> json) {
+    return MediaDescriptor(
+      uuid: json['uuid'] as String,
+      contentKey: json['content_key'] as String,
+      alg: json['alg'] as String? ?? 'A256GCM',
+      contentHash: json['content_hash'] as String,
+      mime: json['mime'] as String,
+      sizeBytes: json['size_bytes'] as int,
+      addedAt: json['added_at'] as String,
+    );
+  }
+
+  /// Anonymous media UUID — the `/media/{uuid}` server index. Never derived from PII.
+  final String uuid;
+
+  /// Base64 of the 32-byte per-media AES-256 content key. Protected by the
+  /// record's own encryption; never transmitted to the server.
+  final String contentKey;
+
+  /// AEAD algorithm identifier (currently always `A256GCM`, ADR 0003).
+  final String alg;
+
+  /// SHA-256 (hex) of the plaintext image — independent end-to-end integrity check
+  /// on top of the GCM tag.
+  final String contentHash;
+
+  /// MIME type of the decrypted image (e.g. `image/jpeg`).
+  final String mime;
+
+  /// Size of the plaintext image in bytes (UI / budgeting; not the ciphertext size).
+  final int sizeBytes;
+
+  /// ISO-8601 UTC timestamp the media was attached.
+  final String addedAt;
+
+  Map<String, Object?> toJson() => {
+        'uuid': uuid,
+        'content_key': contentKey,
+        'alg': alg,
+        'content_hash': contentHash,
+        'mime': mime,
+        'size_bytes': sizeBytes,
+        'added_at': addedAt,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is MediaDescriptor &&
+      other.uuid == uuid &&
+      other.contentKey == contentKey &&
+      other.alg == alg &&
+      other.contentHash == contentHash &&
+      other.mime == mime &&
+      other.sizeBytes == sizeBytes &&
+      other.addedAt == addedAt;
+
+  @override
+  int get hashCode => Object.hash(
+        uuid,
+        contentKey,
+        alg,
+        contentHash,
+        mime,
+        sizeBytes,
+        addedAt,
+      );
+}
+
+/// A single consultation record. Binary images are NEVER stored here — heavy media
+/// is offloaded to the server (#23) and referenced by a [MediaDescriptor] in [media].
 class Consultation {
   const Consultation({
     required this.id,
@@ -198,11 +297,17 @@ class Consultation {
     required this.summary,
     this.prescription,
     this.imageUrls = const [],
+    this.media = const [],
   });
 
   factory Consultation.fromJson(Map<String, Object?> json) {
     final rawUrls = json['image_urls'] as List<Object?>?;
     final urls = rawUrls?.map((e) => e as String).toList() ?? const <String>[];
+    final rawMedia = json['media'] as List<Object?>?;
+    final media = rawMedia
+            ?.map((e) => MediaDescriptor.fromJson(e as Map<String, Object?>))
+            .toList() ??
+        const <MediaDescriptor>[];
     return Consultation(
       id: json['id'] as String,
       date: json['date'] as String,
@@ -210,6 +315,7 @@ class Consultation {
       summary: json['summary'] as String,
       prescription: json['prescription'] as String?,
       imageUrls: urls,
+      media: media,
     );
   }
 
@@ -224,8 +330,13 @@ class Consultation {
   final String summary;
   final String? prescription;
 
-  /// Ephemeral CDN URLs — no binary data, no credentials.
+  /// Legacy ephemeral CDN URLs — deprecated, superseded by [media] (#23). Retained
+  /// for back-compat with records written before the descriptor existed.
   final List<String> imageUrls;
+
+  /// Heavy-media descriptors (#23): off-record pointers to encrypted images. No
+  /// binary data, no baked-in URL — only an anonymous UUID + per-media content key.
+  final List<MediaDescriptor> media;
 
   Map<String, Object?> toJson() => {
         'id': id,
@@ -234,6 +345,7 @@ class Consultation {
         'summary': summary,
         if (prescription != null) 'prescription': prescription,
         'image_urls': imageUrls,
+        if (media.isNotEmpty) 'media': media.map((e) => e.toJson()).toList(),
       };
 
   @override
@@ -244,7 +356,8 @@ class Consultation {
       other.practitionerRef == practitionerRef &&
       other.summary == summary &&
       other.prescription == prescription &&
-      _listEq(other.imageUrls, imageUrls);
+      _listEq(other.imageUrls, imageUrls) &&
+      _listEq(other.media, media);
 
   @override
   int get hashCode => Object.hash(
@@ -254,6 +367,7 @@ class Consultation {
         summary,
         prescription,
         Object.hashAll(imageUrls),
+        Object.hashAll(media),
       );
 }
 

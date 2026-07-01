@@ -124,7 +124,10 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "crypto-core",
+ "hex",
+ "hmac",
  "http-body-util",
+ "sha2",
  "tokio",
  "tower",
  "tracing",

@@ -15,9 +15,16 @@ crypto-core = { path = "../crypto-core" }
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 
-# UUID parsing for the /blob/{uuid} anonymous index.
+# UUID parsing for the /blob/{uuid} + /media/{uuid} anonymous index.
 # `serde` is required so axum's `Path<Uuid>` extractor can deserialize the path segment.
 uuid = { version = "1", features = ["v4", "serde"] }
+
+# Ephemeral media capability URLs (#23): HMAC-SHA256 over `uuid:exp`, hex-encoded signature.
+# RustCrypto, same family as crypto-core's primitives. Used ONLY to sign/verify access URLs —
+# never to encrypt or decrypt media (that is client-side, zero-knowledge).
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 # Structured logging.
 tracing = "0.1"
