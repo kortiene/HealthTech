@@ -17,6 +17,8 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'network_retry.dart';
+
 /// Thrown when the backend returns 404 for the requested media UUID (unknown or
 /// revoked/deleted object).
 class MediaNotFound implements Exception {
@@ -59,32 +61,45 @@ class MediaAccessGrant {
 /// HTTP transport to the heavy-media endpoints (ADR 0004/0005).
 ///
 /// [baseUrl] is the full origin (e.g. `https://api.healthtech.ci`).
+/// Pass an optional [retry] to enable automatic retry of transient failures
+/// on degraded Edge/3G connections (issue #24). Default null = no retry.
 class MediaClient {
-  MediaClient(this.baseUrl, {http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+  MediaClient(this.baseUrl, {http.Client? httpClient, NetworkRetry? retry})
+      : _http = httpClient ?? http.Client(),
+        _retry = retry;
 
   final String baseUrl;
   final http.Client _http;
+  final NetworkRetry? _retry;
 
   /// Upload opaque media ciphertext — `PUT /media/{uuid}`.
   ///
   /// Returns normally on HTTP 200 or 201. The body is never inspected, logged, or
   /// decoded: it is opaque ciphertext only. Throws [MediaBackendUnavailable] on any
   /// other status or network error (the caller may then enqueue it offline, #21/#22).
+  /// Retries transient failures when a [NetworkRetry] was provided (issue #24).
   Future<void> putMedia(String uuid, Uint8List ciphertext) async {
-    final uri = Uri.parse('$baseUrl/media/$uuid');
-    try {
-      final resp = await _http.put(
-        uri,
-        body: ciphertext,
-        headers: const {'Content-Type': 'application/octet-stream'},
-      );
-      if (resp.statusCode == 200 || resp.statusCode == 201) return;
-      throw MediaBackendUnavailable('PUT /media/$uuid → ${resp.statusCode}');
-    } on MediaBackendUnavailable {
-      rethrow;
-    } catch (e) {
-      throw MediaBackendUnavailable('PUT /media/$uuid: $e');
+    Future<void> doPut() async {
+      final uri = Uri.parse('$baseUrl/media/$uuid');
+      try {
+        final resp = await _http.put(
+          uri,
+          body: ciphertext,
+          headers: const {'Content-Type': 'application/octet-stream'},
+        );
+        if (resp.statusCode == 200 || resp.statusCode == 201) return;
+        throw MediaBackendUnavailable('PUT /media/$uuid → ${resp.statusCode}');
+      } on MediaBackendUnavailable {
+        rethrow;
+      } catch (e) {
+        throw MediaBackendUnavailable('PUT /media/$uuid: $e');
+      }
+    }
+
+    if (_retry != null) {
+      await _retry.run(doPut, retryIf: (e) => e is MediaBackendUnavailable);
+    } else {
+      await doPut();
     }
   }
 
@@ -119,26 +134,38 @@ class MediaClient {
   ///
   /// [url] is the [MediaAccessGrant.url]; a backend-relative path is resolved
   /// against [baseUrl]. Returns the raw ciphertext on 200. Throws
-  /// [MediaAccessExpired] on 403 (expired/invalid URL), [MediaNotFound] on 404,
-  /// [MediaBackendUnavailable] otherwise.
+  /// [MediaAccessExpired] on 403 (expired/invalid URL — not retried; a new
+  /// grant must be minted), [MediaNotFound] on 404, [MediaBackendUnavailable]
+  /// otherwise. Retries transient failures when a [NetworkRetry] was provided
+  /// (issue #24).
   Future<Uint8List> fetchCiphertext(String url) async {
-    final uri = Uri.parse(
-      url.startsWith('http') ? url : '$baseUrl$url',
-    );
-    try {
-      final resp = await _http.get(uri);
-      if (resp.statusCode == 200) return resp.bodyBytes;
-      if (resp.statusCode == 403) throw const MediaAccessExpired();
-      if (resp.statusCode == 404) throw const MediaNotFound('<minted-url>');
-      throw MediaBackendUnavailable('GET media url → ${resp.statusCode}');
-    } on MediaAccessExpired {
-      rethrow;
-    } on MediaNotFound {
-      rethrow;
-    } on MediaBackendUnavailable {
-      rethrow;
-    } catch (e) {
-      throw MediaBackendUnavailable('GET media url: $e');
+    Future<Uint8List> doFetch() async {
+      final uri = Uri.parse(
+        url.startsWith('http') ? url : '$baseUrl$url',
+      );
+      try {
+        final resp = await _http.get(uri);
+        if (resp.statusCode == 200) return resp.bodyBytes;
+        if (resp.statusCode == 403) throw const MediaAccessExpired();
+        if (resp.statusCode == 404) throw const MediaNotFound('<minted-url>');
+        throw MediaBackendUnavailable('GET media url → ${resp.statusCode}');
+      } on MediaAccessExpired {
+        rethrow;
+      } on MediaNotFound {
+        rethrow;
+      } on MediaBackendUnavailable {
+        rethrow;
+      } catch (e) {
+        throw MediaBackendUnavailable('GET media url: $e');
+      }
     }
+
+    if (_retry != null) {
+      return _retry.run(
+        doFetch,
+        retryIf: (e) => e is MediaBackendUnavailable,
+      );
+    }
+    return doFetch();
   }
 }
