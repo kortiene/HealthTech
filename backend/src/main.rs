@@ -146,12 +146,19 @@ async fn put_media(State(state): State<AppState>, Path(uuid): Path<Uuid>, body: 
     match state.media.put(uuid, body).await {
         Ok(MediaPutOutcome::Created(meta)) => {
             tracing::debug!(%uuid, size = meta.size, version = meta.version, "media created");
-            (StatusCode::CREATED, version_headers_named(meta.version, "x-media-version"))
+            (
+                StatusCode::CREATED,
+                version_headers_named(meta.version, "x-media-version"),
+            )
                 .into_response()
         }
         Ok(MediaPutOutcome::Replaced(meta)) => {
             tracing::debug!(%uuid, size = meta.size, version = meta.version, "media replaced");
-            (StatusCode::OK, version_headers_named(meta.version, "x-media-version")).into_response()
+            (
+                StatusCode::OK,
+                version_headers_named(meta.version, "x-media-version"),
+            )
+                .into_response()
         }
         Err(err) => ApiError::from(err).into_response(),
     }
@@ -194,9 +201,11 @@ async fn get_media(
         return StatusCode::FORBIDDEN.into_response();
     }
     match state.media.get(uuid).await {
-        Ok(Some(StoredMedia { bytes, meta })) => {
-            (version_headers_named(meta.version, "x-media-version"), bytes).into_response()
-        }
+        Ok(Some(StoredMedia { bytes, meta })) => (
+            version_headers_named(meta.version, "x-media-version"),
+            bytes,
+        )
+            .into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(err) => ApiError::from(err).into_response(),
     }

@@ -147,7 +147,10 @@ mod tests {
         let store = MemoryMediaStore::default();
         let uuid = Uuid::new_v4();
         store.put(uuid, b(b"to-revoke")).await.unwrap();
-        assert!(store.delete(uuid).await.unwrap(), "first delete sees the object");
+        assert!(
+            store.delete(uuid).await.unwrap(),
+            "first delete sees the object"
+        );
         assert!(
             !store.delete(uuid).await.unwrap(),
             "second delete reports it gone"
