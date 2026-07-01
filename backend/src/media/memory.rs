@@ -70,6 +70,7 @@ impl MemoryMediaStore {
     }
 
     /// Always ready: process memory is reachable and lock poisoning is recovered on access.
+    #[allow(dead_code)]
     pub async fn health(&self) -> Result<(), StoreError> {
         Ok(())
     }

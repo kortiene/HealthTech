@@ -133,6 +133,9 @@ impl MediaStore {
     }
 
     /// Readiness probe for the backing store.
+    /// `allow(dead_code)` until the durable MinIO+Postgres backing lands with #8, at which point
+    /// the health endpoint will wire all store probes into a composite readiness check.
+    #[allow(dead_code)]
     pub async fn health(&self) -> Result<(), StoreError> {
         match self {
             MediaStore::Memory(s) => s.health().await,
@@ -148,7 +151,7 @@ mod tests {
     #[test]
     fn max_media_bytes_far_exceeds_record_blob_budget() {
         // The media budget must dwarf the ≤500 KB record ciphertext budget: a scan is megabytes.
-        assert!(MAX_MEDIA_BYTES > crate::store::MAX_BLOB_BYTES);
+        const { assert!(MAX_MEDIA_BYTES > crate::store::MAX_BLOB_BYTES) };
         assert_eq!(MAX_MEDIA_BYTES, 25 * 1024 * 1024);
     }
 
