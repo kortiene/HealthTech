@@ -26,7 +26,7 @@ dependencies:
   # breaks the Android build (duplicate class at dex merge). drift uses the
   # SQLCipher native lib it ships.
   drift: ^2.21.0
-  sqlcipher_flutter_libs: ^0.6.4
+  sqlcipher_flutter_libs: ^0.7.0+eol
   # Direct sqlite3 use: PRAGMA-key setup hook + the SQLCipher open() override
   # (sqlcipher_flutter_libs ships the native lib; sqlite3 is the Dart binding).
   sqlite3: ^2.4.0
