@@ -17,10 +17,10 @@ issue *ARGS:
 # --- aggregate gates -------------------------------------------------------
 
 # Run every package's test suite (the ADW pipeline test gate).
-test: test-rust test-web test-flutter test-compliance-scripts test-threat-model test-residency-scripts
+test: test-rust test-web test-flutter test-compliance-scripts test-threat-model test-residency-scripts test-homologation-scripts
 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
-lint: lint-rust compliance-check threat-model-check
+lint: lint-rust compliance-check homologation-check threat-model-check
 
 # Build every package.
 build: build-rust build-web
@@ -47,6 +47,14 @@ compliance-check:
 # Self-test the compliance matrix checker with synthetic fixtures (issue #5).
 test-compliance-scripts:
     bash scripts/test-compliance-matrix.sh
+
+# Self-test the homologation dossier checker with synthetic fixtures (issue #30).
+test-homologation-scripts:
+    bash scripts/test-homologation-dossier.sh
+
+# Validate the ARTCI homologation dossier (issue #30, docs/compliance/homologation-artci/).
+homologation-check:
+    bash scripts/check-homologation-dossier.sh
 
 # Self-test the data-residency guardrail with synthetic fixtures (issue #8).
 test-residency-scripts:
