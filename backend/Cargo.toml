@@ -19,9 +19,6 @@ tokio = { version = "1", features = ["full"] }
 # `serde` is required so axum's `Path<Uuid>` extractor can deserialize the path segment.
 uuid = { version = "1", features = ["v4", "serde"] }
 
-# Derive for the media access query/response types (axum `Query`/`Json` extractors, #23).
-serde = { version = "1", features = ["derive"] }
-
 # Ephemeral media capability URLs (#23): HMAC-SHA256 over `uuid:exp`, hex-encoded signature.
 # RustCrypto, same family as crypto-core's primitives. Used ONLY to sign/verify access URLs —
 # never to encrypt or decrypt media (that is client-side, zero-knowledge).
@@ -37,5 +34,3 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Tower's oneshot service harness lets us exercise the router in tests without a socket.
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-# Parse the JSON access-URL response body in media handler tests.
-serde_json = "1"

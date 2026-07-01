@@ -127,8 +127,6 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
- "serde",
- "serde_json",
  "sha2",
  "tokio",
  "tower",

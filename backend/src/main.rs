@@ -23,13 +23,12 @@ mod store;
 
 use axum::{
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, Query, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{header, HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
+    Router,
 };
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use config::Config;
@@ -117,24 +116,25 @@ async fn get_blob(State(state): State<AppState>, Path(uuid): Path<Uuid>) -> Resp
 
 // --- Heavy-media offload (#23) -----------------------------------------------------------------
 
-/// Capability-URL query parameters for `GET /media/{uuid}`. A missing/garbage `exp` or `sig` is
-/// rejected with `400` by the `Query` extractor before the handler runs.
-#[derive(Deserialize)]
-struct AccessQuery {
-    /// Absolute expiry (Unix seconds), as minted by `POST /media/{uuid}/access`.
-    exp: u64,
-    /// Hex HMAC signature binding `uuid:exp`.
-    sig: String,
-}
-
-/// Body of `POST /media/{uuid}/access`: a freshly minted ephemeral capability URL + its expiry.
-#[derive(Serialize)]
-struct AccessResponse {
-    /// `/media/{uuid}?exp=…&sig=…` — resolve against the backend origin. Bearer secret: the client
-    /// must not persist it.
-    url: String,
-    /// ISO-8601 UTC expiry, for display / client-side pre-expiry refresh.
-    expires_at: String,
+/// Parse `exp=<u64>&sig=<hex>` from the raw query string of a media capability URL.
+///
+/// Returns `None` on any failure (missing, empty, or malformed params). The caller maps `None` to
+/// `403 Forbidden`, deliberately giving no oracle distinguishing "missing params" from "invalid
+/// signature" — both result in the same refusal.
+fn parse_access_query(raw: Option<&str>) -> Option<(u64, String)> {
+    let raw = raw?;
+    let mut exp = None::<u64>;
+    let mut sig = None::<String>;
+    for kv in raw.split('&') {
+        if let Some((k, v)) = kv.split_once('=') {
+            match k {
+                "exp" => exp = v.parse().ok(),
+                "sig" => sig = Some(v.to_owned()),
+                _ => {}
+            }
+        }
+    }
+    Some((exp?, sig?))
 }
 
 /// Store an opaque encrypted media object under an anonymous UUID (`PUT /media/{uuid}`).
@@ -173,12 +173,13 @@ async fn post_media_access(State(state): State<AppState>, Path(uuid): Path<Uuid>
         Ok(true) => {
             let grant = state.access.mint(&uuid, now_unix());
             tracing::debug!(%uuid, expires_at = grant.expires_at_unix, "media access URL minted");
+            let url = format!("/media/{uuid}?{}", grant.query);
+            let expires_at = unix_to_iso8601(grant.expires_at_unix);
+            let json = format!(r#"{{"url":"{url}","expires_at":"{expires_at}"}}"#);
             (
                 StatusCode::OK,
-                Json(AccessResponse {
-                    url: format!("/media/{uuid}?{}", grant.query),
-                    expires_at: unix_to_iso8601(grant.expires_at_unix),
-                }),
+                [(header::CONTENT_TYPE, HeaderValue::from_static("application/json"))],
+                json,
             )
                 .into_response()
         }
@@ -189,15 +190,19 @@ async fn post_media_access(State(state): State<AppState>, Path(uuid): Path<Uuid>
 
 /// Return a stored opaque media object via a capability URL (`GET /media/{uuid}?exp=…&sig=…`).
 ///
-/// The signature + expiry are verified first: a forged or **expired** URL → `403` (no oracle
-/// distinguishing the two — issue #23 acceptance criterion #2). Only then is the object fetched;
-/// an unknown / deleted object → `404`. Decryption is exclusively client-side.
+/// The signature + expiry are verified first: a forged, **expired**, or **missing** capability →
+/// `403` (no oracle distinguishing the cases — issue #23 acceptance criterion #2). Only then is
+/// the object fetched; an unknown / deleted object → `404`. Decryption is exclusively client-side.
 async fn get_media(
     State(state): State<AppState>,
     Path(uuid): Path<Uuid>,
-    Query(q): Query<AccessQuery>,
+    RawQuery(raw_query): RawQuery,
 ) -> Response {
-    if !state.access.verify(&uuid, q.exp, &q.sig, now_unix()) {
+    let (exp, sig) = match parse_access_query(raw_query.as_deref()) {
+        Some(pair) => pair,
+        None => return StatusCode::FORBIDDEN.into_response(),
+    };
+    if !state.access.verify(&uuid, exp, &sig, now_unix()) {
         return StatusCode::FORBIDDEN.into_response();
     }
     match state.media.get(uuid).await {
@@ -992,13 +997,28 @@ mod tests {
             .unwrap();
         assert_eq!(access.status(), StatusCode::OK);
         let body = access.into_body().collect().await.unwrap().to_bytes();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let url = json["url"].as_str().expect("url field");
-        assert!(url.starts_with(&format!("/media/{uuid}?exp=")));
-        assert!(json["expires_at"].as_str().unwrap().ends_with('Z'));
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let url_val: String = body_str
+            .split("\"url\":\"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .expect("url field in access response")
+            .to_owned();
+        assert!(url_val.starts_with(&format!("/media/{uuid}?exp=")));
+        let expires_str = body_str
+            .split("\"expires_at\":\"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .expect("expires_at field in access response");
+        assert!(expires_str.ends_with('Z'));
 
         let got = app
-            .oneshot(Request::builder().uri(url).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri(url_val.as_str())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(got.status(), StatusCode::OK);
@@ -1062,9 +1082,10 @@ mod tests {
         assert_eq!(got.status(), StatusCode::FORBIDDEN);
     }
 
-    /// `GET /media/{uuid}` without the `exp`/`sig` query params is a `400` (Query extractor).
+    /// `GET /media/{uuid}` without capability query params is refused with `403` — same response
+    /// as an expired or forged URL, giving no oracle about what specifically is missing.
     #[tokio::test]
-    async fn media_get_without_capability_params_is_400() {
+    async fn media_get_without_capability_params_is_403() {
         let resp = test_app()
             .oneshot(
                 Request::builder()
@@ -1074,7 +1095,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 
     /// Minting an access URL for an unknown media object is `404`.
