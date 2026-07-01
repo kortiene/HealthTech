@@ -33,7 +33,7 @@ dependencies:
 
   # QR: scan (mobile_scanner, one package Android+iOS) + generate (qr_flutter).
   # 120 s TTL lives in app logic. TODO(#16).
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
 
   # Non-critical secrets only (NOT the master key — that is StrongBox/TEE via the
