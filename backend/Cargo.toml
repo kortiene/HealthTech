@@ -23,7 +23,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # RustCrypto, same family as crypto-core's primitives. Used ONLY to sign/verify access URLs —
 # never to encrypt or decrypt media (that is client-side, zero-knowledge).
 hmac = "0.12"
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 
 # Structured logging.
