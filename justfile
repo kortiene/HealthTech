@@ -20,7 +20,7 @@ issue *ARGS:
 test: test-rust test-web test-flutter test-compliance-scripts test-threat-model test-residency-scripts test-homologation-scripts
 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
-lint: lint-rust compliance-check homologation-check threat-model-check ux-check
+lint: lint-rust compliance-check homologation-check threat-model-check ux-check lowend-check
 
 # Decryption performance gate (issue #27, NFR §5): the deterministic,
 # generous-threshold perf assertions — Rust decrypt regression + Dart CPU-chain
@@ -81,6 +81,14 @@ threat-model-check:
 # and PWA smoke test themselves run in the existing CI (flutter test / npm test).
 ux-check:
     bash scripts/check-ux-docs.sh
+
+# Validate the low-end-device profile + validation protocol consistency (issue #29,
+# docs/ux/ ↔ storage_budget.dart / PerfBudget). Doc/code drift + honesty gate; rides
+# `just lint`. The robustness + accessibility guard-rails themselves (host-only
+# fault-injection, widget accessibility invariants, PWA smoke) run in the existing
+# CI (flutter test / npm test). See docs/ux/low-end-device-profile.md.
+lowend-check:
+    bash scripts/check-lowend-docs.sh
 
 # Self-test the threat model checker with the live artefact.
 test-threat-model:

@@ -107,3 +107,62 @@ describe("PWA step-budget guard-rail (pending — flow TODO #17/#21/#22)", () =>
     expect(true).toBe(true);
   });
 });
+
+// ── Low-end-device accessibility guard-rail (pending activation) ─────────────
+//
+// Issue #29 Livrable E — PWA accessibility invariants (low-end device profile).
+//
+// SCOPE: the consultation flow (scan + decrypt + edit + terminate) is a TODO
+// pending issues #17/#21/#22. This marker documents the accessibility invariants
+// that the PWA shell MUST enforce once the flow is implemented:
+//
+//   1. Interactive controls expose `aria-label` attributes so screen-readers
+//      (NVDA, VoiceOver on mobile, axe-core audits) can announce them.
+//      Enforcement: check that key action buttons carry a non-empty aria-label.
+//
+//   2. Touch targets are ≥ 48 CSS px tall (matching the 48 dp floor on Android).
+//      Enforcement: axe-core "target-size" rule or explicit min-height assertion.
+//
+//   3. Text can scale to 200% without horizontal overflow or label truncation
+//      (WCAG 1.4.4 Resize Text, SC AA).
+//      Enforcement: jsdom + style injection, or a dedicated Playwright test.
+//
+//   4. Colour contrast ≥ 4.5:1 (WCAG 1.4.3 AA) on action text and vital
+//      information (allergies). Enforcement: axe-core "color-contrast" rule.
+//
+// Profile reference: docs/ux/low-end-device-profile.md
+// Activation: replace the marker with real assertions when the flow lands.
+// Until then, these tests document the invariant without simulating non-existent
+// behaviour — same discipline as the step-budget guard above.
+//
+// IDLE_TIMEOUT_MS and sessionTitle() re-validated here as a minimal structural
+// smoke test covering the session constants that the future flow will depend on.
+
+describe(
+  "PWA low-end-device accessibility guard-rail (pending — flow TODO #17/#21/#22)",
+  () => {
+    it("marker: accessibility invariant activation pending consultation flow", () => {
+      // This test is intentionally a no-op until the PWA flow is wired.
+      // When #17/#21/#22 land, replace this with axe-core / aria-label checks
+      // as described in the block comment above and in
+      // docs/ux/low-end-validation-protocol.md §PWA.
+      expect(true).toBe(true);
+    });
+
+    it("IDLE_TIMEOUT_MS is 15 min — session-expiry timeout unchanged (wipe-on-idle, #29)", () => {
+      // Low-end-device profile: wipe-on-idle must still apply on a constrained
+      // device (a micro power-cut cannot extend an idle session). Validates that
+      // the session constant was not accidentally widened.
+      expect(IDLE_TIMEOUT_MS).toBe(15 * 60 * 1000);
+    });
+
+    it("sessionTitle() returns the French interface label (no sensitive data in title)", () => {
+      // The window title must never carry PII or session state — a constraint
+      // that holds across all device profiles.
+      const title = sessionTitle();
+      expect(title).toBe("HealthTech — Interface Médecin");
+      expect(title).not.toContain("key");
+      expect(title).not.toContain("uuid");
+    });
+  },
+);

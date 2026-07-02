@@ -29,6 +29,8 @@ Offrir à chaque citoyen ivoirien la propriété absolue et sécurisée de ses d
 - **Awa, 28 ans (Le Patient) :** Habite à Yopougon, possède un smartphone Infinix (32 Go, souvent saturé). Elle souhaite que ses antécédents médicaux soient accessibles rapidement lorsqu'elle consulte, mais refuse que l'État ou des tiers piratent ses données.
 - **Dr. Koné, 42 ans (Le Médecin) :** Généraliste dans une clinique à Cocody. Il reçoit 30 patients par jour. Il a besoin d'un outil ultra-rapide qui s'intègre dans sa routine sans lui faire perdre de temps, et qui fonctionne même lors des micro-coupures de courant.
 
+Ces contraintes matérielles (Infinix 32 Go quasi saturé, micro-coupures) sont figées dans le **profil d'appareil de référence bas de gamme** ([`docs/ux/low-end-device-profile.md`](./docs/ux/low-end-device-profile.md), issue #29) et validées par son **protocole de robustesse & accessibilité** ([`docs/ux/low-end-validation-protocol.md`](./docs/ux/low-end-validation-protocol.md)). La validation terrain sur l'appareil réel reste une **démarche humaine** (mesures non closes par du code).
+
 ---
 
 ## 3. Exigences Fonctionnelles (Épics & User Stories)
@@ -64,7 +66,7 @@ Offrir à chaque citoyen ivoirien la propriété absolue et sécurisée de ses d
 
 > **Règle de performance en réseau dégradé :** La taille du texte brut du dossier médical principal ne doit pas dépasser 500 Ko pour garantir un téléchargement et un déchiffrement instantanés, même sur une connexion Edge/3G instable.
 
-- **Gestion du stockage des smartphones d'entrée de gamme :** Interdiction de stocker les images médicales lourdes (radiographies, scans) directement sur le téléphone du patient. Elles sont stockées sur un serveur distant chiffré et seul un lien d'accès (URL éphémère) est intégré au dossier texte du patient.
+- **Gestion du stockage des smartphones d'entrée de gamme :** Interdiction de stocker les images médicales lourdes (radiographies, scans) directement sur le téléphone du patient. Elles sont stockées sur un serveur distant chiffré et seul un lien d'accès (URL éphémère) est intégré au dossier texte du patient. Le budget de stockage local (empreinte de la file hors-ligne, invariant « aucune image lourde sur l'appareil ») est borné par la source de vérité [`app-patient/lib/src/doctor/storage_budget.dart`](./app-patient/lib/src/doctor/storage_budget.dart) (`StorageBudget`, issue #29) et documenté dans le [profil d'appareil de référence](./docs/ux/low-end-device-profile.md).
 
 ---
 

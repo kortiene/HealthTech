@@ -260,8 +260,14 @@ class _RecordViewScreenState extends State<RecordViewScreen> {
                     title: 'Allergies',
                     children: r.allergies
                         .map(
-                          (a) =>
-                              _InfoRow(label: a.substance, value: a.severity),
+                          (a) => _InfoRow(
+                            label: a.substance,
+                            value: a.severity,
+                            // Life-critical info: give screen readers (TalkBack)
+                            // an explicit, self-contained announcement (#29 E).
+                            semanticLabel:
+                                'Allergie : ${a.substance}, gravité ${a.severity}',
+                          ),
                         )
                         .toList(),
                   ),
@@ -341,7 +347,13 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            // Mark the section title as a semantic header so screen readers
+            // (TalkBack) let the doctor jump between sections (#29 E).
+            Semantics(
+              header: true,
+              child:
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+            ),
             const Divider(),
             ...children,
           ],
@@ -352,14 +364,26 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.semanticLabel,
+  });
 
   final String label;
   final String value;
 
+  /// Optional self-contained screen-reader announcement (e.g. for life-critical
+  /// allergy info). When set, the label + value are merged into a single node so
+  /// TalkBack reads them as one coherent phrase (#29 E). Null → default per-Text
+  /// semantics. Never carries anything beyond the already-displayed fields.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // Labels/values are plain Text (soft-wrapping, no maxLines) inside Expanded
+    // columns, so they reflow — never truncate — at a large textScaleFactor.
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,6 +397,13 @@ class _InfoRow extends StatelessWidget {
           ),
           Expanded(flex: 3, child: Text(value)),
         ],
+      ),
+    );
+    if (semanticLabel == null) return row;
+    return MergeSemantics(
+      child: Semantics(
+        label: semanticLabel,
+        child: ExcludeSemantics(child: row),
       ),
     );
   }
