@@ -203,7 +203,7 @@ name = "crypto-core"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
- "getrandom 0.2.17",
+ "getrandom 0.4.3",
  "hex",
  "pbkdf2",
  "sha2",
