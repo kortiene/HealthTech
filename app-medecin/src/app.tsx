@@ -10,6 +10,14 @@ import { sessionTitle } from "./session";
  *   - WASM crypto-core bindings ............ TODO(#17)
  *   - QR scan + consultation flow .......... TODO(#21)
  *   - offline ciphertext queue (IndexedDB) . TODO(#22)
+ *
+ * UX NORM (issue #28, docs/ux/medecin-ux-guidelines.md — single source of truth):
+ * when the flow lands here it MUST follow the "single-flow, zero-menu" norm —
+ * one linear journey (scan → read → edit → terminate), NO hamburger / drawer /
+ * tab bar in the consultation core. The shell below intentionally renders no
+ * navigation menu so the scaffold already honours that invariant; the future
+ * step-budget guard-rail (UxBudget) mirrors the Flutter reference. We do NOT
+ * simulate a consultation flow that does not exist yet.
  */
 export function App() {
   return (
