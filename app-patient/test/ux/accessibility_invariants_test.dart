@@ -413,7 +413,7 @@ void main() {
         MaterialApp(
           home: MediaQuery(
             data: const MediaQueryData(size: Size(320, 568)).copyWith(
-              textScaler: TextScaler.linear(1.5),
+              textScaler: const TextScaler.linear(1.5),
             ),
             child: RecordViewScreen(
               record: _allergyOnlyRecord,

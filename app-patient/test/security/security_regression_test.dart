@@ -822,8 +822,9 @@ void main() {
         client: BackendClient(
           _base,
           httpClient: MockClient((req) async {
-            if (req.method == 'PUT')
+            if (req.method == 'PUT') {
               putBody = Uint8List.fromList(req.bodyBytes);
+            }
             return http.Response('', 201);
           }),
         ),
