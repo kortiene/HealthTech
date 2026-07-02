@@ -21,6 +21,9 @@
 //   SCAN-NO-PUT: fetchAndDecrypt never issues a cloud write (SC-08)
 //   MEDIA-403: 403 from backend → MediaAccessExpired only, no data returned (SC-05)
 //   OFFLINE-OPAQUE: ciphertext in offline queue ≠ plaintext JSON (SC-07)
+//   LOWEND-DISKFULL-NO-PLAINTEXT: disk-full path never exposes plaintext/key (#29 C4)
+//   LOWEND-CRASH-NO-KEY: double-failure zeroes key/blob unconditionally (#29 C4)
+//   LOWEND-CRASH-NO-LOSS: at-least-once after enqueue-before-remove crash (#29 C4)
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -35,6 +38,7 @@ import 'package:app_patient/src/doctor/consultation_session.dart';
 import 'package:app_patient/src/doctor/offline_upload_queue.dart';
 import 'package:app_patient/src/doctor/scan_service.dart';
 import 'package:app_patient/src/doctor/session_end_service.dart';
+import 'package:app_patient/src/doctor/sync_service.dart';
 import 'package:app_patient/src/qr/access_token.dart';
 import 'package:app_patient/src/record/medical_record.dart';
 import 'package:app_patient/src/record/medical_record_store.dart';
@@ -45,6 +49,7 @@ import '../support/consultation_loop_harness.dart';
 // ─── Shared constants ────────────────────────────────────────────────────────
 
 const _uuid = '00000000-0000-4000-8000-000000000099';
+const _uuid2 = '00000000-0000-4000-8000-000000000098';
 const _base = 'http://backend.test';
 const _crypto = FakeCryptoCore();
 const _handle = FakeMasterKeyHandle();
@@ -118,6 +123,36 @@ class _FailingQueue implements OfflineUploadQueue {
   @override
   Future<void> enqueue(String blobUuid, Uint8List ciphertext) async =>
       throw const OfflineQueueUnavailable('disk full (test)');
+  @override
+  Future<List<PendingUpload>> pending() async => [];
+  @override
+  Future<void> remove(String id) async {}
+  @override
+  Future<int> count() async => 0;
+  @override
+  Future<void> markAttempt(String id, {required String redactedError}) async {}
+  @override
+  Future<void> markConflict(
+    String id, {
+    required String redactedReason,
+  }) async {}
+}
+
+/// Offline queue that records the ciphertext about to be enqueued before
+/// throwing [OfflineQueueUnavailable] — used to assert the payload is opaque
+/// on the disk-full path (LOWEND-DISKFULL-NO-PLAINTEXT).
+class _CapturingFailingQueue implements OfflineUploadQueue {
+  _CapturingFailingQueue({required this.onEnqueue});
+
+  final void Function(Uint8List ciphertext) onEnqueue;
+
+  @override
+  Future<void> enqueue(String blobUuid, Uint8List ciphertext) async {
+    // Defensive copy before throwing — the caller will wipe the source bytes.
+    onEnqueue(Uint8List.fromList(ciphertext));
+    throw const OfflineQueueUnavailable('disk full (LOWEND test)');
+  }
+
   @override
   Future<List<PendingUpload>> pending() async => [];
   @override
@@ -492,6 +527,319 @@ void main() {
         queuedText,
         isNot(contains('OFFLINE-PII-MARKER')),
         reason: 'queued bytes must not contain plaintext PII',
+      );
+    });
+  });
+
+  // ── LOWEND-DISKFULL-NO-PLAINTEXT : Disque plein → aucun plaintext exposé ──
+  //
+  // Issue #29 G3/C4: when storage is saturated the enqueue call fails
+  // (OfflineQueueUnavailable). Any ciphertext that was about to be queued must
+  // still be opaque (never plaintext), the session key must be zeroed, and the
+  // pending blob must be wiped — even though the data could not be persisted.
+
+  group(
+      '[LOWEND-DISKFULL-NO-PLAINTEXT] Disk-full double-failure never exposes plaintext or key',
+      () {
+    test(
+        'ciphertext passed to a full queue is opaque — no PII marker in the '
+        'attempted payload', () async {
+      // A capturing queue that records the attempted ciphertext before throwing.
+      Uint8List? capturedCiphertext;
+      final capturingFailingQueue = _CapturingFailingQueue(
+        onEnqueue: (bytes) => capturedCiphertext = Uint8List.fromList(bytes),
+      );
+
+      const record = MedicalRecord(
+        patientId: _uuid,
+        demographics: Demographics(bloodType: 'LOWEND-PII-DISKFULL'),
+        allergies: [
+          Allergy(
+            substance: 'LOWEND-ALLERGY-DISKFULL',
+            severity: 'severe',
+            notedAt: '2025-01-01',
+          ),
+        ],
+        createdAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2025-01-01T00:00:00Z',
+      );
+
+      // Build a fake encrypted blob: xor(plaintext) — the fake crypto output.
+      final plaintext = Uint8List.fromList(
+        jsonEncode(record.toJson()).codeUnits,
+      );
+      final ciphertext = fakeXor(plaintext);
+
+      final session = ConsultationSession(
+        payload: _freshPayload(),
+        record: record,
+      );
+      session.applyMerge(
+        record.copyWith(updatedAt: '2026-01-01T00:00:00Z'),
+        ciphertext,
+      );
+
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 503)),
+        ),
+        queue: capturingFailingQueue,
+      );
+
+      try {
+        await svc.terminate(session);
+      } on OfflineQueueUnavailable {
+        // expected — the only path where data may be lost
+      }
+
+      // The captured attempt must be ciphertext, not the plaintext PII.
+      expect(capturedCiphertext, isNotNull,
+          reason: 'enqueue must have been attempted before the throw');
+      final capturedText =
+          utf8.decode(capturedCiphertext!, allowMalformed: true);
+      expect(
+        capturedText,
+        isNot(contains('LOWEND-PII-DISKFULL')),
+        reason:
+            'attempted payload must be ciphertext — no plaintext PII on disk-full path',
+      );
+      expect(
+        capturedText,
+        isNot(contains('LOWEND-ALLERGY-DISKFULL')),
+        reason:
+            'allergy marker must not appear in the queued ciphertext (disk-full)',
+      );
+    });
+
+    test(
+        'session key is zeroed even when disk is full (OfflineQueueUnavailable)',
+        () async {
+      final key = Uint8List.fromList(List.filled(32, 0xAB));
+      final session = _session(
+        blob: Uint8List.fromList([0x01, 0x02, 0x03]),
+        key: key,
+      );
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      try {
+        await svc.terminate(session);
+      } on OfflineQueueUnavailable {
+        // expected
+      }
+      expect(
+        key,
+        everyElement(0x00),
+        reason: 'session key must be zeroed on disk-full path (SC-03)',
+      );
+    });
+
+    test(
+        'pending blob bytes are zeroed even when disk is full '
+        '(no session data lingers in RAM after disk-full failure)', () async {
+      final blob = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE]);
+      final session = _session(blob: blob);
+      final svc = SessionEndService(
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 503)),
+        ),
+        queue: _FailingQueue(),
+      );
+      try {
+        await svc.terminate(session);
+      } on OfflineQueueUnavailable {
+        // expected
+      }
+      expect(
+        blob,
+        everyElement(0x00),
+        reason: 'pending blob bytes must be zeroed on disk-full path',
+      );
+      expect(session.pendingBlob, isNull);
+    });
+  });
+
+  // ── LOWEND-CRASH-NO-KEY : Coupure de courant → clé jamais exposée ─────────
+  //
+  // Issue #29 G4/C4: a power cut can kill the process between any two steps.
+  // In the host-only model the `finally` block is the crash-safety mechanism —
+  // it guarantees the session key and pending blob are zeroed unconditionally
+  // regardless of which error path was taken. These tests prove that invariant
+  // holds specifically for the double-failure (PUT fails AND queue full) scenario
+  // that can occur on a low-end device with saturated storage.
+
+  group(
+      '[LOWEND-CRASH-NO-KEY] Session key never survives a crash-like double failure',
+      () {
+    test(
+        'session key is zeroed and pendingBlob is null after any double-failure '
+        'path — no residual key in RAM', () async {
+      // Drive all three relevant failure combinations.
+      for (final scenario in [
+        'put-503-queue-fail',
+        'put-500-queue-fail',
+        'put-404-queue-fail',
+      ]) {
+        final key = Uint8List.fromList(List.filled(32, 0x77));
+        final blob = Uint8List.fromList(List.filled(8, 0x55));
+        final session = _session(blob: blob, key: key);
+        final svc = SessionEndService(
+          client: BackendClient(
+            _base,
+            httpClient: MockClient(
+              (_) async => http.Response(
+                  'err',
+                  scenario.contains('503')
+                      ? 503
+                      : scenario.contains('500')
+                          ? 500
+                          : 404),
+            ),
+          ),
+          queue: _FailingQueue(),
+        );
+        try {
+          await svc.terminate(session);
+        } on OfflineQueueUnavailable {
+          // expected on this path
+        }
+        expect(
+          key,
+          everyElement(0x00),
+          reason:
+              'session key must be zeroed for scenario "$scenario" (SC-03 / #29 C4)',
+        );
+        expect(
+          session.pendingBlob,
+          isNull,
+          reason:
+              'pendingBlob must be null after crash-like failure "$scenario"',
+        );
+      }
+    });
+  });
+
+  // ── LOWEND-CRASH-NO-LOSS : Coupure après enqueue, avant remove → at-least-once
+  //
+  // Issue #29 G4/C4: if the process is killed after `enqueue` succeeds but
+  // before `remove` is called, the blob must still reach the server on the next
+  // drain. The PUT is idempotent (same UUID), so the final server state is
+  // consistent. This test proves the at-least-once + no-duplicate invariant
+  // for the crash-recovery scenario on a low-end device.
+
+  group(
+      '[LOWEND-CRASH-NO-LOSS] At-least-once after crash between enqueue and remove',
+      () {
+    test(
+        'blob pre-queued before crash is delivered exactly once on drain — '
+        'at-least-once + idempotent PUT, no duplicate', () async {
+      // Simulate the state AFTER a crash: the blob is already in the queue
+      // (enqueue completed) but was never removed (process was killed before
+      // `remove`). On restart, SyncService.drain must deliver it.
+      final queue = InMemoryUploadQueue();
+      final ciphertext = Uint8List.fromList([0xCA, 0xFE, 0xBA, 0xBE]);
+      await queue.enqueue(_uuid2, ciphertext);
+
+      int putCount = 0;
+      Uint8List? putBody;
+      final svc = SyncService(
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((req) async {
+            if (req.method == 'PUT') {
+              putCount++;
+              putBody = Uint8List.fromList(req.bodyBytes);
+            }
+            return http.Response('', 201);
+          }),
+        ),
+        queue: queue,
+      );
+
+      final summary = await svc.drain();
+
+      // Delivered exactly once: no data loss (PUT was issued).
+      expect(putCount, 1,
+          reason: 'crash-recovery blob must be PUT exactly once');
+      // PUT body is the opaque ciphertext, never plaintext.
+      expect(putBody, equals(ciphertext));
+      // Queue is empty: no stale entry lingers after successful delivery.
+      expect(summary.synced, 1);
+      expect(await queue.count(), 0,
+          reason: 'queue must be empty after at-least-once drain');
+    });
+
+    test(
+        'drain after crash is idempotent at the server: '
+        'a second drain on an already-empty queue issues no PUT', () async {
+      final queue = InMemoryUploadQueue();
+      final ciphertext = Uint8List.fromList([0x11, 0x22, 0x33]);
+      await queue.enqueue(_uuid2, ciphertext);
+
+      int putCount = 0;
+      final client = BackendClient(
+        _base,
+        httpClient: MockClient((req) async {
+          if (req.method == 'PUT') putCount++;
+          return http.Response('', 201);
+        }),
+      );
+      final svc = SyncService(client: client, queue: queue);
+
+      // First drain delivers and empties the queue.
+      await svc.drain();
+      expect(putCount, 1);
+
+      // Second drain (restart-scenario: no new items): no duplicate PUT.
+      final secondSummary = await svc.drain();
+      expect(putCount, 1,
+          reason: 'no second PUT — idempotent drain after empty queue');
+      expect(secondSummary.synced, 0);
+      expect(await queue.count(), 0);
+    });
+
+    test(
+        'crash-recovery PUT carries opaque ciphertext, not plaintext '
+        '(ZK invariant survives crash/drain cycle)', () async {
+      // Verify the zero-knowledge property holds on the crash-recovery path:
+      // the byte sequence PUT to the server after a crash is the same opaque
+      // ciphertext that was enqueued, never the plaintext medical record.
+      const piiMarker = 'LOWEND-CRASHLOSS-PII-MARKER';
+      final queue = InMemoryUploadQueue();
+      // Simulate ciphertext = XOR of plaintext (the fake crypto convention).
+      final plaintext = Uint8List.fromList(piiMarker.codeUnits);
+      final ciphertext = fakeXor(plaintext);
+      await queue.enqueue(_uuid2, ciphertext);
+
+      Uint8List? putBody;
+      final svc = SyncService(
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((req) async {
+            if (req.method == 'PUT') {
+              putBody = Uint8List.fromList(req.bodyBytes);
+            }
+            return http.Response('', 201);
+          }),
+        ),
+        queue: queue,
+      );
+      await svc.drain();
+
+      expect(putBody, isNotNull);
+      final putText = utf8.decode(putBody!, allowMalformed: true);
+      expect(
+        putText,
+        isNot(contains(piiMarker)),
+        reason:
+            'crash-recovery PUT body must be ciphertext — PII must not appear '
+            'on the wire (SC-07 / #29 C4)',
       );
     });
   });
