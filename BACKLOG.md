@@ -209,6 +209,26 @@
   Banc de mesure : scan → affichage du dossier ≤ 3 s sous 3G stable.
   *Acceptation :* mesures reproductibles confirmant la cible ; régression bloquée en CI.
   *Implémente :* NFR Performance.
+  *Avancement :* **modèle de budget + gate CI livrés.** Le cap 3 s est décomposé
+  (doc source [`docs/perf/decryption-budget.md`](./docs/perf/decryption-budget.md))
+  autour d'un profil `3G-STABLE` documenté (750 kbit/s, 150 ms) : terme réseau
+  modélisé analytiquement et **borné de façon déterministe** par un plafond de
+  taille de blob (`MAX_BLOB_BYTES = 128 Kio`), termes CPU bornés par des seuils
+  généreux (ordre de grandeur). **Artefacts :** constantes uniques `PerfBudget`
+  (`app-patient/lib/src/record/perf_budget.dart`) ; garde de taille déterministe
+  `test/record/blob_size_budget_test.dart` (worst-case ~500 Kio → ~48 Kio
+  on-wire, ≤ plafond) ; timing chaîne CPU in-process
+  `test/perf/decrypt_pipeline_perf_test.dart` (median-of-N, réseau exclu) ;
+  régression décryptage Rust `crypto-core/tests/decrypt_perf_regression.rs`
+  (+ bench reporting `benches/decrypt_record.rs`, sans criterion) ; recette
+  `just perf`. Les assertions **roulent dans la CI existante** (`cargo test
+  --workspace` / `flutter test`) → *régression bloquée en CI*. Protocole terrain
+  hors-CI documenté ([`docs/perf/measurement-protocol.md`](./docs/perf/measurement-protocol.md)).
+  **Reste :** mesures terrain réelles (lien throttlé/appareil) avant #31 ;
+  benchmark décryptage **PWA** après l'arrivée du WASM #17 ; suivi (hors #27) —
+  **le blob de session QR n'est pas compressé aujourd'hui** (`access_token.dart`),
+  donc le téléchargement médecin n'est pas encore borné par `MAX_BLOB_BYTES`
+  (optimisation, hors périmètre mesure+gate).
 
 - **#28 — Affûtage UX médecin (prise en main < 5 min)** · `Must` · `M` · `ux`
   Interface ultra-épurée, sans menus complexes ; tests d'utilisabilité avec des médecins.

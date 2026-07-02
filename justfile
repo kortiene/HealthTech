@@ -22,6 +22,18 @@ test: test-rust test-web test-flutter test-compliance-scripts test-threat-model 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
 lint: lint-rust compliance-check homologation-check threat-model-check
 
+# Decryption performance gate (issue #27, NFR §5): the deterministic,
+# generous-threshold perf assertions — Rust decrypt regression + Dart CPU-chain
+# timing + the compressed-blob size ceiling. These ALSO ride the aggregate
+# `just test` (via `cargo test --workspace` and `flutter test`), so CI blocks a
+# regression without needing `just` installed; this recipe just runs them in
+# isolation for a legible local/on-demand check. The reporting-only criterion-
+# free bench (`cargo bench -p crypto-core`) is intentionally NOT here (spec §E).
+# See docs/perf/decryption-budget.md.
+perf:
+    cargo test -p crypto-core --test decrypt_perf_regression
+    if command -v flutter >/dev/null 2>&1; then cd app-patient && flutter test test/perf test/record/blob_size_budget_test.dart; else echo "flutter SDK absent — skipping app-patient perf tests"; fi
+
 # Build every package.
 build: build-rust build-web
 

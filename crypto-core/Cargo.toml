@@ -22,3 +22,14 @@ zeroize = "1"      # secret wiping
 hex = "0.4"        # decode NIST/round-trip vectors in tests
 
 # deny(warnings) is enforced in lib.rs (ADR 0003: supply-chain hardening).
+
+# Decrypt performance bench (issue #27, G2). Reporting-only — run on demand with
+# `cargo bench -p crypto-core`. Deliberately harness = false with NO criterion
+# dependency: a std-only harness keeps the supply-chain surface (cargo deny /
+# osv) and Cargo.lock unchanged, and the criterion stats are not worth adding a
+# slow, noisy run to the required CI fast path (ADR 0003 / spec §B, §E). The
+# BUILD-FAILING regression assertion lives in tests/decrypt_perf_regression.rs
+# (rides `cargo test --workspace`), not here.
+[[bench]]
+name = "decrypt_record"
+harness = false
