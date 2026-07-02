@@ -22,6 +22,19 @@ are marked with `TODO(#N)`:
 - `TODO(#21)` — QR scan, consultation flow, PWA manifest + Service Worker (app-shell cache)
 - `TODO(#22)` — offline ciphertext queue (IndexedDB), drained on reconnect
 
+## UX norm (issue #28)
+
+The consultation UI — here and in the Flutter reference (`app-patient/`) — is
+governed by a single opposable norm:
+**[`docs/ux/medecin-ux-guidelines.md`](../docs/ux/medecin-ux-guidelines.md)**.
+Key invariants this PWA must honour when the flow lands (#17/#21/#22):
+**single-flow, zero-menu** (no hamburger/drawer/tabs in the consultation core),
+critical-information hierarchy (allergies before history), French action-first
+microcopy, and the step budget (`UxBudget` in the Flutter reference). Until the
+flow exists, the shell only asserts the invariants already present (single flow,
+`IDLE_TIMEOUT_MS`, no menu — see the vitest smoke test); the "number-of-steps"
+guard-rail activates with the flow. Do not simulate a flow that does not exist.
+
 ## ADRs implemented
 
 - [ADR 0002 — Doctor interface: installable PWA (Preact + TypeScript)](../docs/adr/0002-doctor-interface-pwa.md)

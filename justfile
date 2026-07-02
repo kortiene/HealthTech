@@ -20,7 +20,7 @@ issue *ARGS:
 test: test-rust test-web test-flutter test-compliance-scripts test-threat-model test-residency-scripts test-homologation-scripts
 
 # Lint/format gates — candidates for MX_AGENT_FINALIZE_GATES.
-lint: lint-rust compliance-check homologation-check threat-model-check
+lint: lint-rust compliance-check homologation-check threat-model-check ux-check
 
 # Decryption performance gate (issue #27, NFR §5): the deterministic,
 # generous-threshold perf assertions — Rust decrypt regression + Dart CPU-chain
@@ -75,6 +75,12 @@ test-residency-scripts:
 # Validate threat model artefacts (issue #6, docs/threat-model/).
 threat-model-check:
     bash scripts/check-threat-model.sh
+
+# Validate the doctor UX norm consistency (issue #28, docs/ux/ ↔ code source of
+# truth). Doc/code drift + honesty gate; rides `just lint`. The parcours guard-rail
+# and PWA smoke test themselves run in the existing CI (flutter test / npm test).
+ux-check:
+    bash scripts/check-ux-docs.sh
 
 # Self-test the threat model checker with the live artefact.
 test-threat-model:
