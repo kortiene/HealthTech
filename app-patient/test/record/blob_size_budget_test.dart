@@ -308,8 +308,7 @@ void main() {
   group('Cross-language constant sync canaries (Dart ↔ Rust mirrors)', () {
     test(
         'decryptBudgetMs == 100 '
-        '(mirrors DECRYPT_BUDGET_MS in decrypt_perf_regression.rs)',
-        () {
+        '(mirrors DECRYPT_BUDGET_MS in decrypt_perf_regression.rs)', () {
       expect(
         PerfBudget.decryptBudgetMs,
         equals(100),
@@ -322,8 +321,7 @@ void main() {
 
     test(
         'maxCompressedBlobBytes == 131072 '
-        '(mirrors MAX_BLOB_BYTES in decrypt_perf_regression.rs)',
-        () {
+        '(mirrors MAX_BLOB_BYTES in decrypt_perf_regression.rs)', () {
       expect(
         PerfBudget.maxCompressedBlobBytes,
         equals(131072),

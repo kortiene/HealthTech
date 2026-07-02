@@ -22,8 +22,9 @@
 
 use std::time::Instant;
 
-use crypto_core::{decrypt_record, encrypt_record, generate_master_key, NONCE_LEN, OVERHEAD_LEN,
-    TAG_LEN};
+use crypto_core::{
+    decrypt_record, encrypt_record, generate_master_key, NONCE_LEN, OVERHEAD_LEN, TAG_LEN,
+};
 
 /// Generous median-decrypt ceiling (ms) for the worst-case blob. Mirrors
 /// `PerfBudget.decryptBudgetMs`. See the module docs for why it is generous.
@@ -109,7 +110,10 @@ fn worst_case_decrypt_round_trips() {
         .collect();
     let blob = encrypt_record(&key, &payload).expect("seal");
     let recovered = decrypt_record(&key, &blob).expect("decrypt");
-    assert_eq!(recovered, payload, "decrypt must recover the exact plaintext");
+    assert_eq!(
+        recovered, payload,
+        "decrypt must recover the exact plaintext"
+    );
     // Recovered payload must be non-empty (guards against a "succeed but return nothing" path).
     assert!(!recovered.is_empty(), "decrypted result must be non-empty");
 }
@@ -131,22 +135,19 @@ fn cross_language_constants_match_dart_perf_budget() {
         "OVERHEAD_LEN must equal NONCE_LEN + TAG_LEN (wire-format contract frozen by #10)",
     );
     assert_eq!(
-        OVERHEAD_LEN,
-        28,
+        OVERHEAD_LEN, 28,
         "OVERHEAD_LEN changed — update PerfBudget.aesGcmOverheadBytes in perf_budget.dart",
     );
 
     // MAX_BLOB_BYTES mirrors PerfBudget.maxCompressedBlobBytes.
     assert_eq!(
-        MAX_BLOB_BYTES,
-        131_072,
+        MAX_BLOB_BYTES, 131_072,
         "MAX_BLOB_BYTES changed — update PerfBudget.maxCompressedBlobBytes in perf_budget.dart",
     );
 
     // DECRYPT_BUDGET_MS mirrors PerfBudget.decryptBudgetMs.
     assert_eq!(
-        DECRYPT_BUDGET_MS,
-        100,
+        DECRYPT_BUDGET_MS, 100,
         "DECRYPT_BUDGET_MS changed — update PerfBudget.decryptBudgetMs in perf_budget.dart",
     );
 }
