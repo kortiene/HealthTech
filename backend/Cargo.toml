@@ -12,7 +12,7 @@ publish = false
 crypto-core = { path = "../crypto-core" }
 
 # HTTP framework + async runtime (ADR 0004).
-axum = "0.7"
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 
 # UUID parsing for the /blob/{uuid} + /media/{uuid} anonymous index.
