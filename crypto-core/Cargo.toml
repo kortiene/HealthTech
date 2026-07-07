@@ -13,7 +13,7 @@ publish = false
 [dependencies]
 # RustCrypto stack — pinned, era-correct (late-2025/2026). See ADR 0003.
 aes-gcm = "0.10"   # AES-256-GCM AEAD
-pbkdf2 = "0.12"    # PBKDF2 (without built-in SHA, we wire sha2 via hmac path)
+pbkdf2 = "0.13"    # PBKDF2 (without built-in SHA, we wire sha2 via hmac path)
 sha2 = "0.10"      # SHA-256 for HMAC inside PBKDF2
 getrandom = "0.2"  # OS CSPRNG for nonces / master keys
 zeroize = "1"      # secret wiping
