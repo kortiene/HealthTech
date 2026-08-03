@@ -10,15 +10,14 @@
 //! dependency, while still giving us a single switch point for a future backing.
 //!
 //! - [`MemoryStore`] — process-memory backing; default in `dev` and in every test.
-//! - **`ObjectMeta` (MinIO + PostgreSQL)** — durable in-country backing for `staging`/`prod`. It is
-//!   **not wired yet**: the real MinIO/Postgres services are provisioned by sovereign hosting (#8,
-//!   ADR 0005), so the variant lands together with that bring-up. The seam, size budget, metadata
-//!   shape, error mapping, and zero-knowledge proofs all exist now so it is a drop-in. See
-//!   `TODO(#9/#8)` in [`BlobStore::from_config`].
+//! - [`ObjectMetaStore`] (MinIO + PostgreSQL) — durable in-country backing for `staging`/`prod`
+//!   (#103). Wired via `BlobStore::from_config`; dev falls back to MemoryStore.
 
 mod memory;
+mod object_meta;
 
 pub use memory::MemoryStore;
+pub use object_meta::ObjectMetaStore;
 
 use std::error::Error;
 use std::fmt;
@@ -106,29 +105,36 @@ impl Error for StoreError {}
 pub enum BlobStore {
     /// Process-memory backing (dev/test).
     Memory(MemoryStore),
+    /// Durable MinIO + PostgreSQL backing (staging/prod, #103).
+    ObjectMeta(ObjectMetaStore),
 }
 
 impl BlobStore {
     /// Select the backing for the running environment.
     ///
-    /// `dev` uses the in-memory store. `staging`/`prod` will use the durable MinIO + PostgreSQL
-    /// backing once it is wired — see the `TODO(#9/#8)` below; until then they fall back to the
-    /// in-memory store and log a loud warning, since the real services do not exist before #8.
-    pub fn from_config(config: &Config) -> Self {
+    /// - `dev`: in-memory store (no external services required).
+    /// - `staging`/`prod`: MinIO + PostgreSQL via [`ObjectMetaStore`]. Fails fast if the storage
+    ///   secrets are absent or the services are unreachable — a misconfigured deploy must never
+    ///   start half-blind.
+    pub async fn from_config(config: &Config) -> Self {
         match config.app_env {
             AppEnv::Dev => BlobStore::Memory(MemoryStore::default()),
             AppEnv::Staging | AppEnv::Prod => {
-                // TODO(#9/#8): construct the durable `ObjectMeta` backing (MinIO put/get of the
-                // opaque ciphertext with SSE-at-rest + a Postgres `blob_metadata` pool) from
-                // `config`'s injected storage secrets, once sovereign hosting (#8, ADR 0005) is
-                // provisioned. The non-identifying metadata shape and size budget are already
-                // defined above so this is a drop-in.
-                tracing::warn!(
-                    env = %config.app_env,
-                    "durable MinIO+Postgres blob backing is not wired yet (tracked under #9/#8); \
-                     falling back to the in-memory store"
-                );
-                BlobStore::Memory(MemoryStore::default())
+                match ObjectMetaStore::new(config).await {
+                    Ok(store) => {
+                        tracing::info!(env = %config.app_env, "using durable MinIO+Postgres blob backing");
+                        BlobStore::ObjectMeta(store)
+                    }
+                    Err(_) => {
+                        // fail fast: a durable backing that cannot start is not safe to silently
+                        // replace with an ephemeral memory store in staging/prod.
+                        tracing::error!(
+                            env = %config.app_env,
+                            "ObjectMetaStore failed to initialise — cannot start in staging/prod without durable backing"
+                        );
+                        std::process::exit(1);
+                    }
+                }
             }
         }
     }
@@ -137,6 +143,7 @@ impl BlobStore {
     pub async fn put(&self, uuid: Uuid, bytes: Bytes) -> Result<PutOutcome, StoreError> {
         match self {
             BlobStore::Memory(s) => s.put(uuid, bytes).await,
+            BlobStore::ObjectMeta(s) => s.put(uuid, bytes).await,
         }
     }
 
@@ -144,6 +151,15 @@ impl BlobStore {
     pub async fn get(&self, uuid: Uuid) -> Result<Option<StoredBlob>, StoreError> {
         match self {
             BlobStore::Memory(s) => s.get(uuid).await,
+            BlobStore::ObjectMeta(s) => s.get(uuid).await,
+        }
+    }
+
+    /// Delete the blob stored under `uuid`. Returns `true` if it existed.
+    pub async fn delete(&self, uuid: Uuid) -> Result<bool, StoreError> {
+        match self {
+            BlobStore::Memory(s) => s.delete(uuid).await,
+            BlobStore::ObjectMeta(s) => s.delete(uuid).await,
         }
     }
 
@@ -151,6 +167,7 @@ impl BlobStore {
     pub async fn health(&self) -> Result<(), StoreError> {
         match self {
             BlobStore::Memory(s) => s.health().await,
+            BlobStore::ObjectMeta(s) => s.health().await,
         }
     }
 }
@@ -243,16 +260,15 @@ mod tests {
 
     /// `BlobStore::from_config` with a dev config (no env vars) must construct a working
     /// memory-backed store. This exercises the factory branch without touching the real env.
-    #[test]
-    fn from_config_dev_returns_functional_memory_store() {
+    #[tokio::test]
+    async fn from_config_dev_returns_functional_memory_store() {
         use crate::config::Config;
         let config = Config::load(|_| None).expect("dev config must load with no env vars");
-        let store = BlobStore::from_config(&config);
+        let store = BlobStore::from_config(&config).await;
         // Health check must succeed: the in-memory backing is always reachable.
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap();
-        rt.block_on(store.health())
+        store
+            .health()
+            .await
             .expect("memory store must always report healthy");
     }
 

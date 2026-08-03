@@ -19,11 +19,14 @@
 mod config;
 mod error;
 mod media;
+mod rate_limit;
 mod store;
+
+use std::net::SocketAddr;
 
 use axum::{
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, RawQuery, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, RawQuery, State},
     http::{header, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -36,15 +39,18 @@ use config::Config;
 use error::ApiError;
 use media::access::{now_unix, unix_to_iso8601, MediaAccess};
 use media::{MediaPutOutcome, MediaStore, StoredMedia, MAX_MEDIA_BYTES};
+use rate_limit::RateLimiter;
 use store::{BlobStore, PutOutcome, StoredBlob, MAX_BLOB_BYTES};
 
-/// Shared handler state: the blob-store seam (#9), the media-store seam (#23), and the media
-/// access-URL signer (#23).
+/// Shared handler state: the blob-store seam (#9), the media-store seam (#23), the media
+/// access-URL signer (#23), and per-IP rate limiters (#104).
 #[derive(Clone)]
 struct AppState {
     store: BlobStore,
     media: MediaStore,
     access: MediaAccess,
+    write_limiter: RateLimiter,
+    read_limiter: RateLimiter,
 }
 
 /// Build the `ETag` + `X-Blob-Version` headers carrying the optimistic-concurrency version (#22).
@@ -86,7 +92,18 @@ async fn health(State(state): State<AppState>) -> Response {
 /// is rejected with `400` by the `Path<Uuid>` extractor; a body over [`MAX_BLOB_BYTES`] is rejected
 /// with `413` by the body-limit layer — both before any persistence. Logs carry only
 /// non-identifying fields (UUID, ciphertext size, version) — never the body.
-async fn put_blob(State(state): State<AppState>, Path(uuid): Path<Uuid>, body: Bytes) -> Response {
+/// Rate-limited to 60 write requests / 60 s per IP (#104).
+async fn put_blob(
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    State(state): State<AppState>,
+    Path(uuid): Path<Uuid>,
+    body: Bytes,
+) -> Response {
+    if let Some(ConnectInfo(addr)) = connect_info {
+        if !state.write_limiter.check(addr.ip()).await {
+            return rate_limit::rate_limit_exceeded().into_response();
+        }
+    }
     match state.store.put(uuid, body).await {
         Ok(PutOutcome::Created(meta)) => {
             tracing::debug!(%uuid, size = meta.size, version = meta.version, "blob created");
@@ -104,13 +121,46 @@ async fn put_blob(State(state): State<AppState>, Path(uuid): Path<Uuid>, body: B
 ///
 /// `200` carries the opaque bytes with `Content-Type: application/octet-stream`, `Content-Length`
 /// (both set by the `Bytes` response), and the `ETag`/`X-Blob-Version` headers.
-async fn get_blob(State(state): State<AppState>, Path(uuid): Path<Uuid>) -> Response {
+/// Rate-limited to 300 read requests / 60 s per IP (#104).
+async fn get_blob(
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    State(state): State<AppState>,
+    Path(uuid): Path<Uuid>,
+) -> Response {
+    if let Some(ConnectInfo(addr)) = connect_info {
+        if !state.read_limiter.check(addr.ip()).await {
+            return rate_limit::rate_limit_exceeded().into_response();
+        }
+    }
     // TODO(#23): support HTTP range requests for resumable ≤500 KB downloads on degraded networks.
     match state.store.get(uuid).await {
         Ok(Some(StoredBlob { bytes, meta })) => {
             (version_headers(meta.version), bytes).into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(err) => ApiError::from(err).into_response(),
+    }
+}
+
+/// Delete a previously stored opaque blob (`DELETE /blob/{uuid}`).
+///
+/// `204 No Content` on success (whether or not the blob existed — idempotent delete).
+/// Rate-limited to 60 write requests / 60 s per IP (#104).
+async fn delete_blob(
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    State(state): State<AppState>,
+    Path(uuid): Path<Uuid>,
+) -> Response {
+    if let Some(ConnectInfo(addr)) = connect_info {
+        if !state.write_limiter.check(addr.ip()).await {
+            return rate_limit::rate_limit_exceeded().into_response();
+        }
+    }
+    match state.store.delete(uuid).await {
+        Ok(_existed) => {
+            tracing::debug!(%uuid, "blob deleted");
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(err) => ApiError::from(err).into_response(),
     }
 }
@@ -235,7 +285,10 @@ async fn delete_media(State(state): State<AppState>, Path(uuid): Path<Uuid>) -> 
 /// small record budget on `/blob`, the much larger media budget on `/media`.
 fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
     let blob_routes = Router::new()
-        .route("/blob/:uuid", get(get_blob).put(put_blob))
+        .route(
+            "/blob/:uuid",
+            get(get_blob).put(put_blob).delete(delete_blob),
+        )
         .layer(DefaultBodyLimit::max(MAX_BLOB_BYTES));
     let media_routes = Router::new()
         .route(
@@ -245,10 +298,15 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
         .route("/media/:uuid/access", post(post_media_access))
         .layer(DefaultBodyLimit::max(MAX_MEDIA_BYTES));
     // Permissive CORS for dev: the doctor PWA (browser) needs cross-origin
-    // access to GET/PUT /blob and /media. Restrict in production via ADR 0008.
+    // access to GET/PUT/DELETE /blob and /media. Restrict in production via ADR 0008.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
-        .allow_methods([Method::GET, Method::PUT, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     Router::new()
@@ -259,6 +317,8 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
             store,
             media,
             access,
+            write_limiter: RateLimiter::write_limiter(),
+            read_limiter: RateLimiter::read_limiter(),
         })
         .layer(cors)
 }
@@ -281,7 +341,7 @@ async fn main() {
 
     // Pick the backing stores for this environment (in-memory in dev; MinIO+Postgres lands with
     // #8). The media access signer takes the injected `PRESIGNED_URL_SIGNING_KEY` (ADR 0005/0007).
-    let store = BlobStore::from_config(&config);
+    let store = BlobStore::from_config(&config).await;
     let media = MediaStore::from_config(&config);
     let access = MediaAccess::from_config(&config);
 
@@ -297,9 +357,13 @@ async fn main() {
         "HealthTech zero-knowledge blob proxy listening"
     );
 
-    axum::serve(listener, app(store, media, access))
-        .await
-        .expect("backend server error");
+    axum::serve(
+        listener,
+        app(store, media, access)
+            .into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("backend server error");
 }
 
 #[cfg(test)]
@@ -562,6 +626,7 @@ mod tests {
         for src in [
             include_str!("store.rs"),
             include_str!("store/memory.rs"),
+            include_str!("store/object_meta.rs"),
             include_str!("error.rs"),
             include_str!("config.rs"),
             include_str!("media/mod.rs"),

@@ -57,6 +57,12 @@ impl MemoryStore {
         }))
     }
 
+    /// Remove the blob stored under `uuid`. Returns `true` if it existed, `false` if already absent.
+    pub async fn delete(&self, uuid: Uuid) -> Result<bool, StoreError> {
+        let mut map = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        Ok(map.remove(&uuid).is_some())
+    }
+
     /// Always ready: process memory is reachable and lock poisoning is recovered on access, so the
     /// in-memory backing never reports unavailable.
     pub async fn health(&self) -> Result<(), StoreError> {
