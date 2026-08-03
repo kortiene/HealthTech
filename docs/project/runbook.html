@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthTech — Runbook opérationnel</title>
+  <style>
+    :root {
+      --green:  #16a34a;
+      --yellow: #ca8a04;
+      --red:    #dc2626;
+      --blue:   #2563eb;
+      --purple: #7c3aed;
+      --gray:   #6b7280;
+      --bg:     #f9fafb;
+      --card:   #ffffff;
+      --border: #e5e7eb;
+      --text:   #111827;
+      --muted:  #6b7280;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 1040px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header { margin-bottom: 2.5rem; }
+    header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
+    header p  { color: var(--muted); margin-top: .4rem; font-size: .95rem; }
+
+    /* ── Nav (table des matières) ── */
+    .toc {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .75rem; padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .toc h2 { font-size: 1rem; font-weight: 700; margin-bottom: .75rem; margin-top: 0; border: none; padding: 0; }
+    .toc ol { padding-left: 1.4rem; }
+    .toc li { font-size: .875rem; margin: .3rem 0; }
+    .toc a { color: var(--blue); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Sections ── */
+    h2 {
+      font-size: 1.2rem; font-weight: 700;
+      margin-bottom: 1rem; margin-top: 2.5rem;
+      border-bottom: 2px solid var(--border); padding-bottom: .4rem;
+    }
+    h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .5rem; color: var(--text); }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .75rem; padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; padding: .2em .65em;
+      border-radius: 9999px; font-size: .75rem; font-weight: 600;
+    }
+    .badge-green  { background: #dcfce7; color: var(--green); }
+    .badge-yellow { background: #fef9c3; color: var(--yellow); }
+    .badge-red    { background: #fee2e2; color: var(--red); }
+    .badge-blue   { background: #dbeafe; color: var(--blue); }
+    .badge-purple { background: #ede9fe; color: var(--purple); }
+    .badge-gray   { background: #f3f4f6; color: var(--gray); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th, td { padding: .55rem .75rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-weight: 600; background: var(--bg); white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* ── Code blocks ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      background: #f3f4f6; padding: .1em .35em;
+      border-radius: .25rem; font-size: .82em;
+    }
+    pre {
+      background: var(--code-bg); color: var(--code-text);
+      border-radius: .5rem; padding: 1rem 1.25rem;
+      overflow-x: auto; font-size: .82rem;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      line-height: 1.6; margin: .75rem 0;
+      position: relative;
+    }
+    pre code { background: transparent; padding: 0; font-size: inherit; color: inherit; }
+
+    /* ── Step blocks ── */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      display: flex; gap: 1rem; align-items: flex-start;
+      padding: .6rem 0; border-bottom: 1px solid var(--border);
+      font-size: .9rem;
+    }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      content: counter(step);
+      flex-shrink: 0; width: 1.6rem; height: 1.6rem;
+      background: var(--blue); color: #fff;
+      border-radius: 9999px; font-size: .75rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: .1rem;
+    }
+
+    /* ── Alert boxes ── */
+    .alert {
+      border-left: 4px solid; border-radius: 0 .5rem .5rem 0;
+      padding: .75rem 1rem; margin: .75rem 0; font-size: .875rem;
+    }
+    .alert-warn  { border-color: var(--yellow); background: #fefce8; color: #713f12; }
+    .alert-info  { border-color: var(--blue);   background: #eff6ff; color: #1e3a5f; }
+    .alert-danger { border-color: var(--red);   background: #fff1f2; color: #7f1d1d; }
+    .alert-green { border-color: var(--green);  background: #f0fdf4; color: #14532d; }
+
+    /* ── Tool table ── */
+    .tool-required { font-size: .7rem; color: var(--red); font-weight: 600; }
+    .tool-optional { font-size: .7rem; color: var(--gray); }
+
+    /* ── Port grid ── */
+    .port-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-top: .75rem; }
+    .port-card {
+      border: 1px solid var(--border); border-radius: .5rem;
+      padding: .75rem 1rem; font-size: .85rem;
+    }
+    .port-card .port { font-size: 1.3rem; font-weight: 800; color: var(--blue); }
+    .port-card .svc  { font-weight: 600; margin: .1rem 0; }
+    .port-card .cred { font-size: .75rem; color: var(--muted); font-family: monospace; }
+    @media (max-width: 640px) { .port-grid { grid-template-columns: 1fr; } }
+
+    /* ── Recipe grid ── */
+    .recipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 640px) { .recipe-grid { grid-template-columns: 1fr; } }
+    .recipe-card {
+      border: 1px solid var(--border); border-radius: .5rem; padding: 1rem;
+    }
+    .recipe-card .cmd { font-size: .82rem; color: var(--blue); font-family: monospace; font-weight: 600; }
+    .recipe-card .desc { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+
+    /* ── Trouble accordion ── */
+    details {
+      border: 1px solid var(--border); border-radius: .5rem;
+      margin-bottom: .5rem; overflow: hidden;
+    }
+    summary {
+      padding: .75rem 1rem; cursor: pointer; font-weight: 600;
+      font-size: .9rem; user-select: none; list-style: none;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: "▶"; font-size: .65rem; color: var(--muted); transition: transform .15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    details[open] summary { border-bottom: 1px solid var(--border); }
+    .trouble-body { padding: 1rem; font-size: .875rem; }
+
+    /* ── Phase timeline ── */
+    .phases { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+    .phase {
+      border: 1px solid var(--border); border-radius: .4rem;
+      padding: .3rem .65rem; font-size: .78rem;
+      display: flex; align-items: center; gap: .35rem;
+    }
+    .phase .num { font-weight: 700; color: var(--blue); }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 3rem; padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: .8rem;
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ── -->
+  <header>
+    <h1>HealthTech — Runbook opérationnel</h1>
+    <p>
+      Référence technique pour lancer, tester, construire et déployer la plateforme.
+      &nbsp;·&nbsp; <a href="./status.html" style="color:var(--blue);">État du projet →</a>
+      &nbsp;·&nbsp; Mise à jour : <strong>2 juillet 2026</strong>
+    </p>
+  </header>
+
+  <!-- ── Table des matières ── -->
+  <div class="toc">
+    <h2>Table des matières</h2>
+    <ol>
+      <li><a href="#prereqs">Prérequis et outillage</a></li>
+      <li><a href="#install">Première installation</a></li>
+      <li><a href="#devstack">Stack de développement local</a></li>
+      <li><a href="#tests">Lancer les tests</a></li>
+      <li><a href="#lint">Lint et formatage</a></li>
+      <li><a href="#build">Construire le projet</a></li>
+      <li><a href="#sca">SCA — analyse de dépendances</a></li>
+      <li><a href="#secrets">Contrôles de sécurité et secrets</a></li>
+      <li><a href="#infra">Infrastructure et déploiement</a></li>
+      <li><a href="#adw">Pipeline de livraison agentique (ADW)</a></li>
+      <li><a href="#checks">Vérifications ponctuelles</a></li>
+      <li><a href="#trouble">Dépannage</a></li>
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       1. PRÉREQUIS
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="prereqs">1. Prérequis et outillage</h2>
+
+  <div class="card">
+    <h3>Outillage principal <span class="tool-required">● obligatoire</span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Outil</th><th>Version min</th><th>Installation rapide</th><th>Rôle</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Rust + cargo</strong></td>
+            <td>stable 1.80+</td>
+            <td><code>curl https://sh.rustup.rs -sSf | sh</code></td>
+            <td><code>crypto-core</code> + <code>backend</code></td>
+          </tr>
+          <tr>
+            <td><strong>just</strong></td>
+            <td>1.x</td>
+            <td><code>cargo install just</code></td>
+            <td>Task runner monorepo</td>
+          </tr>
+          <tr>
+            <td><strong>Docker + Compose v2</strong></td>
+            <td>24+</td>
+            <td>Docker Desktop / <code>brew install docker</code></td>
+            <td>Stack dev locale + image backend</td>
+          </tr>
+          <tr>
+            <td><strong>Node.js</strong></td>
+            <td>≥ 20 LTS</td>
+            <td><code>nvm install 20</code></td>
+            <td><code>app-medecin</code> (PWA Preact)</td>
+          </tr>
+          <tr>
+            <td><strong>Flutter SDK</strong></td>
+            <td>3.x stable</td>
+            <td>docs.flutter.dev/get-started</td>
+            <td><code>app-patient</code> (Android)</td>
+          </tr>
+          <tr>
+            <td><strong>pnpm</strong></td>
+            <td>9+</td>
+            <td><code>npm i -g pnpm</code></td>
+            <td>Pipeline ADW (<code>adw_sdlc/</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Outillage sécurité / compliance <span class="tool-required">● obligatoire CI</span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Outil</th><th>Installation</th><th>Rôle</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>cargo-deny</strong></td>
+            <td><code>cargo install cargo-deny</code></td>
+            <td>SCA Rust — advisories + licences + policy</td>
+          </tr>
+          <tr>
+            <td><strong>osv-scanner</strong></td>
+            <td><code>brew install osv-scanner</code></td>
+            <td>SCA multi-écosystème (Cargo, npm, pub.dev)</td>
+          </tr>
+          <tr>
+            <td><strong>gitleaks</strong></td>
+            <td><code>brew install gitleaks</code></td>
+            <td>Détection de secrets dans l'historique git</td>
+          </tr>
+          <tr>
+            <td><strong>sops</strong></td>
+            <td><code>brew install sops</code></td>
+            <td>Chiffrement/déchiffrement des bundles secrets</td>
+          </tr>
+          <tr>
+            <td><strong>age</strong></td>
+            <td><code>brew install age</code></td>
+            <td>Backend de chiffrement pour SOPS</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Outillage infrastructure <span class="tool-optional">○ optionnel — staging/prod uniquement</span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Outil</th><th>Version</th><th>Rôle</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Terraform</strong></td><td>≥ 1.9</td><td>Provisionnement IaC (in-country)</td></tr>
+          <tr><td><strong>Ansible</strong></td><td>≥ 2.16</td><td>Configuration des nœuds souverains</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Vérification rapide</h3>
+  <pre><code>cargo --version && just --version && docker --version && node --version && flutter --version</code></pre>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       2. PREMIÈRE INSTALLATION
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="install">2. Première installation</h2>
+
+  <div class="card">
+    <ol class="steps">
+      <li>
+        <div>
+          <strong>Cloner le dépôt</strong>
+          <pre><code>git clone https://github.com/kortiene/HealthTech.git
+cd HealthTech</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Créer le fichier d'environnement local</strong> — identifiants throwaway, non-sensibles
+          <pre><code>cp .env.example .env</code></pre>
+          <div class="alert alert-warn" style="margin-top:.5rem;">
+            Ne jamais mettre de vrais secrets dans <code>.env</code>. Le fichier est gitignored mais
+            <code>.env.example</code> est commité et ne doit contenir que des placeholders.
+          </div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Installer les dépendances Node</strong> (ADW pipeline + PWA)
+          <pre><code>cd adw_sdlc && pnpm install && cd ..
+cd app-medecin && npm install && cd ..</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Pré-charger les dépendances Rust</strong>
+          <pre><code>cargo fetch</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>(Optionnel) Installer le hook pre-commit</strong> — détecte les fuites avant commit
+          <pre><code>printf '#!/usr/bin/env bash\ngitleaks protect --staged --no-banner --redact --config .gitleaks.toml\nbash scripts/check-secrets.sh\n' \
+  > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit</code></pre>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       3. STACK DEV LOCALE
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="devstack">3. Stack de développement local</h2>
+
+  <div class="card">
+    <p style="font-size:.875rem;color:var(--muted);margin-bottom:1rem;">
+      Postgres 16 + MinIO avec des identifiants throwaway — aucune vraie credential nécessaire
+      pour développer. La stack staging/prod est gérée in-country via Terraform + Ansible + SOPS.
+    </p>
+
+    <pre><code># Démarrer (Postgres + MinIO en arrière-plan)
+just dev-up
+
+# Arrêter
+just dev-down</code></pre>
+
+    <h3 style="margin-top:1rem;">Services exposés</h3>
+    <div class="port-grid">
+      <div class="port-card">
+        <div class="port">:5432</div>
+        <div class="svc">PostgreSQL 16</div>
+        <div class="cred">healthtech / dev_throwaway_pg</div>
+        <div class="cred" style="margin-top:.25rem;"><code>postgres://healthtech:dev_throwaway_pg@localhost:5432/healthtech</code></div>
+      </div>
+      <div class="port-card">
+        <div class="port">:9000</div>
+        <div class="svc">MinIO API</div>
+        <div class="cred">dev_minio_root / dev_throwaway_minio</div>
+        <div class="cred" style="margin-top:.25rem;"><code>http://localhost:9000</code></div>
+      </div>
+      <div class="port-card">
+        <div class="port">:9001</div>
+        <div class="svc">MinIO Console</div>
+        <div class="cred">dev_minio_root / dev_throwaway_minio</div>
+        <div class="cred" style="margin-top:.25rem;"><code>http://localhost:9001</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       4. TESTS
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="tests">4. Lancer les tests</h2>
+
+  <div class="card">
+    <h3>Gate CI complète — commande unique</h3>
+    <pre><code>just test</code></pre>
+    <p style="font-size:.85rem;color:var(--muted);margin-top:.5rem;">
+      Exécute dans l'ordre : Rust workspace → PWA médecin → Flutter patient →
+      scripts compliance → threat model → résidence → homologation.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Par composant</h3>
+    <div class="recipe-grid">
+      <div class="recipe-card">
+        <div class="cmd">cargo test --workspace</div>
+        <div class="desc">Tests Rust — <code>crypto-core</code> + <code>backend</code></div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">cd app-medecin && npm test</div>
+        <div class="desc">Tests PWA médecin (Preact + Vitest)</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">cd app-patient && flutter test</div>
+        <div class="desc">Tous les tests Flutter/Dart de l'app patient</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just perf</div>
+        <div class="desc">Gate performance NFR §5 — 3G-STABLE</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Suites spécialisées</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Commande</th><th>Ce qu'elle vérifie</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>cargo test -p crypto-core --test decrypt_perf_regression</code></td>
+            <td>Régression perf Rust — déchiffrement &lt; 100 ms + assertions compile-time</td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter test test/perf test/record/blob_size_budget_test.dart</code></td>
+            <td>Régression perf Dart — chaîne CPU + blob ≤ 128 Kio</td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter test test/ux/</code></td>
+            <td>Invariants UX, accessibilité TalkBack, taille cibles ≥ 48 dp</td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter test test/security/</code></td>
+            <td>Régressions sécurité — zero-knowledge, RAM wipe, queue offline</td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter test test/doctor/</code></td>
+            <td>Storage budget — cohérence PerfBudget ↔ StorageBudget</td>
+          </tr>
+          <tr>
+            <td><code>cd app-medecin && npm test -- --grep walkthrough</code></td>
+            <td>Walkthrough PWA médecin — smoke tests low-end + a11y</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-compliance-matrix.sh</code></td>
+            <td>Matrice conformité loi n°2013-450 / ARTCI</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-homologation-dossier.sh</code></td>
+            <td>46 assertions sur les 18 pièces du dossier ARTCI</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-threat-model.sh</code></td>
+            <td>Artefacts du modèle de menaces STRIDE</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-ux-docs.sh</code></td>
+            <td>Cohérence docs UX ↔ code source (UxBudget)</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-lowend-docs.sh</code></td>
+            <td>Cohérence profil terminal bas de gamme ↔ StorageBudget / PerfBudget</td>
+          </tr>
+          <tr>
+            <td><code>bash scripts/check-residency.sh</code></td>
+            <td>Tripwire résidence — aucun cloud étranger dans <code>infra/</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       5. LINT ET FORMATAGE
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="lint">5. Lint et formatage</h2>
+
+  <div class="alert alert-danger">
+    <strong>Règle absolue :</strong> toujours lancer <code>dart format</code> et <code>cargo fmt</code>
+    avant chaque commit sur des fichiers Dart ou Rust. Le CI bloque la PR si ces checks échouent.
+  </div>
+
+  <div class="card">
+    <h3>Lint agrégé — tous composants</h3>
+    <pre><code>just lint</code></pre>
+    <p style="font-size:.85rem;color:var(--muted);">
+      Enchaîne : <code>cargo fmt --check</code> → <code>cargo clippy</code> →
+      compliance-check → homologation-check → threat-model-check → ux-check → lowend-check.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Par écosystème</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Commande</th><th>Effet</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>cargo fmt --check</code></td>
+            <td>Vérifie le formatage Rust (gate CI)</td>
+          </tr>
+          <tr>
+            <td><code>cargo fmt</code></td>
+            <td>Corrige le formatage Rust</td>
+          </tr>
+          <tr>
+            <td><code>cargo clippy --workspace --all-targets -- -D warnings</code></td>
+            <td>Lint Rust — erreur sur tout warning</td>
+          </tr>
+          <tr>
+            <td><code>/Users/macbook/development/flutter/bin/dart format --set-exit-if-changed app-patient/</code></td>
+            <td>Vérifie le formatage Dart (gate CI)</td>
+          </tr>
+          <tr>
+            <td><code>/Users/macbook/development/flutter/bin/dart format app-patient/</code></td>
+            <td>Corrige le formatage Dart — <strong>obligatoire avant tout commit Dart</strong></td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter analyze</code></td>
+            <td>Analyse statique Flutter — traite <em>info</em> comme erreur (exit 1)</td>
+          </tr>
+          <tr>
+            <td><code>cd app-medecin && npx tsc --noEmit</code></td>
+            <td>Vérification TypeScript sans émission</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       6. BUILD
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="build">6. Construire le projet</h2>
+
+  <div class="card">
+    <h3>Build complet (sans APK ni image Docker)</h3>
+    <pre><code>just build
+# construit : Rust workspace + PWA Preact</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>Par composant</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Commande</th><th>Artefact</th><th>Prérequis</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>cargo build --workspace</code></td>
+            <td>Binaires Rust debug</td>
+            <td>Rust stable</td>
+          </tr>
+          <tr>
+            <td><code>cargo build --workspace --release</code></td>
+            <td>Binaires Rust optimisés</td>
+            <td>Rust stable</td>
+          </tr>
+          <tr>
+            <td><code>cd app-medecin && npm run build</code></td>
+            <td>Bundle PWA production</td>
+            <td>Node ≥ 20</td>
+          </tr>
+          <tr>
+            <td><code>cd app-patient && flutter build appbundle --split-per-abi</code></td>
+            <td>APK / App Bundle Android</td>
+            <td>Flutter SDK + Android toolchain</td>
+          </tr>
+          <tr>
+            <td><code>just build-image</code></td>
+            <td>Image Docker <code>healthtech-backend:local</code> (musl statique → distroless)</td>
+            <td>Docker</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="alert alert-info" style="margin-top:.75rem;">
+      L'APK Android et l'image Docker sont des <strong>artefacts de release CI</strong>.
+      Ils ne sont pas requis pour le développement local.
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       7. SCA
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="sca">7. SCA — analyse de dépendances</h2>
+
+  <div class="card">
+    <pre><code># Scan complet (Rust + npm + multi-écosystème)
+just sca
+
+# Rust : advisories + licences + politique de sources (deny.toml)
+cargo deny check
+
+# PWA : dépendances de production uniquement
+cd app-medecin && npm audit --omit=dev --audit-level=high
+
+# Multi-écosystème (Cargo + npm + pub.dev) via OSV
+osv-scanner scan source \
+  --lockfile=Cargo.lock \
+  --lockfile=app-medecin/package-lock.json \
+  --lockfile=app-patient/pubspec.lock \
+  --lockfile=adw_sdlc/package-lock.json</code></pre>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       8. SÉCURITÉ & SECRETS
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="secrets">8. Contrôles de sécurité et secrets</h2>
+
+  <div class="alert alert-danger">
+    Ne jamais commiter de secret, clé, token, donnée patient réelle, ou fichier <code>*.tfstate</code>.
+    Seuls les bundles SOPS chiffrés (<code>secrets/**/*.sops.yaml</code>) et les templates
+    <code>*.example</code> sont versionnés.
+  </div>
+
+  <div class="card">
+    <h3>Détection de fuites (obligatoire avant merge)</h3>
+    <pre><code>just secrets-lint
+# ↳ gitleaks detect --no-banner --redact --config .gitleaks.toml
+# ↳ bash scripts/check-secrets.sh</code></pre>
+
+    <h3 style="margin-top:1rem;">Tripwire résidence des données (credential-free)</h3>
+    <pre><code>just infra-residency
+# ↳ bash scripts/check-residency.sh
+# Échoue si un provider étranger entre dans infra/ ou si country n'est pas pinné CI</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>Gestion des bundles SOPS — staging / prod</h3>
+    <div class="alert alert-warn" style="margin-bottom:.75rem;">
+      La clé age privée de chaque environnement ne quitte <strong>jamais</strong>
+      l'hôte in-country (Côte d'Ivoire). Aucun outil de déchiffrement étranger.
+    </div>
+    <pre><code># Déchiffrer un bundle vers stdout (nécessite la clé age de l'env)
+just secrets-decrypt staging
+just secrets-decrypt prod
+
+# Éditer un bundle en place (re-chiffrement automatique à la sauvegarde)
+just secrets-edit staging
+just secrets-edit prod</code></pre>
+
+    <h3 style="margin-top:1rem;">Flux de secret injection</h3>
+    <pre><code>secrets/&lt;env&gt;/services.sops.yaml   ← chiffré, commité
+        │  sops -d   (clé age in-country)
+        ▼
+  valeurs déchiffrées ──► Terraform : TF_VAR_*
+                      └─► Ansible   : EnvironmentFile 0600 → backend (APP_ENV, DATABASE_URL, …)</code></pre>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       9. INFRASTRUCTURE & DÉPLOIEMENT
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="infra">9. Infrastructure et déploiement</h2>
+
+  <div class="card">
+    <h3>Validation IaC — credential-free (disponible sur tout poste)</h3>
+    <pre><code>just infra-validate
+# ↳ bash scripts/check-residency.sh
+# ↳ terraform -chdir=infra/terraform fmt -check
+# ↳ terraform -chdir=infra/terraform init -backend=false
+# ↳ terraform -chdir=infra/terraform validate
+# ↳ ansible-playbook --syntax-check -i infra/ansible/inventories/&lt;env&gt; … (dev, staging, prod)</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>Déploiement staging — in-country uniquement</h3>
+    <div class="alert alert-warn" style="margin-bottom:.75rem;">
+      Pré-requis : accès SSH à un nœud en Côte d'Ivoire + clé age <code>staging</code>.
+    </div>
+    <ol class="steps">
+      <li>
+        <div>
+          <strong>Déchiffrer le bundle vers un fichier temporaire 0600</strong>
+          <pre><code>sops -d secrets/staging/services.sops.yaml > /run/healthtech/staging.env
+chmod 0600 /run/healthtech/staging.env</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Provisionner l'infrastructure</strong>
+          <pre><code>sops exec-env secrets/staging/services.sops.yaml \
+  'terraform -chdir=infra/terraform apply -var-file=environments/staging.tfvars'</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Configurer les nœuds</strong>
+          <pre><code>ansible-playbook -i infra/ansible/inventories/staging \
+  infra/ansible/playbook.yml -e env=staging</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Nettoyer le fichier temporaire</strong>
+          <pre><code>shred -u /run/healthtech/staging.env</code></pre>
+        </div>
+      </li>
+    </ol>
+    <div class="alert alert-info" style="margin-top:.75rem;">
+      Même procédure pour <strong>prod</strong> en remplaçant <code>staging</code> par <code>prod</code>.
+      La mise en service complète dépend de l'issue #8 (provisionnement souverain).
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       10. PIPELINE ADW
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="adw">10. Pipeline de livraison agentique (ADW)</h2>
+
+  <div class="card">
+    <p style="font-size:.875rem;color:var(--muted);margin-bottom:1rem;">
+      Le pipeline ADW (<code>adw_sdlc/</code>) orchestre la livraison d'une issue GitHub de bout en bout,
+      piloté par Claude.
+    </p>
+
+    <h3>Phases du pipeline</h3>
+    <div class="phases">
+      <div class="phase"><span class="num">1</span> setup</div>
+      <div class="phase"><span class="num">2</span> classify</div>
+      <div class="phase"><span class="num">3</span> plan</div>
+      <div class="phase"><span class="num">4</span> implement</div>
+      <div class="phase"><span class="num">5</span> tests</div>
+      <div class="phase"><span class="num">6</span> resolve</div>
+      <div class="phase"><span class="num">7</span> e2e</div>
+      <div class="phase"><span class="num">8</span> review</div>
+      <div class="phase"><span class="num">9</span> patch</div>
+      <div class="phase"><span class="num">10</span> ship</div>
+    </div>
+
+    <h3 style="margin-top:1rem;">Lancer le pipeline</h3>
+    <pre><code># Commande standard
+just issue &lt;N&gt; --runner claude --yes
+
+# Si adw_sdlc/pnpm-lock.yaml ou pnpm-workspace.yaml sont non-trackés (cas habituel)
+just issue &lt;N&gt; --runner claude --yes --allow-dirty
+
+# Exemple
+just issue 31 --runner claude --yes --allow-dirty</code></pre>
+
+    <h3 style="margin-top:1rem;">Prérequis ADW</h3>
+    <ul style="font-size:.875rem;padding-left:1.4rem;">
+      <li><code>ANTHROPIC_API_KEY</code> exportée dans l'environnement (ou abonnement Anthropic actif)</li>
+      <li><code>pnpm install</code> dans <code>adw_sdlc/</code> effectué au préalable</li>
+      <li><code>adw_sdlc/pnpm-workspace.yaml</code> doit contenir <code>allowBuilds: esbuild: true</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Ship manuel — en cas de dépassement de limite de session</h3>
+    <div class="alert alert-warn" style="margin-bottom:.75rem;">
+      Le pipeline peut atteindre la limite de session à la phase <strong>ship</strong>.
+      Dans ce cas, récupérer le <code>commit_message</code> et le <code>pr_body</code>
+      depuis <code>agents/&lt;id&gt;/state.json</code> et finaliser manuellement.
+    </div>
+    <ol class="steps">
+      <li>
+        <div>
+          <strong>Localiser l'agent le plus récent</strong>
+          <pre><code>ls -lt agents/ | head -5</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Lire le state pour récupérer message et PR body</strong>
+          <pre><code>cat agents/&lt;adw_id&gt;/state.json | python3 -m json.tool | grep -A10 "commit_message"</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Formater les fichiers Dart modifiés</strong>
+          <pre><code>/Users/macbook/development/flutter/bin/dart format app-patient/</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Vérifier flutter analyze et cargo fmt</strong>
+          <pre><code>cd app-patient && flutter analyze
+cargo fmt --check</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Stager les fichiers</strong> — exclure <code>adw_sdlc/pnpm-lock.yaml</code> et <code>pnpm-workspace.yaml</code>
+          <pre><code>git add &lt;fichiers modifiés&gt;
+git reset HEAD adw_sdlc/pnpm-lock.yaml adw_sdlc/pnpm-workspace.yaml 2>/dev/null || true</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Committer, pousser, créer la PR</strong>
+          <pre><code>git commit -m "&lt;commit_message de state.json&gt;"
+git push -u origin &lt;branche&gt;
+gh pr create --title "&lt;titre&gt;" --body "&lt;pr_body de state.json&gt;"</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Suivre la CI puis merger</strong>
+          <pre><code>gh pr checks &lt;N&gt; --watch --interval 30
+gh pr merge &lt;N&gt; --squash --delete-branch</code></pre>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       11. VÉRIFICATIONS PONCTUELLES
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="checks">11. Vérifications ponctuelles</h2>
+
+  <div class="card">
+    <div class="recipe-grid">
+      <div class="recipe-card">
+        <div class="cmd">just ci</div>
+        <div class="desc">Miroir complet du CI GitHub Actions : lint + test + build + sca</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just perf</div>
+        <div class="desc">Gate budget 3G-STABLE : déchiffrement &lt; 100 ms · blob ≤ 128 Kio · assertions compile-time</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just homologation-check</div>
+        <div class="desc">46 assertions fail-closed sur les 18 pièces du dossier ARTCI</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just secrets-lint</div>
+        <div class="desc">Détection de fuites (gitleaks + tripwire maison)</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just infra-residency</div>
+        <div class="desc">Tripwire résidence — aucun cloud étranger dans infra/</div>
+      </div>
+      <div class="recipe-card">
+        <div class="cmd">just ux-check</div>
+        <div class="desc">Cohérence norme UX médecin docs ↔ UxBudget source de vérité</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       12. DÉPANNAGE
+  ══════════════════════════════════════════════════════════════════ -->
+  <h2 id="trouble">12. Dépannage</h2>
+
+  <details>
+    <summary>🔴 <code>just dev-up</code> échoue — port déjà utilisé</summary>
+    <div class="trouble-body">
+      <pre><code># Identifier le processus occupant le port
+lsof -i :5432   # Postgres
+lsof -i :9000   # MinIO
+
+# Changer le port dans .env puis relancer
+echo "POSTGRES_PORT=5433" >> .env
+just dev-down && just dev-up</code></pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>🔴 <code>cargo fmt --check</code> échoue (CI rouge)</summary>
+    <div class="trouble-body">
+      <pre><code>cargo fmt
+git add -u
+git commit -m "style(rust): cargo fmt"</code></pre>
+      <p style="margin-top:.5rem;font-size:.85rem;">
+        Toujours lancer <code>cargo fmt</code> avant de stager des fichiers Rust.
+        Le CI bloque la PR si le formatage ne correspond pas à rustfmt.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>🔴 <code>dart format</code> échoue (CI rouge)</summary>
+    <div class="trouble-body">
+      <pre><code>/Users/macbook/development/flutter/bin/dart format app-patient/
+git add -u</code></pre>
+      <p style="margin-top:.5rem;font-size:.85rem;">
+        Le binaire dart est à <code>/Users/macbook/development/flutter/bin/dart</code>.
+        Toujours formater avant de stager des fichiers Dart.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>🔴 <code>flutter analyze</code> — <code>curly_braces_in_flow_control_structures</code></summary>
+    <div class="trouble-body">
+      <pre><code>// ❌ Mauvais
+if (condition) doSomething();
+
+// ✅ Correct
+if (condition) {
+  doSomething();
+}</code></pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>🔴 <code>flutter analyze</code> — <code>prefer_const_constructors</code></summary>
+    <div class="trouble-body">
+      <pre><code>// ❌ Mauvais
+TextScaler.linear(1.5)
+
+// ✅ Correct
+const TextScaler.linear(1.5)</code></pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>🔴 <code>cargo test</code> — imports rustfmt non conformes</summary>
+    <div class="trouble-body">
+      <p style="margin-bottom:.5rem;font-size:.85rem;">
+        rustfmt exige le style bloc pour les imports multi-éléments :
+      </p>
+      <pre><code>// ❌ Mauvais
+use crypto_core::{decrypt_record, encrypt_record,
+    generate_master_key, NONCE_LEN};
+
+// ✅ Correct
+use crypto_core::{
+    decrypt_record, encrypt_record, generate_master_key, NONCE_LEN,
+};</code></pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>🟡 Pipeline ADW — <code>could not parse JSON from agent output</code></summary>
+    <div class="trouble-body">
+      <p style="font-size:.85rem;">
+        La session Claude a expiré pendant la phase <strong>ship</strong>.
+        Suivre la <a href="#adw" style="color:var(--blue);">procédure de ship manuel (section 10)</a> :
+        lire <code>agents/&lt;id&gt;/state.json</code>, formatter, stager, committer, pousser, créer la PR.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>🟡 <code>osv-scanner</code> non trouvé</summary>
+    <div class="trouble-body">
+      <pre><code># macOS
+brew install osv-scanner
+
+# Linux
+wget -q https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 \
+  -O /usr/local/bin/osv-scanner && chmod +x /usr/local/bin/osv-scanner</code></pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>🟡 <code>sops -d</code> échoue — clé age absente</summary>
+    <div class="trouble-body">
+      <p style="font-size:.85rem;">
+        La clé age privée de l'environnement cible est hébergée in-country (Côte d'Ivoire)
+        et ne doit jamais quitter l'infrastructure souveraine. Contacter l'opérateur in-country
+        pour accès. Pour le développement local, utiliser <code>.env</code> (throwaway) — aucune
+        clé age n'est nécessaire.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>🟡 <code>flutter build appbundle</code> échoue — Android toolchain absent</summary>
+    <div class="trouble-body">
+      <pre><code>flutter doctor   # diagnostiquer l'environnement
+# Installer Android SDK via Android Studio ou sdkmanager
+flutter config --android-sdk /path/to/android-sdk</code></pre>
+      <p style="margin-top:.5rem;font-size:.85rem;">
+        Le build APK n'est pas nécessaire pour le développement local. Il est produit par le CI.
+      </p>
+    </div>
+  </details>
+
+  <!-- ── Références ── -->
+  <h2>Références</h2>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td><strong>Exigences produit</strong></td><td><code>PRD_HealthTech.md</code></td></tr>
+          <tr><td><strong>Backlog & roadmap</strong></td><td><code>BACKLOG.md</code></td></tr>
+          <tr><td><strong>Décisions d'architecture (ADRs)</strong></td><td><code>docs/adr/0000-index.md</code></td></tr>
+          <tr><td><strong>Matrice de conformité ARTCI</strong></td><td><code>docs/compliance/</code></td></tr>
+          <tr><td><strong>Dossier homologation</strong></td><td><code>docs/compliance/homologation-artci/</code></td></tr>
+          <tr><td><strong>Budget de performance 3G</strong></td><td><code>docs/perf/decryption-budget.md</code></td></tr>
+          <tr><td><strong>Norme UX médecin</strong></td><td><code>docs/ux/medecin-ux-guidelines.md</code></td></tr>
+          <tr><td><strong>Profil terminal bas de gamme</strong></td><td><code>docs/ux/low-end-device-profile.md</code></td></tr>
+          <tr><td><strong>Gestion des secrets</strong></td><td><code>secrets/README.md</code></td></tr>
+          <tr><td><strong>Infra souveraine</strong></td><td><code>infra/README.md</code></td></tr>
+          <tr><td><strong>Pipeline ADW</strong></td><td><code>adw_sdlc/HEALTHTECH_PORT.md</code></td></tr>
+          <tr><td><strong>État du projet</strong></td><td><a href="./status.html" style="color:var(--blue);">docs/project/status.html</a></td></tr>
+          <tr><td><strong>Runbook (Markdown)</strong></td><td><code>docs/project/runbook.md</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>HealthTech — Plateforme de santé numérique locale-first / zero-knowledge, Côte d'Ivoire</span>
+    <span>Runbook généré le 2 juillet 2026</span>
+  </footer>
+
+</div>
+</body>
+</html>

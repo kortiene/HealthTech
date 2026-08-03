@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthTech — État du projet</title>
+  <style>
+    :root {
+      --green:  #16a34a;
+      --yellow: #ca8a04;
+      --red:    #dc2626;
+      --blue:   #2563eb;
+      --gray:   #6b7280;
+      --bg:     #f9fafb;
+      --card:   #ffffff;
+      --border: #e5e7eb;
+      --text:   #111827;
+      --muted:  #6b7280;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    header { margin-bottom: 2.5rem; }
+    header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
+    header p  { color: var(--muted); margin-top: .4rem; font-size: .95rem; }
+    .badge {
+      display: inline-block; padding: .2em .65em;
+      border-radius: 9999px; font-size: .75rem; font-weight: 600;
+    }
+    .badge-green  { background: #dcfce7; color: var(--green); }
+    .badge-yellow { background: #fef9c3; color: var(--yellow); }
+    .badge-red    { background: #fee2e2; color: var(--red); }
+    .badge-blue   { background: #dbeafe; color: var(--blue); }
+    .badge-gray   { background: #f3f4f6; color: var(--gray); }
+
+    h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 1rem; margin-top: 2.5rem; border-bottom: 2px solid var(--border); padding-bottom: .4rem; }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: .6rem; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    @media (max-width: 640px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .75rem; padding: 1.25rem;
+    }
+    .stat { text-align: center; }
+    .stat .value { font-size: 2.2rem; font-weight: 800; }
+    .stat .label { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th, td { padding: .55rem .75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; background: var(--bg); }
+    tr:last-child td { border-bottom: none; }
+    code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      background: #f3f4f6; padding: .1em .35em; border-radius: .25rem; font-size: .82em;
+    }
+
+    .progress-bar-wrap { background: #e5e7eb; border-radius: 9999px; height: 10px; overflow: hidden; }
+    .progress-bar { height: 100%; border-radius: 9999px; }
+
+    .checklist li { list-style: none; padding: .3rem 0; font-size: .9rem; }
+    .checklist li::before { margin-right: .5rem; }
+    .done::before  { content: "✅"; }
+    .todo::before  { content: "🔲"; }
+    .block::before { content: "🔴"; }
+    .human::before { content: "👤"; }
+
+    .arch-box {
+      border: 1px solid var(--border); border-radius: .5rem;
+      padding: .75rem 1rem; font-size: .83rem;
+    }
+    .arch-box h4 { font-size: .85rem; font-weight: 700; margin-bottom: .4rem; }
+    .arch-box ul { padding-left: 1.2rem; }
+    .arch-box li { margin: .2rem 0; }
+    .arrow { text-align: center; font-size: 1.4rem; color: var(--muted); padding: .2rem; align-self: center; }
+
+    footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .8rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>HealthTech</h1>
+    <p>Plateforme de santé numérique locale-first / zero-knowledge — Côte d'Ivoire &nbsp;·&nbsp;
+       État du projet au <strong>2 juillet 2026</strong></p>
+  </header>
+
+  <!-- ── KPIs ── -->
+  <h2>Indicateurs clés (KPIs PRD)</h2>
+  <div class="grid-3">
+    <div class="card stat">
+      <div class="value" style="color:var(--green)">24/25</div>
+      <div class="label">Issues code livrées (fermées)</div>
+    </div>
+    <div class="card stat">
+      <div class="value" style="color:var(--yellow)">0 / 22</div>
+      <div class="label">Exigences Must ARTCI validées juridiquement</div>
+    </div>
+    <div class="card stat">
+      <div class="value" style="color:var(--blue)">&lt; 3 s</div>
+      <div class="label">Cible déchiffrement 3G stable (NFR §5)</div>
+    </div>
+    <div class="card stat">
+      <div class="value" style="color:var(--blue)">AES-256-GCM</div>
+      <div class="label">Chiffrement client-side (zero-knowledge)</div>
+    </div>
+    <div class="card stat">
+      <div class="value" style="color:var(--blue">~120 s</div>
+      <div class="label">TTL QR d'accès éphémère</div>
+    </div>
+    <div class="card stat">
+      <div class="value" style="color:var(--green)">≤ 500 Ko</div>
+      <div class="label">Budget plaintext dossier médical</div>
+    </div>
+  </div>
+
+  <!-- ── Architecture ── -->
+  <h2>Architecture & composants</h2>
+  <div class="card">
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem;">
+      Flux de données : <strong>local-first / zero-knowledge</strong> — le serveur ne voit jamais de plaintext, de clé ou de PII.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr .2fr 1fr .2fr 1fr;align-items:start;gap:.5rem;">
+      <div class="arch-box">
+        <h4>📱 app-patient (Flutter/Android)</h4>
+        <ul>
+          <li>Création de compte + clé maîtresse (Android Keystore)</li>
+          <li>Chiffrement local AES-256-GCM + gzip</li>
+          <li>Génération QR éphémère (~120 s)</li>
+          <li>Sauvegarde cloud (blob opaque)</li>
+          <li>Queue offline SQLCipher (#21)</li>
+        </ul>
+      </div>
+      <div class="arrow">⇄</div>
+      <div class="arch-box">
+        <h4>🔐 backend (Rust/Axum)</h4>
+        <ul>
+          <li>Proxy dumb : <code>PUT/GET /blob/{uuid}</code></li>
+          <li>Aucune clé, aucun déchiffrement</li>
+          <li>Capability URLs HMAC-SHA256 (médias)</li>
+          <li>Hébergement souverain Côte d'Ivoire</li>
+          <li>MinIO + PostgreSQL</li>
+        </ul>
+      </div>
+      <div class="arrow">⇄</div>
+      <div class="arch-box">
+        <h4>🩺 app-medecin (Preact/TypeScript PWA)</h4>
+        <ul>
+          <li>Scan QR patient</li>
+          <li>Déchiffrement RAM-only (WASM crypto-core)</li>
+          <li>Ajout notes/ordonnances</li>
+          <li>Wipe mémoire en fin de session</li>
+          <li>Interface zero-menu, 4 étapes / 3 écrans</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:1rem;padding:.75rem;background:#f3f4f6;border-radius:.5rem;font-size:.82rem;">
+      <strong>crypto-core (Rust)</strong> — bibliothèque partagée :
+      AES-256-GCM, PBKDF2 (600 k / 210 k itérations), nonce aléatoire 96 bits, tag GCM 128 bits.
+      Utilisée par Flutter (via <code>flutter_rust_bridge</code>), PWA (WASM) et backend (tests).
+      Jamais de doublon d'implémentation.
+    </div>
+  </div>
+
+  <!-- ── Backlog ── -->
+  <h2>Backlog — état des issues</h2>
+  <div class="card" style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Titre</th><th>Épic</th><th>PR</th><th>Statut</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Choix de la stack technique</td><td>E0</td><td>—</td><td><span class="badge badge-green">Fermée</span></td></tr>
+        <tr><td>2</td><td>ADRs fondamentaux (Flutter/PWA/Rust/Axum)</td><td>E0</td><td>—</td><td><span class="badge badge-green">Fermée</span></td></tr>
+        <tr><td>3</td><td>CI/CD pipeline</td><td>E0</td><td>#38</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>4</td><td>Secrets management (SOPS+age)</td><td>E5</td><td>#37</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>5</td><td>Analyse de conformité loi n°2013-450</td><td>E6</td><td>#59</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>6</td><td>Modèle de menace STRIDE</td><td>E3</td><td>#60</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>7</td><td>Politique de consentement</td><td>E2</td><td>#68</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>8</td><td>Hébergement souverain Côte d'Ivoire</td><td>E5</td><td>#61</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>9</td><td>Backend zero-knowledge (blob proxy)</td><td>E1</td><td>#62</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>10</td><td>Module AES-256-GCM (crypto-core)</td><td>E3</td><td>#63</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>11</td><td>Génération & gestion clé maîtresse</td><td>E1</td><td>#66</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>12</td><td>PBKDF2 & envelope de récupération</td><td>E1</td><td>#69</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>13</td><td>Création de compte chiffré (CMU/téléphone)</td><td>E1</td><td>#70</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>14</td><td>Sauvegarde cloud zero-knowledge</td><td>E1</td><td>#71</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>15</td><td>Schéma du dossier médical</td><td>E1</td><td>#67</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>16</td><td>Génération QR d'accès temporaire</td><td>E2</td><td>#72</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>17</td><td>Scan QR & déchiffrement RAM-only</td><td>E2</td><td>#73</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>18</td><td>Note/ordonnance & fusion RAM</td><td>E2</td><td>#74</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>19</td><td>Fin de session : PUT blob + wipe RAM</td><td>E2</td><td>#75</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>20</td><td>Démo e2e boucle de consultation</td><td>E2</td><td>#76</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>21</td><td>Queue hors-ligne SQLCipher</td><td>E2</td><td>#77</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>22</td><td>Synchronisation au retour réseau</td><td>E2</td><td>#79</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>23</td><td>Déport images médicales + URL éphémère</td><td>E2</td><td>#80</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>24</td><td>Réseau dégradé : gzip + retry exponentiel</td><td>E4</td><td>#81</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>25</td><td>Audit sécurité & périmètre pentest</td><td>E3</td><td>#83</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>26</td><td>Brief revue crypto indépendante</td><td>E3</td><td>#82</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>27</td><td>Gate CI déchiffrement &lt; 3 s en 3G</td><td>E4</td><td>#85</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>28</td><td>UX médecin : norme &lt; 5 min</td><td>E4</td><td>#86</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>29</td><td>Accessibilité & robustesse bas de gamme</td><td>E4</td><td>#87</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td>30</td><td>Dossier d'homologation ARTCI</td><td>E6</td><td>#84</td><td><span class="badge badge-green">Mergée</span></td></tr>
+        <tr><td><strong>31</strong></td><td><strong>Pilote terrain Abidjan (beta)</strong></td><td>E6</td><td>—</td><td><span class="badge badge-yellow">Ouverte — humain</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Homologation ── -->
+  <h2>Homologation ARTCI — readiness</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Pièces du dossier (18 total)</h3>
+      <div style="margin-top:.75rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.25rem;font-size:.85rem;">
+          <span>Prêtes</span><strong style="color:var(--green)">5 / 18</strong>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:27.8%;background:var(--green)"></div></div>
+        <div style="display:flex;justify-content:space-between;margin:.4rem 0 .25rem;font-size:.85rem;">
+          <span>Partielles</span><strong style="color:var(--yellow)">2 / 18</strong>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:11.1%;background:var(--yellow)"></div></div>
+        <div style="display:flex;justify-content:space-between;margin:.4rem 0 .25rem;font-size:.85rem;">
+          <span>À produire</span><strong style="color:var(--gray)">6 / 18</strong>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:33.3%;background:var(--gray)"></div></div>
+        <div style="display:flex;justify-content:space-between;margin:.4rem 0 .25rem;font-size:.85rem;">
+          <span>Bloquantes</span><strong style="color:var(--red)">5 / 18</strong>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width:27.8%;background:var(--red)"></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Bloqueurs de soumission</h3>
+      <ul class="checklist" style="margin-top:.5rem;">
+        <li class="block">Sign-off juridique — 0 / 22 exigences Must validées</li>
+        <li class="block">Attestation de localisation hébergeur — non signée</li>
+        <li class="block">Rapport de pentest externe — non produit</li>
+        <li class="block">Écarts ECART-01…04 — non résolus</li>
+        <li class="block">Récépissé ARTCI — décision externe</li>
+      </ul>
+      <p style="font-size:.78rem;color:var(--muted);margin-top:.75rem;">
+        Source : <code>docs/compliance/homologation-artci/readiness-dashboard.md</code>
+      </p>
+    </div>
+  </div>
+
+  <!-- ── 22 exigences Must ARTCI ── -->
+  <div class="card" style="margin-top:1rem;overflow-x:auto;">
+    <h3 style="margin-bottom:.75rem;">22 exigences Must — loi n°2013-450 / ARTCI</h3>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;">
+      Source : <code>docs/compliance/loi-2013-450-artci-matrix.md</code> ·
+      Validation juridique : <strong style="color:var(--red)">0 / 22 signées</strong> ·
+      ⚠️ articles de loi <em>[à confirmer]</em> par le conseil juridique.
+    </p>
+    <table>
+      <thead>
+        <tr><th>REQ</th><th>Catégorie</th><th>Exigence</th><th>Statut</th><th>Valid. jur.</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-LEX-01</code></td>
+          <td>Formalités</td>
+          <td>Formalité préalable ARTCI avant mise en œuvre</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-02</code></td>
+          <td>Formalités / Sensibles</td>
+          <td>Données de santé sensibles → régime renforcé / autorisation préalable</td>
+          <td><span class="badge badge-red">Écart</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-03</code></td>
+          <td>Consentement</td>
+          <td>Base légale = <strong>consentement</strong></td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-04</code></td>
+          <td>Consentement</td>
+          <td>Consentement <strong>libre, spécifique, éclairé</strong>, prouvé</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-06</code></td>
+          <td>Principes</td>
+          <td><strong>Finalité</strong> déterminée, légitime, explicite</td>
+          <td><span class="badge badge-yellow">Partiel</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-07</code></td>
+          <td>Principes</td>
+          <td><strong>Minimisation</strong> des données collectées</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-08</code></td>
+          <td>Principes</td>
+          <td><strong>Exactitude</strong> & mise à jour des données</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-09</code></td>
+          <td>Principes</td>
+          <td><strong>Loyauté & licéité</strong> de la collecte</td>
+          <td><span class="badge badge-yellow">Partiel</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-10</code></td>
+          <td>Conservation</td>
+          <td><strong>Durée de conservation</strong> limitée (vs rétention médicale minimale)</td>
+          <td><span class="badge badge-red">Écart</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-11</code></td>
+          <td>Droits</td>
+          <td><strong>Droit à l'information</strong> — transparence à la collecte</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-12</code></td>
+          <td>Droits</td>
+          <td><strong>Droit d'accès</strong> aux données personnelles</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-13</code></td>
+          <td>Droits</td>
+          <td><strong>Droit de rectification</strong></td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-14</code></td>
+          <td>Droits</td>
+          <td><strong>Droit d'opposition</strong> au traitement</td>
+          <td><span class="badge badge-red">Écart</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-15</code></td>
+          <td>Droits</td>
+          <td><strong>Droit à la suppression / effacement</strong></td>
+          <td><span class="badge badge-red">Écart</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-16</code></td>
+          <td>Sécurité</td>
+          <td><strong>Mesures techniques de sécurité</strong> — confidentialité, intégrité (AES-256-GCM, ZK)</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-17</code></td>
+          <td>Sécurité / Sensibles</td>
+          <td><strong>Confidentialité / secret</strong> des données de santé</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-18</code></td>
+          <td>Sécurité</td>
+          <td><strong>Contrôle des accès</strong> — accès éphémère contrôlé par le patient (~120 s)</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-19</code></td>
+          <td>Résidence</td>
+          <td><strong>Résidence des données</strong> sur le territoire national (Côte d'Ivoire)</td>
+          <td><span class="badge badge-yellow">Partiel</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-20</code></td>
+          <td>Transferts</td>
+          <td><strong>Encadrement des transferts</strong> transfrontaliers de données</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-21</code></td>
+          <td>Accountability</td>
+          <td><strong>Registre des activités</strong> de traitement</td>
+          <td><span class="badge badge-yellow">Partiel</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-24</code></td>
+          <td>Sous-traitance</td>
+          <td><strong>Encadrement de la sous-traitance</strong> (hébergeur souverain)</td>
+          <td><span class="badge badge-blue">Planifié</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+        <tr>
+          <td><code>REQ-LEX-25</code></td>
+          <td>Sécurité</td>
+          <td><strong>Journalisation sans PII</strong>, sans clés, sans données en clair</td>
+          <td><span class="badge badge-yellow">Partiel</span></td>
+          <td><span class="badge badge-gray">Non</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.85rem;font-size:.8rem;">
+      <span><span class="badge badge-green">Conforme</span> 0</span>
+      <span><span class="badge badge-yellow">Partiel</span> 5 — REQ-LEX-06, 09, 19, 21, 25</span>
+      <span><span class="badge badge-blue">Planifié</span> 13 — REQ-LEX-01, 03, 04, 07, 08, 11, 12, 13, 16, 17, 18, 20, 24</span>
+      <span><span class="badge badge-red">Écart</span> 4 — REQ-LEX-02, 10, 14, 15</span>
+    </div>
+  </div>
+
+  <!-- ── Sécurité ── -->
+  <h2>Couverture sécurité & tests</h2>
+  <div class="card" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Surface</th><th>Test/artefact</th><th>Statut</th></tr></thead>
+      <tbody>
+        <tr><td>Frontière ZK — blob cloud sans PII</td><td><code>ZK-1-MULTI, ZK-2-COMPRESS</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>QR replay expiré</td><td><code>QR-REPLAY, QR-WIPE</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Wipe session mémoire</td><td><code>SESSION-WIPE, SESSION-IDEMPOTENT</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Scan read-only (pas de PUT)</td><td><code>SCAN-NO-PUT</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Queue offline opaque</td><td><code>OFFLINE-OPAQUE</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Capability URL médias</td><td><code>MEDIA-403</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Intégrité GCM (tamper blob)</td><td><code>cargo test public_decrypt_rejects_tampered</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Pression disque — pas de perte silencieuse</td><td><code>DISK-FULL-*</code></td><td><span class="badge badge-green">✅ Passé</span></td></tr>
+        <tr><td>Pentest externe SC-01…SC-09</td><td><code>docs/security/pentest-scope.md</code></td><td><span class="badge badge-yellow">⏳ À commander</span></td></tr>
+        <tr><td>Revue crypto indépendante</td><td><code>docs/security/independent-crypto-review-brief.md</code></td><td><span class="badge badge-yellow">⏳ Brief prêt</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Performance ── -->
+  <h2>Budget de performance (3G stable)</h2>
+  <div class="card" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Terme</th><th>Valeur</th><th>Gate CI</th></tr></thead>
+      <tbody>
+        <tr><td>Budget total (scan → affichage)</td><td>≤ 3 000 ms</td><td>—</td></tr>
+        <tr><td>Connexion 3G-STABLE (RTT × 2)</td><td>300 ms</td><td>Modèle analytique</td></tr>
+        <tr><td>Transfert blob ≤ 128 Kio sur 750 kbit/s</td><td>≤ 1 398 ms</td><td><code>blob_size_budget_test</code> ✅</td></tr>
+        <tr><td>Décryptage AES-256-GCM (médiane)</td><td>&lt; 100 ms</td><td><code>decrypt_perf_regression</code> ✅</td></tr>
+        <tr><td>Chaîne CPU Flutter (médiane)</td><td>&lt; 500 ms</td><td><code>decrypt_pipeline_perf_test</code> ✅</td></tr>
+        <tr><td>Rendu / display</td><td>≤ 200 ms</td><td>Hors-CI (#28/#29)</td></tr>
+        <tr><td>Marge de sécurité</td><td>600 ms</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── CI/CD ── -->
+  <h2>CI/CD — état des gates</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Gates automatisés (<code>just ci</code>)</h3>
+      <ul class="checklist" style="margin-top:.5rem;">
+        <li class="done"><code>cargo fmt --check</code> + <code>clippy -D warnings</code></li>
+        <li class="done"><code>cargo test --workspace</code> (crypto-core + backend)</li>
+        <li class="done"><code>flutter analyze</code> + <code>flutter test</code></li>
+        <li class="done"><code>npm test</code> (vitest, app-medecin)</li>
+        <li class="done"><code>cargo deny check</code> + <code>osv-scanner</code></li>
+        <li class="done"><code>gitleaks</code> + <code>check-secrets.sh</code></li>
+        <li class="done"><code>check-compliance-matrix.sh</code></li>
+        <li class="done"><code>check-homologation-dossier.sh</code> (7 contrôles)</li>
+        <li class="done"><code>check-threat-model.sh</code></li>
+        <li class="done"><code>check-ux-docs.sh</code></li>
+        <li class="done"><code>check-lowend-docs.sh</code></li>
+        <li class="done"><code>check-residency.sh</code></li>
+        <li class="done">Build backend Docker (distroless)</li>
+        <li class="done">Build APK Flutter</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Actions humaines restantes</h3>
+      <ul class="checklist" style="margin-top:.5rem;">
+        <li class="human">Sign-off juridique 22 exigences Must ARTCI</li>
+        <li class="human">Contractualisation hébergeur souverain CI</li>
+        <li class="human">Signature attestation de localisation</li>
+        <li class="human">Commande + exécution pentest externe (9 scénarios)</li>
+        <li class="human">Campagne utilisabilité médecins (protocole prêt)</li>
+        <li class="human">Mesures 3G terrain sur appareil de référence</li>
+        <li class="human">Validation terrain bas de gamme (Infinix 32 Go)</li>
+        <li class="human">Dépôt dossier ARTCI + obtention récépissé</li>
+        <li class="human">Pilote Abidjan (#31 — Cocody / Yopougon)</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <p>Généré le 2 juillet 2026 · Repo : <code>kortiene/HealthTech</code> · Branch : <code>main</code></p>
+    <p style="margin-top:.3rem;">Sources : <code>BACKLOG.md</code>, <code>docs/compliance/homologation-artci/readiness-dashboard.md</code>, <code>docs/security/</code>, <code>docs/perf/</code>, <code>justfile</code></p>
+  </footer>
+
+</div>
+</body>
+</html>
