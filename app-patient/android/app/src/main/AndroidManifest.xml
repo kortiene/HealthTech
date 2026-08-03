@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Biometric unlock (local_auth). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+    <!-- Camera: required by mobile_scanner for QR code reading. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Internet: backend sync (BackendClient PUT/GET /blob). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="app_patient"
         android:name="${applicationName}"

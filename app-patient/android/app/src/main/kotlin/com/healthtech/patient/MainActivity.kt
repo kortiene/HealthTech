@@ -2,7 +2,7 @@ package com.healthtech.patient
 
 import android.os.Build
 import androidx.annotation.NonNull
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -18,7 +18,7 @@ import io.flutter.plugin.common.MethodChannel
  * bring-up (#29); this file is the security-critical receiver that drops into that
  * generated project. The package path is provisional until then (spec open question 8).
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     private val sealer = KeystoreSealer()
 
