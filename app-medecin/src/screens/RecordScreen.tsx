@@ -1,0 +1,458 @@
+import { useEffect, useRef, useState } from "preact/hooks";
+import { AppBar } from "../components/AppBar";
+import { SyncBadge } from "../components/SyncBadge";
+import { TerminateButton } from "../components/TerminateButton";
+import { SectionCard } from "../components/SectionCard";
+import { AllergySectionCard } from "../components/AllergySectionCard";
+import { SnackBar, type SnackBarTone } from "../components/SnackBar";
+import { Icon } from "../components/Icon";
+import {
+  previewRecord,
+  formatDateFr,
+  type MedicalRecord,
+  type Medication,
+  type ChronicCondition,
+  type Consultation,
+} from "../stubs/data";
+import { TerminatingOverlay } from "./TerminatingOverlay";
+
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+
+interface RecordScreenProps {
+  record: MedicalRecord | null;
+  pendingCount: number;
+  onSynced: () => void;
+  onAddNote: () => void;
+  onTerminated: () => void;
+}
+
+// ─── Patient hero banner ──────────────────────────────────────────────────────
+
+function PatientHeroBanner({ record }: { record: MedicalRecord }) {
+  const age = new Date().getFullYear() - record.birthYear;
+  const hasSevereAllergy = record.allergies.some((a) =>
+    a.severity.toLowerCase().includes("sév")
+  );
+
+  return (
+    <div
+      style={{
+        background:
+          "linear-gradient(135deg, var(--color-primary-900) 0%, var(--color-primary-700) 100%)",
+        padding: "var(--space-lg) var(--space-md) var(--space-md)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-md)",
+          marginBottom: "var(--space-md)",
+        }}
+      >
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.12)",
+            border: "2px solid rgba(255,255,255,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            fontWeight: 700,
+            color: "white",
+            flexShrink: 0,
+          }}
+        >
+          {record.givenName[0]?.toUpperCase()}
+        </div>
+        <div>
+          <p className="text-headline" style={{ color: "var(--color-white)", fontWeight: 700 }}>
+            {record.givenName}
+          </p>
+          <p className="text-body" style={{ color: "rgba(255,255,255,0.6)", margin: "2px 0 0" }}>
+            {age} ans · {record.sex}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
+        <HeroChip label={record.bloodType} accent="blood" />
+        {record.heightCm != null && <HeroChip label={`${record.heightCm} cm`} />}
+        {record.weightKg != null && <HeroChip label={`${record.weightKg} kg`} />}
+        {record.cmuNumber != null && <HeroChip label="CMU ✓" accent="success" />}
+        {hasSevereAllergy && <HeroChip label="Allergie sévère" accent="allergy" />}
+      </div>
+    </div>
+  );
+}
+
+type ChipAccent = "default" | "blood" | "success" | "allergy";
+
+function HeroChip({ label, accent = "default" }: { label: string; accent?: ChipAccent }) {
+  const styles: Record<ChipAccent, { bg: string; color: string }> = {
+    default: { bg: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)" },
+    blood: { bg: "rgba(220,38,38,0.28)", color: "#fca5a5" },
+    success: { bg: "rgba(5,150,105,0.28)", color: "#6ee7b7" },
+    allergy: { bg: "rgba(185,28,28,0.28)", color: "#fca5a5" },
+  };
+  const s = styles[accent];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "5px 12px",
+        borderRadius: "var(--radius-pill)",
+        background: s.bg,
+        color: s.color,
+        fontSize: 12,
+        fontWeight: 600,
+        lineHeight: 1,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── Pathologies ─────────────────────────────────────────────────────────────
+
+function ConditionRow({ condition }: { condition: ChronicCondition }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-sm)",
+        padding: "10px var(--space-sm)",
+        borderLeft: "3px solid var(--color-primary-500)",
+        background: "var(--color-primary-50)",
+        borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
+        marginBottom: "var(--space-xs)",
+      }}
+    >
+      <p className="text-body-lg" style={{ flex: 1, margin: 0, fontWeight: 500 }}>
+        {condition.name}
+      </p>
+      <span
+        style={{
+          padding: "2px 8px",
+          borderRadius: "var(--radius-pill)",
+          background: "var(--color-neutral-100)",
+          border: "1px solid var(--color-neutral-200)",
+          fontSize: 11,
+          fontWeight: 700,
+          color: "var(--color-neutral-500)",
+          fontFamily: "monospace",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {condition.icd10}
+      </span>
+    </div>
+  );
+}
+
+// ─── Médicaments ─────────────────────────────────────────────────────────────
+
+function MedicationCard({ med }: { med: Medication }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-sm)",
+        padding: "var(--space-sm)",
+        background: "var(--color-neutral-100)",
+        borderRadius: "var(--radius-sm)",
+        marginBottom: "var(--space-xs)",
+      }}
+    >
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          background: "var(--color-primary-100)",
+          borderRadius: "var(--radius-sm)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Icon name="medication" size={20} color="var(--color-primary-700)" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p className="text-body-lg" style={{ fontWeight: 600, color: "var(--color-neutral-900)", margin: 0 }}>
+          {med.name}
+        </p>
+        <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: "2px 0 0" }}>
+          {med.frequency}
+        </p>
+      </div>
+      <span
+        style={{
+          padding: "4px 10px",
+          background: "var(--color-white)",
+          border: "1px solid var(--color-neutral-200)",
+          borderRadius: "var(--radius-pill)",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--color-primary-700)",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        {med.dose}
+      </span>
+    </div>
+  );
+}
+
+// ─── Consultations timeline ───────────────────────────────────────────────────
+
+function ConsultationTimeline({ consultations }: { consultations: Consultation[] }) {
+  const sorted = [...consultations].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  const last = sorted.length - 1;
+
+  return (
+    <section style={{ marginBottom: "var(--space-md)" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-sm)",
+          marginBottom: "var(--space-md)",
+        }}
+      >
+        <span className="icon-badge" style={{ background: "var(--color-primary-100)" }}>
+          <Icon name="folder_shared" size={18} color="var(--color-primary-700)" />
+        </span>
+        <h2 className="text-title-sm">Consultations</h2>
+        <span
+          style={{
+            marginLeft: "auto",
+            padding: "2px 8px",
+            borderRadius: "var(--radius-pill)",
+            background: "var(--color-primary-100)",
+            color: "var(--color-primary-700)",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {sorted.length}
+        </span>
+      </div>
+
+      {sorted.map((c, i) => (
+        <div key={c.date + c.summary} style={{ display: "flex", gap: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              width: 20,
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                background: i === 0 ? "var(--color-primary-700)" : "var(--color-neutral-200)",
+                boxShadow: i === 0 ? "0 0 0 3px var(--color-primary-100)" : "none",
+                flexShrink: 0,
+                marginTop: 6,
+              }}
+            />
+            {i < last && (
+              <div
+                style={{
+                  width: 2,
+                  flex: 1,
+                  background: "var(--color-neutral-200)",
+                  margin: "4px 0 0",
+                  minHeight: 16,
+                }}
+              />
+            )}
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              background: "var(--color-white)",
+              border: "1px solid var(--color-neutral-200)",
+              borderRadius: "var(--radius-sm)",
+              padding: "var(--space-sm) var(--space-md)",
+              marginBottom: "var(--space-sm)",
+            }}
+          >
+            <p
+              className="text-label"
+              style={{ color: "var(--color-primary-700)", marginBottom: 4, fontWeight: 600 }}
+            >
+              {formatDateFr(c.date)}
+              {c.doctorName && (
+                <span style={{ color: "var(--color-neutral-500)", fontWeight: 400 }}>
+                  {" "}· {c.doctorName}
+                </span>
+              )}
+            </p>
+            <p className="text-body" style={{ color: "var(--color-neutral-900)", margin: "0 0 4px" }}>
+              {c.summary}
+            </p>
+            {c.prescription && (
+              <div
+                style={{
+                  marginTop: "var(--space-xs)",
+                  padding: "6px 10px",
+                  background: "var(--color-primary-50)",
+                  borderRadius: "var(--radius-sm)",
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "flex-start",
+                }}
+              >
+                <Icon name="medication" size={13} color="var(--color-primary-700)" />
+                <p
+                  className="text-caption"
+                  style={{ color: "var(--color-primary-900)", margin: 0, lineHeight: 1.5 }}
+                >
+                  {c.prescription}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// ─── RecordScreen ─────────────────────────────────────────────────────────────
+
+/**
+ * Écran Dossier médical. Ordre des sections figé (§3.2) :
+ * Hero → Allergies → Pathologies → Médicaments → Consultations.
+ */
+export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAddNote, onTerminated }: RecordScreenProps) {
+  const record = recordProp ?? previewRecord;
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isTerminating, setIsTerminating] = useState(false);
+  const [snack, setSnack] = useState<{ message: string; tone: SnackBarTone } | null>(null);
+  const idleTimer = useRef<number | undefined>(undefined);
+
+  function resetIdleTimer() {
+    if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => terminateSession(), IDLE_TIMEOUT_MS);
+  }
+
+  useEffect(() => {
+    resetIdleTimer();
+    return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
+  }, []);
+
+  async function syncNow() {
+    if (pendingCount === 0 || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await new Promise((r) => setTimeout(r, 1000));
+      const synced = pendingCount;
+      onSynced();
+      setIsSyncing(false);
+      setSnack({ message: `${synced} consultation(s) synchronisée(s).`, tone: "success" });
+    } catch {
+      setIsSyncing(false);
+      setSnack({ message: "Échec de la synchronisation — nouvelle tentative en attente.", tone: "error" });
+    }
+  }
+
+  async function terminateSession() {
+    setIsTerminating(true);
+    try {
+      await new Promise((r) => setTimeout(r, 900));
+      const offline = false;
+      if (offline) {
+        setIsTerminating(false);
+        setSnack({ message: "Consultation enregistrée hors-ligne — synchro à la reconnexion", tone: "warning" });
+      } else {
+        onTerminated();
+      }
+    } catch {
+      setIsTerminating(false);
+      setSnack({ message: "Échec de l'enregistrement — réessayez.", tone: "error" });
+    }
+  }
+
+  return (
+    <div onScroll={resetIdleTimer} onClick={resetIdleTimer} style={{ minHeight: "100%", paddingBottom: "88px" }}>
+      <AppBar title="Dossier médical" subtitle={record.givenName}>
+        <SyncBadge pendingCount={pendingCount} isSyncing={isSyncing} onSync={syncNow} />
+        <TerminateButton onTerminate={terminateSession} />
+      </AppBar>
+
+      <PatientHeroBanner record={record} />
+
+      <main style={{ padding: "var(--space-md)" }}>
+        <AllergySectionCard allergies={record.allergies} />
+
+        {record.chronicConditions.length > 0 && (
+          <SectionCard title="Pathologies chroniques" icon="history">
+            {record.chronicConditions.map((c) => (
+              <ConditionRow key={c.icd10} condition={c} />
+            ))}
+          </SectionCard>
+        )}
+
+        {record.medications.length > 0 && (
+          <SectionCard title="Médicaments en cours" icon="medication">
+            {record.medications.map((m) => (
+              <MedicationCard key={m.name} med={m} />
+            ))}
+          </SectionCard>
+        )}
+
+        {record.consultations.length > 0 && (
+          <ConsultationTimeline consultations={record.consultations} />
+        )}
+      </main>
+
+      <button
+        type="button"
+        onClick={onAddNote}
+        aria-label="Ajouter une note ou une ordonnance"
+        style={{
+          position: "fixed",
+          right: "var(--space-md)",
+          bottom: "var(--space-md)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "var(--space-sm)",
+          minHeight: "56px",
+          padding: "0 var(--space-lg)",
+          borderRadius: "var(--radius-lg)",
+          background: "var(--color-primary-700)",
+          color: "var(--color-white)",
+          border: "none",
+          boxShadow: "0 8px 24px rgba(0,108,103,0.35)",
+          fontWeight: 600,
+          cursor: "pointer",
+          fontSize: 15,
+        }}
+      >
+        <Icon name="note_add" size={22} color="var(--color-white)" />
+        Ajouter une note
+      </button>
+
+      {snack && <SnackBar message={snack.message} tone={snack.tone} onDismiss={() => setSnack(null)} />}
+      {isTerminating && <TerminatingOverlay />}
+    </div>
+  );
+}

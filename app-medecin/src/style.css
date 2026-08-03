@@ -1,0 +1,166 @@
+@import "./design/tokens.css";
+
+/* Typographie — échelle §2.2 */
+.text-display {
+  font-size: var(--text-display-size);
+  font-weight: var(--text-display-weight);
+  line-height: var(--text-display-lh);
+  margin: 0;
+}
+.text-headline {
+  font-size: var(--text-headline-size);
+  font-weight: var(--text-headline-weight);
+  line-height: var(--text-headline-lh);
+  margin: 0;
+}
+.text-title {
+  font-size: var(--text-title-size);
+  font-weight: var(--text-title-weight);
+  line-height: var(--text-title-lh);
+  margin: 0;
+}
+.text-title-sm {
+  font-size: var(--text-title-sm-size);
+  font-weight: var(--text-title-sm-weight);
+  line-height: var(--text-title-sm-lh);
+  margin: 0;
+}
+.text-body-lg {
+  font-size: var(--text-body-lg-size);
+  font-weight: var(--text-body-lg-weight);
+  line-height: var(--text-body-lg-lh);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+.text-body {
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-weight);
+  line-height: var(--text-body-lh);
+  margin: 0;
+  color: var(--color-neutral-700);
+  overflow-wrap: break-word;
+}
+.text-label {
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--text-label-lh);
+  margin: 0;
+  color: var(--color-neutral-700);
+}
+.text-caption {
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  line-height: var(--text-caption-lh);
+  margin: 0;
+  color: var(--color-neutral-500);
+}
+
+/* Boutons — cibles tactiles ≥ 44px (§3.1) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-title-sm-size);
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-block {
+  width: 100%;
+}
+.btn-filled {
+  background: var(--color-primary-700);
+  color: var(--color-white);
+}
+.btn-filled:hover:not(:disabled) {
+  background: var(--color-primary-900);
+}
+.btn-accent {
+  background: var(--color-accent-700);
+  color: var(--color-white);
+}
+.btn-accent:hover:not(:disabled) {
+  background: #b45f04;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary-700);
+  border: 1.5px solid var(--color-primary-700);
+}
+.btn-icon {
+  min-width: var(--tap-target-min);
+  min-height: var(--tap-target-min);
+  padding: 0;
+  background: transparent;
+  color: var(--color-neutral-900);
+  border-radius: var(--radius-pill);
+}
+.btn-icon:hover {
+  background: var(--color-neutral-100);
+}
+
+/* Cartes — flat, coins arrondis généreux, bordure subtile (§2.3) */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+/* Champs de formulaire */
+.field-label {
+  display: block;
+  margin-bottom: var(--space-xs);
+}
+.field-input,
+.field-textarea {
+  width: 100%;
+  min-height: var(--tap-target-min);
+  background: var(--color-neutral-100);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-neutral-900);
+}
+.field-textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: inherit;
+}
+.field-input:focus,
+.field-textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-500);
+}
+
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
