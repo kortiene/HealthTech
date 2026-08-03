@@ -119,4 +119,10 @@ class MedicalRecordStore {
 
   /// Whether a local record blob exists on this device.
   Future<bool> exists() => _localStore.exists();
+
+  /// Delete the local blob from this device.
+  ///
+  /// Does not touch the cloud copy. Call [BackendClient.delete] separately
+  /// to remove the cloud blob as part of account deletion.
+  Future<void> deleteLocal() => _localStore.delete();
 }

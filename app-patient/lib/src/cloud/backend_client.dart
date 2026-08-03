@@ -61,6 +61,26 @@ class BackendClient {
     }
   }
 
+  /// Delete a blob — `DELETE /blob/{uuid}`.
+  ///
+  /// Returns normally on HTTP 200 or 204. Throws [BlobNotFound] on 404,
+  /// [BackendUnavailable] on any other status or network error.
+  Future<void> delete(String uuid) async {
+    final uri = Uri.parse('$baseUrl/blob/$uuid');
+    try {
+      final resp = await _http.delete(uri);
+      if (resp.statusCode == 200 || resp.statusCode == 204) return;
+      if (resp.statusCode == 404) throw BlobNotFound(uuid);
+      throw BackendUnavailable('DELETE /blob/$uuid → ${resp.statusCode}');
+    } on BackendUnavailable {
+      rethrow;
+    } on BlobNotFound {
+      rethrow;
+    } catch (e) {
+      throw BackendUnavailable('DELETE /blob/$uuid: $e');
+    }
+  }
+
   /// Download opaque ciphertext — `GET /blob/{uuid}`.
   ///
   /// Returns the raw ciphertext bytes on HTTP 200. Throws [BlobNotFound] on

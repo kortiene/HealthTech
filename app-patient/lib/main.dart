@@ -15,7 +15,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'src/cloud/backend_client.dart' show BackendClient, BackendUnavailable;
+import 'src/cloud/backend_client.dart'
+    show BackendClient, BackendUnavailable, BlobNotFound;
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
@@ -34,6 +35,7 @@ import 'src/ui/splash_screen.dart';
 
 const String _kBackendBaseUrl = 'https://api.healthtech.ci';
 const String _kPinKey = 'patient_pin';
+const String _kLastSyncKey = 'last_sync_at';
 const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
@@ -76,6 +78,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   String? _loadError;
   final _biometricService = BiometricService();
   bool _biometricEnabled = false;
+  String? _lastSyncedAt;
 
   final _masterKey = const MasterKeyService();
   late final PatientAccountStore _accountStore;
@@ -136,6 +139,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           }
           final pin = await _storage.read(key: _kPinKey);
           _biometricEnabled = await _biometricService.isEnabled();
+          _lastSyncedAt = await _storage.read(key: _kLastSyncKey);
           if (!mounted) return;
           if (pin != null && pin.isNotEmpty) {
             _storedPin = pin;
@@ -241,11 +245,59 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     try {
       try {
         await _recordStore.write(record, handle, _account!.anonymousUuid);
+        final now = DateTime.now().toUtc().toIso8601String();
+        await _storage.write(key: _kLastSyncKey, value: now);
+        if (mounted) setState(() => _lastSyncedAt = now);
       } on BackendUnavailable {
-        // local write already succeeded; will sync when backend is available
+        // local write succeeded; cloud sync will retry
       }
     } finally {
       await _masterKey.wipeHandle(handle);
+    }
+  }
+
+  Future<void> _onManualSync() async {
+    if (_record == null || _account == null) return;
+    final handle = await _masterKey.unsealForUse();
+    try {
+      await _recordStore.write(_record!, handle, _account!.anonymousUuid);
+      final now = DateTime.now().toUtc().toIso8601String();
+      await _storage.write(key: _kLastSyncKey, value: now);
+      if (mounted) setState(() => _lastSyncedAt = now);
+    } finally {
+      await _masterKey.wipeHandle(handle);
+    }
+  }
+
+  Future<void> _onDeleteAccount() async {
+    try {
+      // Best-effort cloud deletion (ignore network errors)
+      final uuid = _account?.anonymousUuid;
+      if (uuid != null) {
+        try {
+          await BackendClient(_kBackendBaseUrl).delete(uuid);
+        } on BackendUnavailable {
+          // Offline — local data still cleared
+        } on BlobNotFound {
+          // Already gone from server
+        }
+      }
+      // Erase local blobs
+      await _recordStore.deleteLocal();
+      // Erase all secure storage (PIN, biometric flag, last sync)
+      await _storage.deleteAll();
+    } finally {
+      // Always reset FSM to onboarding, regardless of cloud/local errors
+      if (mounted) {
+        setState(() {
+          _record = null;
+          _account = null;
+          _storedPin = null;
+          _lastSyncedAt = null;
+          _biometricEnabled = false;
+          _phase = _Phase.onboarding;
+        });
+      }
     }
   }
 
@@ -313,8 +365,17 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           onChangePin: _onChangePin,
           biometricService: _biometricService,
           biometricEnabled: _biometricEnabled,
+          lastSyncedAt: _lastSyncedAt,
+          onManualSync: _onManualSync,
+          onDeleteAccount: _onDeleteAccount,
         ),
-      _Phase.invalidated => _InvalidatedScreen(error: _loadError),
+      _Phase.invalidated => _InvalidatedScreen(
+          error: _loadError,
+          onReset: () async {
+            await _storage.deleteAll();
+            if (mounted) setState(() => _phase = _Phase.onboarding);
+          },
+        ),
     };
   }
 }
@@ -336,8 +397,9 @@ class _LoadingScreen extends StatelessWidget {
 }
 
 class _InvalidatedScreen extends StatelessWidget {
-  const _InvalidatedScreen({this.error});
+  const _InvalidatedScreen({this.error, this.onReset});
   final String? error;
+  final Future<void> Function()? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -349,20 +411,35 @@ class _InvalidatedScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outlined, size: 64, color: AppColors.neutral500),
+              const Icon(Icons.lock_outlined,
+                  size: 64, color: AppColors.neutral500),
               const SizedBox(height: 24),
               Text(
-                'Clé de chiffrement invalidée',
+                'Accès non disponible',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
                 error ??
-                    'Contactez le support HealthTech pour restaurer l\'accès à votre dossier.',
+                    'La clé de chiffrement est inaccessible. '
+                    'Vous pouvez recréer un nouveau profil — '
+                    'les données précédentes ne seront pas récupérables.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
+              if (onReset != null) ...[
+                const SizedBox(height: 32),
+                FilledButton(
+                  onPressed: onReset,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary700,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 14),
+                  ),
+                  child: const Text('Recréer mon profil'),
+                ),
+              ],
             ],
           ),
         ),

@@ -27,6 +27,9 @@ class MainShell extends StatefulWidget {
     this.onChangePin,
     this.biometricService,
     this.biometricEnabled = false,
+    this.lastSyncedAt,
+    this.onManualSync,
+    this.onDeleteAccount,
   });
 
   final MedicalRecord record;
@@ -40,6 +43,9 @@ class MainShell extends StatefulWidget {
   final Future<void> Function(String)? onChangePin;
   final BiometricService? biometricService;
   final bool biometricEnabled;
+  final String? lastSyncedAt;
+  final Future<void> Function()? onManualSync;
+  final Future<void> Function()? onDeleteAccount;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -89,6 +95,9 @@ class _MainShellState extends State<MainShell> {
         onChangePin: widget.onChangePin,
         biometricService: widget.biometricService,
         biometricEnabled: widget.biometricEnabled,
+        lastSyncedAt: widget.lastSyncedAt,
+        onManualSync: widget.onManualSync,
+        onDeleteAccount: widget.onDeleteAccount,
       ),
     ];
 

@@ -19,6 +19,9 @@ class SettingsScreen extends StatefulWidget {
     this.onChangePin,
     this.biometricService,
     this.biometricEnabled = false,
+    this.lastSyncedAt,
+    this.onManualSync,
+    this.onDeleteAccount,
   });
 
   final MedicalRecord record;
@@ -29,6 +32,9 @@ class SettingsScreen extends StatefulWidget {
   final Future<void> Function(String newPin)? onChangePin;
   final BiometricService? biometricService;
   final bool biometricEnabled;
+  final String? lastSyncedAt;
+  final Future<void> Function()? onManualSync;
+  final Future<void> Function()? onDeleteAccount;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -37,6 +43,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _biometrics;
   bool _autoSync = false;
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -54,6 +61,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (phone.length <= 4) return '••••';
     final visible = phone.substring(phone.length - 4);
     return '••••$visible';
+  }
+
+  static String _formatRelativeTime(String isoDate) {
+    try {
+      final d = DateTime.parse(isoDate).toLocal();
+      final diff = DateTime.now().difference(d);
+      if (diff.inMinutes < 1) return 'À l\'instant';
+      if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+      if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+      return _formatDate(isoDate);
+    } catch (_) {
+      return isoDate;
+    }
   }
 
   static String _formatDate(String isoDate) {
@@ -209,15 +229,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       iconBg: AppColors.primary100,
                       iconColor: AppColors.primary700,
                       title: 'Sauvegarder maintenant',
-                      onTap: () => _showNotImplemented(context),
+                      trailing: _syncing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary700),
+                            )
+                          : null,
+                      onTap: widget.onManualSync != null && !_syncing
+                          ? _doManualSync
+                          : null,
                     ),
                     _SettingsTile(
-                      icon: Symbols.cloud_off_rounded,
-                      iconBg: AppColors.neutral100,
-                      iconColor: AppColors.neutral500,
+                      icon: widget.lastSyncedAt != null
+                          ? Symbols.cloud_done_rounded
+                          : Symbols.cloud_off_rounded,
+                      iconBg: widget.lastSyncedAt != null
+                          ? AppColors.primary100
+                          : AppColors.neutral100,
+                      iconColor: widget.lastSyncedAt != null
+                          ? AppColors.primary700
+                          : AppColors.neutral500,
                       title: 'Dernière sauvegarde',
                       trailing: Text(
-                        'Jamais',
+                        widget.lastSyncedAt != null
+                            ? _formatRelativeTime(widget.lastSyncedAt!)
+                            : 'Jamais',
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
@@ -252,14 +291,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       iconBg: AppColors.primary100,
                       iconColor: AppColors.primary700,
                       title: 'Politique de confidentialité',
-                      onTap: () => _showNotImplemented(context),
+                      onTap: () => _showPrivacyPolicy(context),
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
 
                 // ── Zone danger ───────────────────────────────────────────
-                const _DangerZone(),
+                _DangerZone(onDelete: widget.onDeleteAccount),
                 const SizedBox(height: 100),
               ]),
             ),
@@ -349,6 +388,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await svc.setEnabled(false);
     }
     if (mounted) setState(() => _biometrics = value);
+  }
+
+  Future<void> _doManualSync() async {
+    setState(() => _syncing = true);
+    try {
+      await widget.onManualSync!();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dossier synchronisé avec succès')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur de synchronisation — réessayez')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (_) => const _PrivacyPolicySheet(),
+    );
   }
 
   void _showNotImplemented(BuildContext context) {
@@ -491,7 +563,8 @@ class _GreenBadge extends StatelessWidget {
 // ─── Danger zone ─────────────────────────────────────────────────────────────
 
 class _DangerZone extends StatelessWidget {
-  const _DangerZone();
+  const _DangerZone({this.onDelete});
+  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +616,7 @@ class _DangerZone extends StatelessWidget {
             ),
             trailing: Icon(Icons.chevron_right,
                 color: AppColors.error.withAlpha(120), size: 20),
-            onTap: () => _confirmDelete(context),
+            onTap: onDelete != null ? () => _confirmDelete(context) : null,
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: 2),
           ),
@@ -567,12 +640,18 @@ class _DangerZone extends StatelessWidget {
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Suppression disponible prochainement')),
-              );
+              try {
+                await onDelete!();
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Erreur lors de la suppression')),
+                  );
+                }
+              }
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Supprimer'),
@@ -944,6 +1023,179 @@ class _AllergyRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Politique de confidentialité ─────────────────────────────────────────────
+
+class _PrivacyPolicySheet extends StatelessWidget {
+  const _PrivacyPolicySheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final maxH = MediaQuery.sizeOf(context).height * 0.88;
+    return SizedBox(
+      height: maxH,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary100,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: const Icon(Symbols.policy_rounded,
+                      size: 20, color: AppColors.primary700),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Politique de confidentialité',
+                          style: tt.titleSmall
+                              ?.copyWith(color: AppColors.neutral900)),
+                      Text('Version 1.0 · Loi ivoirienne n°2013-450',
+                          style: tt.bodySmall
+                              ?.copyWith(color: AppColors.neutral500)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.neutral100),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _PolicySection(
+                    title: '1. Responsable du traitement',
+                    body:
+                        'HealthTech SAS, opérateur agréé ARTCI (Côte d\'Ivoire). '
+                        'Contact DPO : privacy@healthtech.ci',
+                  ),
+                  _PolicySection(
+                    title: '2. Données collectées',
+                    body: '• Numéro CMU (identifiant couverture maladie)\n'
+                        '• Numéro de téléphone\n'
+                        '• Données médicales : consultations, prescriptions, allergies\n\n'
+                        'Ces données ne sont jamais transmises en clair. '
+                        'Elles sont chiffrées localement sur votre appareil '
+                        '(AES-256-GCM) avant tout stockage ou transmission.',
+                  ),
+                  _PolicySection(
+                    title: '3. Finalité du traitement',
+                    body:
+                        'Gestion de votre dossier médical personnel. Partage sécurisé '
+                        'avec vos praticiens via QR code à durée limitée (120 secondes). '
+                        'Aucun traitement commercial ou publicitaire.',
+                  ),
+                  _PolicySection(
+                    title: '4. Architecture zéro connaissance',
+                    body:
+                        'Le serveur HealthTech ne stocke que des ciphertextes opaques '
+                        'indexés par un UUID anonyme. Il est techniquement impossible '
+                        'pour l\'opérateur de lire votre dossier médical. '
+                        'La clé de chiffrement reste sur votre appareil dans le keystore '
+                        'sécurisé (Android Keystore / Secure Enclave iOS).',
+                  ),
+                  _PolicySection(
+                    title: '5. Durée de conservation',
+                    body:
+                        'Vos données locales sont conservées jusqu\'à la suppression '
+                        'de l\'application ou de votre compte. '
+                        'Les blobs chiffrés sur le serveur sont supprimés sur demande '
+                        'via le bouton « Supprimer mon compte ».',
+                  ),
+                  _PolicySection(
+                    title: '6. Vos droits (loi 2013-450)',
+                    body: '• Droit d\'accès : votre dossier est visible dans l\'onglet Mon Dossier\n'
+                        '• Droit de rectification : modifiable via Paramètres → Profil médical\n'
+                        '• Droit à l\'effacement : Paramètres → Supprimer mon compte\n'
+                        '• Droit à la portabilité : export disponible prochainement\n\n'
+                        'Pour exercer vos droits : privacy@healthtech.ci',
+                  ),
+                  _PolicySection(
+                    title: '7. Sécurité',
+                    body:
+                        'Chiffrement AES-256-GCM · PBKDF2-HMAC-SHA256 (dérivation PIN) · '
+                        'Nonce 96 bits aléatoire par chiffrement · '
+                        'Clé maîtresse dans le keystore matériel · '
+                        'Audit de sécurité externe prévu (M4).',
+                  ),
+                  _PolicySection(
+                    title: '8. Transferts hors Côte d\'Ivoire',
+                    body:
+                        'Les données sont hébergées sur un serveur localisé en '
+                        'Côte d\'Ivoire, conforme aux exigences de souveraineté '
+                        'numérique de l\'ARTCI. Aucun transfert vers des pays tiers.',
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                    child: Text(
+                      'Date d\'entrée en vigueur : 1er janvier 2026',
+                      style: tt.bodySmall?.copyWith(
+                          color: AppColors.neutral500,
+                          fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicySection extends StatelessWidget {
+  const _PolicySection({required this.title, required this.body});
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: tt.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary900)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(body,
+              style:
+                  tt.bodyMedium?.copyWith(color: AppColors.neutral700, height: 1.5)),
+        ],
       ),
     );
   }
