@@ -1,0 +1,128 @@
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../doctor/scan_service.dart';
+import '../qr/access_token.dart';
+import '../record/medical_record.dart';
+import '../secure/biometric_service.dart';
+import '../secure/patient_account.dart';
+import '../design/app_theme.dart';
+import 'home_screen.dart';
+import 'patient_record_screen.dart';
+import 'qr_screen.dart';
+import 'scan_screen.dart';
+import 'settings_screen.dart';
+
+class MainShell extends StatefulWidget {
+  const MainShell({
+    super.key,
+    required this.record,
+    required this.account,
+    required this.qrController,
+    required this.scanService,
+    required this.onLock,
+    this.onUpdateRecord,
+    this.onQrClosed,
+    this.storedPin,
+    this.onChangePin,
+    this.biometricService,
+    this.biometricEnabled = false,
+  });
+
+  final MedicalRecord record;
+  final PatientAccount account;
+  final QrController qrController;
+  final ScanService scanService;
+  final VoidCallback onLock;
+  final Future<void> Function(MedicalRecord)? onUpdateRecord;
+  final Future<void> Function()? onQrClosed;
+  final String? storedPin;
+  final Future<void> Function(String)? onChangePin;
+  final BiometricService? biometricService;
+  final bool biometricEnabled;
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _tab = 0;
+
+  Future<void> _showQr() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QrScreen(controller: widget.qrController),
+      ),
+    );
+    // QR screen closed — doctor may have written a note; pull latest from cloud.
+    await widget.onQrClosed?.call();
+  }
+
+  void _showScan() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ScanScreen(service: widget.scanService),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      HomeScreen(
+        record: widget.record,
+        account: widget.account,
+        onShowQr: _showQr,
+        onScan: _showScan,
+      ),
+      PatientRecordScreen(
+        record: widget.record,
+        account: widget.account,
+        onShowQr: _showQr,
+      ),
+      SettingsScreen(
+        record: widget.record,
+        account: widget.account,
+        onLock: widget.onLock,
+        onUpdateRecord: widget.onUpdateRecord,
+        storedPin: widget.storedPin,
+        onChangePin: widget.onChangePin,
+        biometricService: widget.biometricService,
+        biometricEnabled: widget.biometricEnabled,
+      ),
+    ];
+
+    return Scaffold(
+      backgroundColor: AppColors.primary50,
+      body: IndexedStack(
+        index: _tab,
+        children: screens,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        backgroundColor: AppColors.white,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: AppColors.neutral200,
+        elevation: 1,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Symbols.home_rounded),
+            selectedIcon: Icon(Symbols.home_rounded, fill: 1),
+            label: 'Accueil',
+          ),
+          NavigationDestination(
+            icon: Icon(Symbols.folder_shared_rounded),
+            selectedIcon: Icon(Symbols.folder_shared_rounded, fill: 1),
+            label: 'Mon Dossier',
+          ),
+          NavigationDestination(
+            icon: Icon(Symbols.settings_rounded),
+            selectedIcon: Icon(Symbols.settings_rounded, fill: 1),
+            label: 'Paramètres',
+          ),
+        ],
+      ),
+    );
+  }
+}

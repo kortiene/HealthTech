@@ -97,10 +97,11 @@ class MedicalRecordStore {
   /// Throws [DecryptError] on a bad key or corrupted blob.
   Future<MedicalRecord> read(
     MasterKeyHandle handle,
-    String anonymousUuid,
-  ) async {
+    String anonymousUuid, {
+    bool forceCloud = false,
+  }) async {
     Uint8List blob;
-    final cached = await _localStore.read();
+    final cached = forceCloud ? null : await _localStore.read();
     if (cached != null) {
       blob = cached;
     } else {

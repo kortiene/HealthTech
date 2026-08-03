@@ -11,15 +11,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../design/app_theme.dart';
 import '../qr/access_token.dart';
 
-/// Displays the QR access code with a countdown to expiry.
-///
-/// Inject a [QrController] for testability.  On mount, [QrController.generate]
-/// is called and the countdown begins.  After expiry, a regenerate button
-/// appears to start a new session.
 class QrScreen extends StatefulWidget {
   const QrScreen({super.key, required this.controller});
 
@@ -97,33 +94,70 @@ class _QrScreenState extends State<QrScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Accès consultation')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _buildBody(),
+      backgroundColor: AppColors.primary900,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary900,
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        title: const Text(
+          'Accès consultation',
+          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600),
+        ),
+        leading: IconButton(
+          icon: const Icon(Symbols.arrow_back_rounded, color: AppColors.white),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
   Widget _buildBody() {
-    if (_generating) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_generating) return const _LoadingView();
     if (_error != null) {
       return _ErrorView(message: _error!, onRetry: _generate);
     }
     final p = _payload;
-    if (p == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (p == null) return const _LoadingView();
     if (_remainingSeconds == 0) {
       return _ExpiredView(onRegenerate: _generate);
     }
     return _QrView(
       qrData: p.toQrString(),
       remainingSeconds: _remainingSeconds,
+    );
+  }
+}
+
+// ── States ────────────────────────────────────────────────────────────────────
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 56,
+            height: 56,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: AppColors.primary500,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Génération du code…',
+            style: TextStyle(
+              color: AppColors.white.withAlpha(180),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -136,55 +170,130 @@ class _QrView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text('Présentez ce code à votre médecin'),
-        const SizedBox(height: 24),
-        QrImageView(
-          data: qrData,
-          version: QrVersions.auto,
-          size: 280,
-          errorCorrectionLevel: QrErrorCorrectLevel.M,
+    final isUrgent = remainingSeconds <= 30;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Présentez ce code à votre médecin',
+              style: TextStyle(
+                color: AppColors.white.withAlpha(180),
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(AppRadii.lg),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(80),
+                    blurRadius: 32,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: QrImageView(
+                data: qrData,
+                version: QrVersions.auto,
+                size: 260,
+                errorCorrectionLevel: QrErrorCorrectLevel.M,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Color(0xFF003D39),
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Color(0xFF003D39),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            _CountdownRing(seconds: remainingSeconds, urgent: isUrgent),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.white.withAlpha(15),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Symbols.shield_rounded,
+                    size: 14,
+                    color: AppColors.primary500,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Valable 120 s — Partagez uniquement avec votre médecin',
+                    style: TextStyle(
+                      color: AppColors.white.withAlpha(153),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-        _CountdownBadge(seconds: remainingSeconds),
-        const SizedBox(height: 8),
-        const Text(
-          'Valable 120 s — Partagez uniquement avec votre médecin',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _CountdownBadge extends StatelessWidget {
-  const _CountdownBadge({required this.seconds});
+class _CountdownRing extends StatelessWidget {
+  const _CountdownRing({required this.seconds, required this.urgent});
 
   final int seconds;
+  final bool urgent;
 
   @override
   Widget build(BuildContext context) {
-    final color = seconds <= 30 ? Colors.red : Colors.green;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: color, width: 2),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.timer, color: color, size: 18),
-          const SizedBox(width: 6),
-          Text(
-            '$seconds s',
-            style: TextStyle(fontWeight: FontWeight.bold, color: color),
+    final color = urgent ? AppColors.allergy : AppColors.primary500;
+    final progress = (seconds / 120).clamp(0.0, 1.0);
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: CircularProgressIndicator(
+            value: progress,
+            strokeWidth: 4,
+            backgroundColor: AppColors.white.withAlpha(25),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
-        ],
-      ),
+        ),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$seconds',
+              style: TextStyle(
+                color: color,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              's',
+              style: TextStyle(
+                color: color.withAlpha(180),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -197,20 +306,60 @@ class _ExpiredView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.timer_off, size: 64, color: Colors.orange),
-          const SizedBox(height: 16),
-          const Text('QR expiré', style: TextStyle(fontSize: 20)),
-          const SizedBox(height: 8),
-          const Text('Pour la sécurité, générez un nouveau code.'),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRegenerate,
-            child: const Text('Régénérer'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.white.withAlpha(15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Symbols.timer_off_rounded,
+                size: 40,
+                color: AppColors.white.withAlpha(153),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Code expiré',
+              style: TextStyle(
+                color: AppColors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Pour la sécurité, chaque code n\'est valable que 120 secondes.',
+              style: TextStyle(
+                color: AppColors.white.withAlpha(153),
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: onRegenerate,
+              icon: const Icon(Symbols.refresh_rounded),
+              label: const Text('Régénérer'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary500,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -225,18 +374,58 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
-          const SizedBox(height: 16),
-          Text(message),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('Réessayer'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Symbols.error_rounded,
+              size: 56,
+              color: AppColors.allergy.withAlpha(200),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Impossible de générer le code',
+              style: TextStyle(
+                color: AppColors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: TextStyle(
+                color: AppColors.white.withAlpha(120),
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 32),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Symbols.refresh_rounded, color: AppColors.white),
+              label: const Text(
+                'Réessayer',
+                style: TextStyle(color: AppColors.white),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: AppColors.white.withAlpha(80)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
