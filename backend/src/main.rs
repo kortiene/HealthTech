@@ -24,11 +24,12 @@ mod store;
 use axum::{
     body::Bytes,
     extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{header, HeaderName, HeaderValue, StatusCode},
+    http::{header, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
+use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
 use config::Config;
@@ -243,6 +244,13 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
         )
         .route("/media/:uuid/access", post(post_media_access))
         .layer(DefaultBodyLimit::max(MAX_MEDIA_BYTES));
+    // Permissive CORS for dev: the doctor PWA (browser) needs cross-origin
+    // access to GET/PUT /blob and /media. Restrict in production via ADR 0008.
+    let cors = CorsLayer::new()
+        .allow_origin(tower_http::cors::Any)
+        .allow_methods([Method::GET, Method::PUT, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+
     Router::new()
         .route("/health", get(health))
         .merge(blob_routes)
@@ -252,6 +260,7 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
             media,
             access,
         })
+        .layer(cors)
 }
 
 #[tokio::main]

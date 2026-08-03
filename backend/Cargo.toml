@@ -26,6 +26,9 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 
+# CORS middleware — allows the doctor PWA (browser) to fetch blobs cross-origin.
+tower-http = { version = "0.5", features = ["cors"] }
+
 # Structured logging.
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
