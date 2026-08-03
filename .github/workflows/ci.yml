@@ -100,6 +100,17 @@ jobs:
       - name: Format (lint)
         working-directory: app-patient
         run: dart format --output=none --set-exit-if-changed .
+      # Guard: production entry-point must never import dev stubs.
+      # DevCryptoCore XOR-0x5A and other stubs are lib/src/stubs/; they must
+      # remain injected only through lib/main_dev.dart, never lib/main.dart.
+      - name: Gate — no dev-stubs in lib/main.dart
+        working-directory: app-patient
+        run: |
+          if grep -qE "src/stubs/" lib/main.dart; then
+            echo "ERROR: lib/main.dart imports from lib/src/stubs/ — stubs must stay in main_dev.dart only."
+            exit 1
+          fi
+          echo "OK: lib/main.dart contains no stub imports."
       - name: Analyze (lint)
         working-directory: app-patient
         run: flutter analyze
