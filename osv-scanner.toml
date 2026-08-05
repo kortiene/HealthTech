@@ -29,3 +29,7 @@ reason = "rustls-webpki — reachable panic in CRL parsing. Same rationale as RU
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0363"
 reason = "sqlx 0.7.4 — h2 integer overflow; fixed in sqlx 0.8.1. Upgrade deferred (breaking API changes); backend does not expose HTTP/2. Revisit in next sprint."
+
+[[IgnoredVulns]]
+id = "GHSA-frvp-7c67-39w9"
+reason = "@hono/node-server 1.19.14 — fixed in 2.0.5 (major version bump). adw_sdlc dev tooling only; not part of the patient data pipeline. Upgrade blocked by semver constraint; bump separately."
