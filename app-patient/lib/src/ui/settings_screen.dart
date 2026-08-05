@@ -110,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             record: widget.record,
             account: widget.account,
             collapsedTitle: 'Paramètres',
+            showAllergie: false,
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
@@ -164,7 +165,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       iconBg: AppColors.primary100,
                       iconColor: AppColors.primary700,
                       title: 'Modifier mon profil médical',
-                      subtitle: 'Prénom · Âge · Sexe · Groupe sanguin',
+                      subtitle:
+                          'Prénom · Âge · Sexe · Groupe sanguin · Taille · Poids',
                       onTap: widget.onUpdateRecord != null
                           ? () => _showEditProfile(context)
                           : null,
@@ -234,8 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.primary700),
+                                  strokeWidth: 2, color: AppColors.primary700),
                             )
                           : null,
                       onTap: widget.onManualSync != null && !_syncing
@@ -334,8 +335,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showPinChange(BuildContext context) {
     if (widget.storedPin == null || widget.onChangePin == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Changement de PIN non disponible')));
+          const SnackBar(content: Text('Changement de PIN non disponible')));
       return;
     }
     Navigator.of(context, rootNavigator: true).push(
@@ -352,9 +352,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await widget.onChangePin!(newPin);
                     if (context.mounted) {
                       Navigator.of(context, rootNavigator: true).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Code PIN modifié avec succès')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Code PIN modifié avec succès')));
                     }
                   },
                 ),
@@ -373,10 +372,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final available = await svc.isAvailable();
       if (!available) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content:
-                    Text('Biométrie non disponible sur cet appareil')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Biométrie non disponible sur cet appareil')));
         }
         return;
       }
@@ -402,7 +399,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur de synchronisation — réessayez')),
+          const SnackBar(
+              content: Text('Erreur de synchronisation — réessayez')),
         );
       }
     } finally {
@@ -416,8 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
       builder: (_) => const _PrivacyPolicySheet(),
     );
@@ -682,6 +679,8 @@ class _EditProfileSheet extends StatefulWidget {
 class _EditProfileSheetState extends State<_EditProfileSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _birthYearCtrl;
+  late final TextEditingController _heightController;
+  late final TextEditingController _weightController;
   late final TextEditingController _newSubstanceCtrl;
   String? _sex;
   String? _bloodType;
@@ -709,6 +708,10 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
     _nameCtrl = TextEditingController(text: d.givenName ?? '');
     _birthYearCtrl = TextEditingController(
         text: d.birthYear != null ? '${d.birthYear}' : '');
+    _heightController =
+        TextEditingController(text: d.heightCm != null ? '${d.heightCm}' : '');
+    _weightController =
+        TextEditingController(text: d.weightKg != null ? '${d.weightKg}' : '');
     _newSubstanceCtrl = TextEditingController();
     _sex = d.sex;
     _bloodType = d.bloodType;
@@ -719,6 +722,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _birthYearCtrl.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     _newSubstanceCtrl.dispose();
     super.dispose();
   }
@@ -742,11 +747,19 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
     final yearText = _birthYearCtrl.text.trim();
     final birthYear = yearText.isEmpty ? null : int.tryParse(yearText);
 
+    final heightText = _heightController.text.trim();
+    final heightCm = heightText.isEmpty ? null : int.tryParse(heightText);
+
+    final weightText = _weightController.text.trim();
+    final weightKg = weightText.isEmpty ? null : double.tryParse(weightText);
+
     final newDemo = Demographics(
       givenName: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
       birthYear: birthYear,
       sex: _sex,
       bloodType: _bloodType,
+      heightCm: heightCm,
+      weightKg: weightKg,
     );
 
     setState(() => _saving = true);
@@ -878,6 +891,33 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                     ),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Taille (optionnel)
+              _label(tt, 'Taille (cm) — optionnel'),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _heightController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: 'ex: 170',
+                  prefixIcon: Icon(Symbols.height_rounded),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Poids (optionnel)
+              _label(tt, 'Poids (kg) — optionnel'),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _weightController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  hintText: 'ex: 65.5',
+                  prefixIcon: Icon(Symbols.monitor_weight_rounded),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
 
@@ -1134,7 +1174,8 @@ class _PrivacyPolicySheet extends StatelessWidget {
                   ),
                   _PolicySection(
                     title: '6. Vos droits (loi 2013-450)',
-                    body: '• Droit d\'accès : votre dossier est visible dans l\'onglet Mon Dossier\n'
+                    body:
+                        '• Droit d\'accès : votre dossier est visible dans l\'onglet Mon Dossier\n'
                         '• Droit de rectification : modifiable via Paramètres → Profil médical\n'
                         '• Droit à l\'effacement : Paramètres → Supprimer mon compte\n'
                         '• Droit à la portabilité : export disponible prochainement\n\n'
@@ -1189,12 +1230,11 @@ class _PolicySection extends StatelessWidget {
         children: [
           Text(title,
               style: tt.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary900)),
+                  fontWeight: FontWeight.w700, color: AppColors.primary900)),
           const SizedBox(height: AppSpacing.xs),
           Text(body,
-              style:
-                  tt.bodyMedium?.copyWith(color: AppColors.neutral700, height: 1.5)),
+              style: tt.bodyMedium
+                  ?.copyWith(color: AppColors.neutral700, height: 1.5)),
         ],
       ),
     );

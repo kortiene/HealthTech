@@ -18,8 +18,10 @@ import '../record/prescription.dart';
 /// - When [prescription] is non-null and non-empty, its lines are appended to
 ///   [MedicalRecord.medications] and rendered into the consultation's
 ///   `prescription` text field.
+/// - When [newAllergies] is non-empty, those entries are APPENDED to the
+///   patient's allergy list (never replacing existing ones).
 /// - [MedicalRecord.updatedAt] is bumped to [nowIso]; every other section
-///   (allergies, conditions, immunizations, demographics, createdAt, patientId,
+///   (conditions, immunizations, demographics, createdAt, patientId,
 ///   schema version) is carried over unchanged.
 ///
 /// [date] is the consultation's ISO `yyyy-MM-dd`; [summary] is the clinical
@@ -32,6 +34,7 @@ MedicalRecord mergeConsultation(
   required String date,
   required String summary,
   Prescription? prescription,
+  List<Allergy> newAllergies = const [],
   required String newConsultationId,
   required String nowIso,
 }) {
@@ -56,6 +59,10 @@ MedicalRecord mergeConsultation(
             ...prescription.toMedications(date, practitionerRef),
           ]
         : existing.medications,
+    // Append doctor-noted allergies; existing entries are preserved.
+    allergies: newAllergies.isEmpty
+        ? existing.allergies
+        : [...existing.allergies, ...newAllergies],
     updatedAt: nowIso,
   );
 }

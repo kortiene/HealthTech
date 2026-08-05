@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthTech — Présentation Projet</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:    #0d5c3a;
+      --primary-lt: #e6f4ed;
+      --accent:     #16a34a;
+      --accent2:    #0891b2;
+      --warn:       #d97706;
+      --danger:     #dc2626;
+      --ok:         #16a34a;
+      --bg:         #f8fafc;
+      --card:       #ffffff;
+      --border:     #e2e8f0;
+      --text:       #0f172a;
+      --muted:      #64748b;
+      --radius:     12px;
+      --shadow:     0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Layout ── */
+    .page { max-width: 1040px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, #1a7a50 60%, var(--accent2) 100%);
+      color: #fff;
+      padding: 64px 24px 56px;
+      text-align: center;
+    }
+    .hero-logo {
+      display: inline-flex; align-items: center; gap: 12px;
+      background: rgba(255,255,255,.15); border-radius: 16px;
+      padding: 10px 20px; margin-bottom: 28px;
+      font-size: 22px; font-weight: 800; letter-spacing: -.5px;
+    }
+    .hero-logo svg { width: 32px; height: 32px; }
+    .hero h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 800; margin-bottom: 16px; }
+    .hero p { font-size: 18px; opacity: .85; max-width: 640px; margin: 0 auto 32px; }
+    .hero-badges { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .badge {
+      background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
+      border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 600;
+    }
+
+    /* ── Nav sticky ── */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1040px; margin: 0 auto;
+      display: flex; gap: 4px; overflow-x: auto; padding: 0;
+      scrollbar-width: none;
+    }
+    .nav-inner::-webkit-scrollbar { display: none; }
+    .nav a {
+      display: inline-block; padding: 14px 16px;
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      text-decoration: none; white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+    .nav a:hover { color: var(--primary); border-color: var(--primary); }
+
+    /* ── Section ── */
+    section { padding-top: 56px; }
+    .section-title {
+      font-size: 26px; font-weight: 800; color: var(--primary);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 10px;
+    }
+    .section-title span { font-size: 28px; }
+    .section-sub { font-size: 15px; color: var(--muted); margin-bottom: 32px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .card-muted { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── Grids ── */
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 20px; }
+
+    /* ── Module cards ── */
+    .module-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow);
+    }
+    .module-header {
+      padding: 20px 24px 16px;
+      display: flex; align-items: flex-start; gap: 16px;
+    }
+    .module-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; flex-shrink: 0;
+    }
+    .module-header h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .module-header p { font-size: 13px; color: var(--muted); }
+    .module-body { padding: 0 24px 20px; }
+    .feature-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .feature-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 14px; color: var(--text);
+    }
+    .feature-list li::before {
+      content: '✓'; color: var(--accent); font-weight: 700;
+      margin-top: 1px; flex-shrink: 0;
+    }
+    .tech-tag {
+      display: inline-block; background: var(--primary-lt);
+      color: var(--primary); border-radius: 6px;
+      padding: 3px 9px; font-size: 11px; font-weight: 700;
+      margin: 2px; text-transform: uppercase; letter-spacing: .3px;
+    }
+
+    /* ── Flow diagram ── */
+    .flow {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 32px 24px;
+      box-shadow: var(--shadow);
+    }
+    .flow-steps {
+      display: flex; flex-wrap: wrap;
+      align-items: center; gap: 0; justify-content: center;
+    }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px; min-width: 120px; max-width: 150px; text-align: center;
+    }
+    .flow-icon {
+      width: 60px; height: 60px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; border: 2px solid var(--border);
+    }
+    .flow-step span { font-size: 13px; font-weight: 600; color: var(--text); }
+    .flow-step small { font-size: 11px; color: var(--muted); margin-top: -6px; }
+    .flow-arrow {
+      font-size: 22px; color: var(--muted); padding: 0 8px;
+      margin-top: -18px;
+    }
+
+    /* ── Status table ── */
+    .status-grid { display: flex; flex-direction: column; gap: 10px; }
+    .status-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px;
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-done  { background: var(--ok); }
+    .dot-wip   { background: var(--warn); }
+    .dot-todo  { background: #cbd5e1; }
+    .status-label { font-size: 14px; font-weight: 600; flex: 1; }
+    .status-tag {
+      font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 999px; flex-shrink: 0;
+    }
+    .tag-done  { background: #dcfce7; color: var(--ok); }
+    .tag-wip   { background: #fef3c7; color: var(--warn); }
+    .tag-todo  { background: #f1f5f9; color: var(--muted); }
+
+    /* ── Security bloc ── */
+    .sec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 16px; }
+    .sec-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .sec-card .icon { font-size: 28px; margin-bottom: 12px; }
+    .sec-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .sec-card p { font-size: 13px; color: var(--muted); }
+
+    /* ── Progress bar ── */
+    .progress-wrap { margin-top: 24px; }
+    .progress-item { margin-bottom: 18px; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .progress-label { font-size: 13px; font-weight: 600; }
+    .progress-pct { font-size: 13px; color: var(--muted); }
+    .progress-bar-bg { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+
+    /* ── Roadmap ── */
+    .timeline { position: relative; padding-left: 28px; }
+    .timeline::before {
+      content: ''; position: absolute; left: 7px; top: 6px;
+      bottom: 6px; width: 2px; background: var(--border);
+    }
+    .tl-item { position: relative; margin-bottom: 24px; }
+    .tl-dot {
+      position: absolute; left: -28px; top: 4px;
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid var(--card); background: var(--border);
+    }
+    .tl-dot.done  { background: var(--ok); }
+    .tl-dot.wip   { background: var(--warn); }
+    .tl-dot.next  { background: var(--accent2); }
+    .tl-date { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 2px; text-transform: uppercase; letter-spacing: .5px; }
+    .tl-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .tl-desc { font-size: 13px; color: var(--muted); }
+
+    /* ── Compliance ── */
+    .compliance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; }
+    .comp-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; text-align: center;
+    }
+    .comp-number { font-size: 40px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+    .comp-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+    /* ── Risk ── */
+    .risk-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .risk-table th {
+      text-align: left; padding: 10px 14px;
+      background: var(--bg); border-bottom: 2px solid var(--border);
+      font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+    }
+    .risk-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .risk-table tr:last-child td { border-bottom: none; }
+    .risk-level {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .risk-high   { background: #fee2e2; color: var(--danger); }
+    .risk-medium { background: #fef3c7; color: var(--warn); }
+    .risk-low    { background: #dcfce7; color: var(--ok); }
+
+    /* ── Team / contacts ── */
+    .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+    .team-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; text-align: center;
+    }
+    .team-avatar {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--primary-lt); color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800; margin: 0 auto 12px;
+    }
+    .team-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+    .team-role { font-size: 12px; color: var(--muted); }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 64px; padding: 24px;
+      text-align: center; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--muted);
+    }
+
+    /* ── Utilities ── */
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .divider { height: 1px; background: var(--border); margin: 40px 0; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary-lt); color: var(--primary);
+      border-radius: 999px; padding: 4px 12px;
+      font-size: 12px; font-weight: 700; margin: 2px;
+    }
+    .note {
+      background: #fffbeb; border: 1px solid #fde68a;
+      border-radius: 10px; padding: 14px 18px;
+      font-size: 13px; color: #92400e; margin-top: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .flow-arrow { display: none; }
+      .flow-steps { gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════ HERO -->
+<div class="hero">
+  <div class="hero-logo">
+    <svg viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="8" fill="rgba(255,255,255,.2)"/>
+      <path d="M16 7v18M7 16h18" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    HealthTech
+  </div>
+  <h1>Dossier médical sécurisé,<br>conçu pour la Côte d'Ivoire</h1>
+  <p>Une application locale-first, zéro-connaissance, pour que chaque patient porte ses données — et les partage uniquement avec son médecin.</p>
+  <div class="hero-badges">
+    <span class="badge">📱 App Patient Flutter</span>
+    <span class="badge">💻 PWA Médecin</span>
+    <span class="badge">🔒 Chiffrement AES-256-GCM</span>
+    <span class="badge">🇨🇮 Hébergement souverain</span>
+    <span class="badge">📋 Conformité ARTCI 2013-450</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#vision">Vision</a>
+    <a href="#modules">Modules</a>
+    <a href="#securite">Sécurité</a>
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a href="#avancement">Avancement</a>
+    <a href="#compliance">Compliance</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#risques">Risques</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- ══════════════════════════════════════════ VISION -->
+  <section id="vision">
+    <div class="section-title"><span>🎯</span> Problème & Vision</div>
+    <p class="section-sub">Ce qu'on résout, et comment.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">❌ Le problème aujourd'hui</div>
+        <div class="card-muted">Dans le système actuel</div>
+        <ul class="feature-list" style="--li-color: #dc2626;">
+          <li style="color:var(--text)">Le patient n'a pas accès à son dossier entre deux consultations</li>
+          <li style="color:var(--text)">Les données médicales sont stockées en clair sur des serveurs tiers</li>
+          <li style="color:var(--text)">Aucune continuité de soin : chaque médecin repart de zéro</li>
+          <li style="color:var(--text)">Pas de standard légal appliqué (loi 2013-450 ignorée)</li>
+          <li style="color:var(--text)">Les données circulent hors du territoire national</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color: var(--accent);">
+        <div class="card-title" style="color:var(--accent)">✅ Notre solution</div>
+        <div class="card-muted">HealthTech répond à chaque point</div>
+        <ul class="feature-list">
+          <li>Le patient est propriétaire de ses données — chiffrées sur son téléphone</li>
+          <li>Le serveur ne voit jamais les données en clair (zéro-connaissance)</li>
+          <li>Le médecin reçoit les infos par QR sécurisé, à chaque consultation</li>
+          <li>Architecture conforme ARTCI, auditée et documentée</li>
+          <li>Hébergement 100 % en Côte d'Ivoire (Abidjan)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Comment ça marche -->
+    <div class="flow mt-24">
+      <div class="card-title" style="text-align:center; margin-bottom:28px; font-size:18px;">Comment fonctionne une consultation ?</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-icon" style="background:#e6f4ed;">📱</div>
+          <span>Patient ouvre l'app</span>
+          <small>Déverrouillage PIN / biométrie</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon" style="background:#e0f2fe;">🔐</div>
+          <span>Génération QR sécurisé</span>
+          <small>Valide 120 secondes, usage unique</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon" style="background:#fef3c7;">💻</div>
+          <span>Médecin scanne le QR</span>
+          <small>Sur sa PWA (navigateur)</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon" style="background:#f0fdf4;">📋</div>
+          <span>Consultation & note</span>
+          <small>Allergies, ordonnance, médecin</small>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon" style="background:#fce7f3;">🔄</div>
+          <span>Sync automatique</span>
+          <small>Le patient voit la note mise à jour</small>
+        </div>
+      </div>
+      <div class="note" style="margin-top:24px; text-align:center;">
+        🔒 À aucun moment le serveur ne voit les données médicales en clair — il stocke uniquement des blobs chiffrés opaques.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ MODULES -->
+  <section id="modules">
+    <div class="section-title"><span>🧩</span> Les 3 modules</div>
+    <p class="section-sub">Trois composants distincts, un seul flux de données sécurisé.</p>
+
+    <div class="grid-3">
+
+      <!-- Patient -->
+      <div class="module-card">
+        <div class="module-header">
+          <div class="module-icon" style="background:#e6f4ed; font-size:28px;">📱</div>
+          <div>
+            <h3>App Patient</h3>
+            <p>Application mobile Flutter (Android/iOS)</p>
+          </div>
+        </div>
+        <div class="module-body">
+          <ul class="feature-list">
+            <li>Onboarding guidé (création de profil sécurisé)</li>
+            <li>Authentification PIN + biométrie (empreinte/Face ID)</li>
+            <li>Dossier médical : allergies, mesures (poids/taille), consultations, ordonnances</li>
+            <li>Génération de QR code sécurisé pour partager avec le médecin</li>
+            <li>Scanner de QR pour lire des prescriptions</li>
+            <li>Synchronisation cloud automatique au retour du médecin</li>
+            <li>Indicateur "Dernière sauvegarde" en temps réel</li>
+            <li>Suppression de compte et effacement local complet</li>
+            <li>Fonctionne hors-ligne (données locales chiffrées)</li>
+          </ul>
+          <div style="margin-top:16px;">
+            <span class="tech-tag">Flutter 3.24</span>
+            <span class="tech-tag">Dart 3.5</span>
+            <span class="tech-tag">Android</span>
+            <span class="tech-tag">iOS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Médecin -->
+      <div class="module-card">
+        <div class="module-header">
+          <div class="module-icon" style="background:#e0f2fe; font-size:28px;">💻</div>
+          <div>
+            <h3>PWA Médecin</h3>
+            <p>Application web progressive (navigateur)</p>
+          </div>
+        </div>
+        <div class="module-body">
+          <ul class="feature-list">
+            <li>Scan du QR patient depuis le navigateur (caméra)</li>
+            <li>Affichage du dossier complet : allergies, mesures, historique</li>
+            <li>Saisie d'une note de consultation</li>
+            <li>Ordonnance structurée (médicament, dose, fréquence, durée)</li>
+            <li>Enregistrement des nouvelles allergies (substance + sévérité)</li>
+            <li>Champ Médecin + Établissement / Contact sur la même ligne</li>
+            <li>Auto-confirmation d'une allergie à la sauvegarde</li>
+            <li>Zéro installation — fonctionne dans tout navigateur moderne</li>
+            <li>Données déchiffrées en RAM uniquement (jamais persistées)</li>
+          </ul>
+          <div style="margin-top:16px;">
+            <span class="tech-tag">Preact 10</span>
+            <span class="tech-tag">TypeScript</span>
+            <span class="tech-tag">Vite</span>
+            <span class="tech-tag">PWA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backend -->
+      <div class="module-card">
+        <div class="module-header">
+          <div class="module-icon" style="background:#fef3c7; font-size:28px;">☁️</div>
+          <div>
+            <h3>Backend</h3>
+            <p>Serveur zéro-connaissance (Rust + Axum)</p>
+          </div>
+        </div>
+        <div class="module-body">
+          <ul class="feature-list">
+            <li>Stocke uniquement des blobs chiffrés opaques (aucune donnée en clair)</li>
+            <li>API REST simple : GET / PUT / DELETE sur <code>/blob/{uuid}</code></li>
+            <li>Aucune capacité de déchiffrement — même l'admin ne peut pas lire les données</li>
+            <li>Rate limiting par IP pour prévenir les abus</li>
+            <li>Journalisation sans PII (identifiants anonymes uniquement)</li>
+            <li>Déploiement sur infrastructure souveraine (Abidjan)</li>
+          </ul>
+          <div style="margin-top:16px;">
+            <span class="tech-tag">Rust</span>
+            <span class="tech-tag">Axum</span>
+            <span class="tech-tag">Tokio</span>
+            <span class="tech-tag">MinIO</span>
+            <span class="tech-tag">PostgreSQL</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Crypto core -->
+    <div class="card mt-24" style="border-color: var(--primary); border-width: 2px;">
+      <div style="display:flex; align-items:flex-start; gap:16px;">
+        <div style="font-size:36px; flex-shrink:0;">🔑</div>
+        <div>
+          <div class="card-title" style="font-size:18px;">Crypto-Core Rust — le pilier de sécurité</div>
+          <p style="font-size:14px; color:var(--muted); margin-bottom:14px;">
+            Une seule implémentation cryptographique, partagée par tous les modules. Cela garantit qu'il n'y a pas de divergence entre le chiffrement côté patient et le déchiffrement côté médecin.
+          </p>
+          <div class="grid-2" style="gap:12px;">
+            <div>
+              <strong style="font-size:13px;">Algorithmes utilisés</strong>
+              <ul style="margin-top:6px; font-size:13px; color:var(--muted); padding-left:18px;">
+                <li>AES-256-GCM — chiffrement authentifié</li>
+                <li>PBKDF2-SHA256 — dérivation de clé depuis le PIN</li>
+                <li>Nonces aléatoires — unicité garantie</li>
+              </ul>
+            </div>
+            <div>
+              <strong style="font-size:13px;">Utilisé par</strong>
+              <ul style="margin-top:6px; font-size:13px; color:var(--muted); padding-left:18px;">
+                <li>App Patient via Flutter-Rust-Bridge</li>
+                <li>PWA Médecin via WebAssembly</li>
+                <li>Tests CI — vecteurs NIST officiels</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ SÉCURITÉ -->
+  <section id="securite">
+    <div class="section-title"><span>🔒</span> Sécurité & Confidentialité</div>
+    <p class="section-sub">Les principes fondateurs de l'architecture — non négociables.</p>
+
+    <div class="sec-grid">
+      <div class="sec-card">
+        <div class="icon">🏛️</div>
+        <h4>Zéro-connaissance</h4>
+        <p>Le serveur ne reçoit que des blobs opaques. Il n'a aucune clé, aucun moyen de lire les données. Vérifié par des tests d'acceptation en CI.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">📵</div>
+        <h4>Local-first</h4>
+        <p>Les données médicales vivent sur le téléphone du patient, chiffrées avec sa clé maître. L'app fonctionne entièrement hors-ligne.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">⏱️</div>
+        <h4>QR éphémère</h4>
+        <p>Le QR code partagé avec le médecin expire après 120 secondes et est à usage unique. Après expiration, la session est révoquée.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">🧠</div>
+        <h4>RAM-only (PWA)</h4>
+        <p>Le médecin déchiffre les données uniquement en mémoire vive. Rien n'est écrit sur le disque ou dans le navigateur.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">📱</div>
+        <h4>Keystore TEE</h4>
+        <p>Sur Android, la clé maître est protégée par le Trusted Execution Environment (puce dédiée, isolée du système).</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">🗑️</div>
+        <h4>Effacement garanti</h4>
+        <p>La suppression de compte efface toutes les données locales et le blob cloud. Aucune trace ne subsiste nulle part.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">🌍</div>
+        <h4>Souveraineté des données</h4>
+        <p>Infrastructure déployée uniquement en Côte d'Ivoire. Un garde-fou IaC empêche tout déploiement hors du territoire.</p>
+      </div>
+      <div class="sec-card">
+        <div class="icon">🕵️</div>
+        <h4>Aucune fuite de PII</h4>
+        <p>Le CMU et le numéro de téléphone ne transitent jamais en clair. Jamais dans les logs. Jamais sur le serveur.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ FONCTIONNALITÉS -->
+  <section id="fonctionnalites">
+    <div class="section-title"><span>✨</span> Fonctionnalités détaillées</div>
+    <p class="section-sub">Ce que chaque utilisateur peut faire dans l'application.</p>
+
+    <div class="grid-2">
+      <!-- Patient -->
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+          <span style="font-size:24px;">👤</span>
+          <div>
+            <div class="card-title">Vue patient</div>
+            <div class="card-muted">Ce que le patient voit et fait</div>
+          </div>
+        </div>
+
+        <p style="font-size:13px; font-weight:700; color:var(--primary); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">Accueil</p>
+        <ul class="feature-list" style="margin-bottom:16px;">
+          <li>Bouton "Partager mon dossier" — génère le QR immédiatement</li>
+          <li>Dernière consultation affichée avec date, médecin, note</li>
+          <li>Indicateur de dernière sauvegarde cloud (ex: "il y a 3 min")</li>
+          <li>Bouton scanner pour lire une prescription médecin</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:700; color:var(--primary); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">Dossier médical</p>
+        <ul class="feature-list" style="margin-bottom:16px;">
+          <li>Informations personnelles (prénom, année de naissance, sexe)</li>
+          <li>Mesures : poids (kg) et taille (cm)</li>
+          <li>Allergies avec niveau de sévérité (légère / modérée / sévère)</li>
+          <li>Antécédents médicaux</li>
+          <li>Médicaments en cours</li>
+          <li>Historique complet des consultations et ordonnances</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:700; color:var(--primary); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">Paramètres</p>
+        <ul class="feature-list">
+          <li>Changement de code PIN</li>
+          <li>Activation/désactivation biométrie</li>
+          <li>Synchronisation manuelle</li>
+          <li>Suppression complète du compte</li>
+        </ul>
+      </div>
+
+      <!-- Médecin -->
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+          <span style="font-size:24px;">🩺</span>
+          <div>
+            <div class="card-title">Vue médecin</div>
+            <div class="card-muted">Ce que le médecin voit et fait</div>
+          </div>
+        </div>
+
+        <p style="font-size:13px; font-weight:700; color:var(--accent2); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">Lecture du dossier</p>
+        <ul class="feature-list" style="margin-bottom:16px;">
+          <li>Scan du QR depuis la caméra du PC/tablette</li>
+          <li>Identité patient (prénom, âge calculé, sexe)</li>
+          <li>Poids et taille mis en avant pour les ordonnances</li>
+          <li>Alertes allergies avec code couleur (rouge = sévère)</li>
+          <li>Médicaments actuels pour éviter les interactions</li>
+          <li>Historique des consultations passées</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:700; color:var(--accent2); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">Saisie de consultation</p>
+        <ul class="feature-list">
+          <li>Nom du médecin + Établissement / Clinique (même ligne)</li>
+          <li>Contact de l'établissement (téléphone ou e-mail)</li>
+          <li>Note libre de consultation</li>
+          <li>Ordonnance structurée : médicament, dose, fréquence, durée en jours</li>
+          <li>Ajout d'allergies découvertes lors de la consultation</li>
+          <li>Enregistrement sécurisé — le patient voit les mises à jour après fermeture du QR</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ AVANCEMENT -->
+  <section id="avancement">
+    <div class="section-title"><span>📊</span> État d'avancement</div>
+    <p class="section-sub">Ce qui est livré, en cours, et planifié.</p>
+
+    <div class="grid-2">
+      <div>
+        <div class="card-title" style="margin-bottom:16px;">✅ Livré &amp; fonctionnel</div>
+        <div class="status-grid">
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Architecture & décisions techniques (10 ADRs)</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">App Patient — UI complète (toutes les pages)</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">PWA Médecin — scan + dossier + consultation</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Flux QR sécurisé patient → médecin</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Allergies, ordonnances, notes sauvegardées</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Synchronisation cloud (dernière sauvegarde)</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Authentification PIN + biométrie</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Backend Rust zéro-connaissance</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">Matrice conformité ARTCI (25 exigences)</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-done"></div>
+            <span class="status-label">CI/CD avec gates de sécurité</span>
+            <span class="status-tag tag-done">Livré</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card-title" style="margin-bottom:16px;">🔧 En cours &amp; Planifié</div>
+        <div class="status-grid">
+          <div class="status-row">
+            <div class="status-dot dot-wip"></div>
+            <span class="status-label">Crypto-core Rust — bridge Flutter &amp; WASM</span>
+            <span class="status-tag tag-wip">En cours</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-wip"></div>
+            <span class="status-label">Tests appareil bas de gamme (Infinix)</span>
+            <span class="status-tag tag-wip">En cours</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Keystore TEE Kotlin (protection puce)</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Mise en production — infrastructure Abidjan</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Pentest externe (sécurité QR, RAM, wipe)</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Revue crypto indépendante (AES-GCM)</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Dépôt dossier homologation ARTCI</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+          <div class="status-row">
+            <div class="status-dot dot-todo"></div>
+            <span class="status-label">Publication App Stores (Android / iOS)</span>
+            <span class="status-tag tag-todo">Planifié</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barres de progression -->
+    <div class="card mt-24">
+      <div class="card-title" style="margin-bottom:24px;">Progression par module</div>
+      <div class="progress-wrap">
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">📱 App Patient — UX & Fonctionnalités</span>
+            <span class="progress-pct">85 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:85%; background:var(--ok);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">💻 PWA Médecin — UX & Fonctionnalités</span>
+            <span class="progress-pct">80 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:80%; background:var(--ok);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">☁️ Backend — API &amp; sécurité</span>
+            <span class="progress-pct">75 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:75%; background:var(--accent2);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">🔑 Crypto-Core — production-ready</span>
+            <span class="progress-pct">55 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:55%; background:var(--warn);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">🏗️ Infrastructure souveraine</span>
+            <span class="progress-pct">30 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:30%; background:var(--warn);"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">📋 Compliance &amp; Homologation ARTCI</span>
+            <span class="progress-pct">40 %</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:40%; background:var(--warn);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ COMPLIANCE -->
+  <section id="compliance">
+    <div class="section-title"><span>⚖️</span> Conformité légale</div>
+    <p class="section-sub">Respect de la loi ivoirienne sur la protection des données personnelles (loi 2013-450) et des exigences ARTCI.</p>
+
+    <div class="compliance-grid">
+      <div class="comp-card">
+        <div class="comp-number" style="color:var(--ok)">25</div>
+        <div class="comp-label">Exigences légales tracées</div>
+      </div>
+      <div class="comp-card">
+        <div class="comp-number" style="color:var(--accent2)">10</div>
+        <div class="comp-label">Conformes ou partiellement livrées</div>
+      </div>
+      <div class="comp-card">
+        <div class="comp-number" style="color:var(--warn)">13</div>
+        <div class="comp-label">Planifiées en backlog</div>
+      </div>
+      <div class="comp-card">
+        <div class="comp-number" style="color:var(--primary)">29</div>
+        <div class="comp-label">Preuves de conformité attendues</div>
+      </div>
+    </div>
+
+    <div class="grid-2 mt-24">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Principes respectés</div>
+        <ul class="feature-list">
+          <li>Finalité déterminée et limitée (données de santé uniquement)</li>
+          <li>Consentement explicite — l'utilisateur génère lui-même le QR</li>
+          <li>Minimisation des données — le serveur ne stocke que le nécessaire</li>
+          <li>Droit à l'effacement implémenté et testé</li>
+          <li>Localisation des données en Côte d'Ivoire (art. 52 loi 2013-450)</li>
+          <li>Chiffrement de bout en bout — données inaccessibles en transit</li>
+          <li>Threat model STRIDE documenté (menaces identifiées)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Étapes d'homologation</div>
+        <ul class="feature-list">
+          <li>Dossier technique complet (ADRs + matrice conformité)</li>
+          <li>Pentest externe planifié (#25)</li>
+          <li>Revue crypto indépendante planifiée (#26)</li>
+          <li>Dépôt ARTCI en préparation (#30)</li>
+          <li>Bilan ARTCI rédigé (docs/compliance/)</li>
+          <li>Brief juridique 2026 disponible</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ ROADMAP -->
+  <section id="roadmap">
+    <div class="section-title"><span>🗺️</span> Roadmap</div>
+    <p class="section-sub">Les grandes étapes, de l'état actuel au lancement.</p>
+
+    <div class="card">
+      <div class="timeline">
+
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">Phase 1 — Terminé</div>
+          <div class="tl-title">Architecture & Scaffold</div>
+          <div class="tl-desc">Toutes les décisions techniques prises (ADR 0001–0010). Infrastructure de build, CI/CD, monorepo organisé. App Patient et PWA Médecin compilables.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">Phase 2 — Terminé</div>
+          <div class="tl-title">Fonctionnalités core</div>
+          <div class="tl-desc">Flux QR complet. Dossier médical (allergies, ordonnances, consultations). Authentification PIN + biométrie. Synchronisation cloud. UX médecin et patient finalisée.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot wip"></div>
+          <div class="tl-date">Phase 3 — En cours</div>
+          <div class="tl-title">Hardening sécurité & crypto production</div>
+          <div class="tl-desc">Intégration du crypto-core Rust en production (Flutter-Rust-Bridge + WASM). Keystore TEE Kotlin. Tests sur appareils bas de gamme (Infinix). Gate de performance déchiffrement.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot next"></div>
+          <div class="tl-date">Phase 4 — Prochaine</div>
+          <div class="tl-title">Infrastructure souveraine & audits</div>
+          <div class="tl-desc">Mise en production sur serveurs Abidjan (MinIO + PostgreSQL). Pentest externe. Revue crypto indépendante. Dépôt du dossier d'homologation ARTCI.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Phase 5 — Futur</div>
+          <div class="tl-title">Lancement & distribution</div>
+          <div class="tl-desc">Publication sur Google Play et App Store. Déploiement PWA médecin sur domaine healthtech.ci. Onboarding des premières cliniques partenaires. Monitoring production.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ RISQUES -->
+  <section id="risques">
+    <div class="section-title"><span>⚠️</span> Risques identifiés</div>
+    <p class="section-sub">Transparence totale — les risques connus et leurs mitigations.</p>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table class="risk-table">
+        <thead>
+          <tr>
+            <th>Risque</th>
+            <th>Niveau</th>
+            <th>Mitigation prévue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Crypto SPOF</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Une seule implémentation AES — si compromise, tous les targets sont touchés</span>
+            </td>
+            <td><span class="risk-level risk-medium">Moyen</span></td>
+            <td style="font-size:13px;">Dépendances épinglées (cargo-deny), revue crypto indépendante, builds reproductibles</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>RAM-only navigateur</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Le GC JavaScript peut paginer la mémoire avant le wipe</span>
+            </td>
+            <td><span class="risk-level risk-medium">Moyen</span></td>
+            <td style="font-size:13px;">Reload-wipe-heap à la fermeture, durée minimale du plaintext en RAM, pentest prévu</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Android Keystore bas de gamme</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Pas de StrongBox TEE sur les appareils Infinix 32 Go</span>
+            </td>
+            <td><span class="risk-level risk-medium">Moyen</span></td>
+            <td style="font-size:13px;">Gate CI sur appareils réels (#29), fallback PBKDF2 avec recovery (#12)</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Footprint mémoire Flutter</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Téléphones 32 Go quasi saturés sur le marché cible</span>
+            </td>
+            <td><span class="risk-level risk-high">Élevé (à valider)</span></td>
+            <td style="font-size:13px;">Device-lab gate BLOQUANT avant build-out — benchmark sur Infinix réel (#29)</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>PBKDF2 performance PIN</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Tradeoff iterations/vitesse sur CPU lent</span>
+            </td>
+            <td><span class="risk-level risk-low">Faible</span></td>
+            <td style="font-size:13px;">Benchmark device-lab, ajustement des iterations si UX dégradée</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Datacenter unique</strong><br>
+              <span style="color:var(--muted); font-size:12px;">Un seul site souverain = point de défaillance unique</span>
+            </td>
+            <td><span class="risk-level risk-low">Faible</span></td>
+            <td style="font-size:13px;">HA in-country (réplication multi-AZ Abidjan), app reste fonctionnelle offline</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════ STACK -->
+  <section id="stack" style="padding-top:56px;">
+    <div class="section-title"><span>🛠️</span> Stack technique résumée</div>
+    <p class="section-sub">Les technologies choisies et pourquoi.</p>
+
+    <div class="grid-3">
+      <div class="card">
+        <div style="font-size:22px; margin-bottom:10px;">📱 App Patient</div>
+        <div class="chip">Flutter 3.24</div>
+        <div class="chip">Dart 3.5</div>
+        <div class="chip">flutter_secure_storage</div>
+        <div class="chip">flutter_rust_bridge</div>
+        <div class="chip">SQLCipher</div>
+        <div class="chip">mobile_scanner</div>
+        <div class="chip">qr_flutter</div>
+        <p style="font-size:12px; color:var(--muted); margin-top:12px;">Choix : une seule codebase → Android + iOS. Offline-first natif. Performance native sur les appareils bas de gamme.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px; margin-bottom:10px;">💻 PWA Médecin</div>
+        <div class="chip">Preact 10.26</div>
+        <div class="chip">TypeScript 5.8</div>
+        <div class="chip">Vite 6</div>
+        <div class="chip">Workbox (SW)</div>
+        <div class="chip">WebAssembly</div>
+        <p style="font-size:12px; color:var(--muted); margin-top:12px;">Choix : zéro installation. Fonctionne sur tout navigateur. Le médecin n'a pas à gérer une app — il ouvre simplement son navigateur.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:22px; margin-bottom:10px;">☁️ Backend + Crypto</div>
+        <div class="chip">Rust 2021</div>
+        <div class="chip">Axum 0.7</div>
+        <div class="chip">Tokio</div>
+        <div class="chip">AES-256-GCM</div>
+        <div class="chip">PBKDF2-SHA256</div>
+        <div class="chip">MinIO</div>
+        <div class="chip">PostgreSQL</div>
+        <p style="font-size:12px; color:var(--muted); margin-top:12px;">Choix Rust : performances, mémoire sûre, zéro null pointer. Crypto unique partagée → une seule implémentation à auditer.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <strong>HealthTech</strong> — Dossier médical sécurisé pour la Côte d'Ivoire<br>
+    Document interne — Présentation équipe · 2026
+  </div>
+
+</div>
+</body>
+</html>

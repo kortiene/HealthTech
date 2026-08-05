@@ -16,6 +16,7 @@ class PatientHeroAppBar extends StatelessWidget {
     this.showGreeting = false,
     this.actions,
     this.expandedHeight = 220,
+    this.showAllergie = true,
   });
 
   final MedicalRecord record;
@@ -24,6 +25,7 @@ class PatientHeroAppBar extends StatelessWidget {
   final bool showGreeting;
   final List<Widget>? actions;
   final double expandedHeight;
+  final bool showAllergie;
 
   String get _greeting {
     final h = TimeOfDay.now().hour;
@@ -61,6 +63,7 @@ class PatientHeroAppBar extends StatelessWidget {
           record: record,
           account: account,
           displayName: displayName,
+          showAllergie: showAllergie,
         ),
       ),
     );
@@ -72,11 +75,13 @@ class _HeroBackground extends StatelessWidget {
     required this.record,
     required this.displayName,
     this.account,
+    required this.showAllergie,
   });
 
   final MedicalRecord record;
   final PatientAccount? account;
   final String displayName;
+  final bool showAllergie;
 
   String get _name => record.demographics.givenName ?? 'Patient';
 
@@ -95,6 +100,17 @@ class _HeroBackground extends StatelessWidget {
 
   List<Allergy> get _severeAllergies =>
       record.allergies.where((a) => a.severity == 'severe').toList();
+
+  String _bodyLabel(Demographics d) {
+    final parts = <String>[];
+    if (d.heightCm != null) parts.add('${d.heightCm} cm');
+    if (d.weightKg != null) {
+      final kg = d.weightKg!;
+      parts.add(
+          '${kg == kg.roundToDouble() ? kg.toInt() : kg.toStringAsFixed(1)} kg');
+    }
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,13 +187,25 @@ class _HeroBackground extends StatelessWidget {
                       label: record.demographics.bloodType!,
                       highlight: true,
                     ),
+                  if (record.demographics.heightCm != null ||
+                      record.demographics.weightKg != null)
+                    HeroStat(
+                      icon: Symbols.monitor_weight_rounded,
+                      label: _bodyLabel(record.demographics),
+                    ),
+                  if (record.demographics.bmi != null)
+                    HeroStat(
+                      icon: Symbols.calculate_rounded,
+                      label:
+                          'IMC ${record.demographics.bmi!.toStringAsFixed(1)}',
+                    ),
                   if (account != null)
                     const HeroStat(
                       icon: Symbols.badge_rounded,
                       label: 'CMU ✓',
                       success: true,
                     ),
-                  if (_severeAllergies.isNotEmpty)
+                  if (_severeAllergies.isNotEmpty && showAllergie)
                     HeroStat(
                       icon: Symbols.warning_rounded,
                       label: _severeAllergies.length == 1
@@ -185,8 +213,8 @@ class _HeroBackground extends StatelessWidget {
                           : '${_severeAllergies.length} allergies sévères',
                       warning: true,
                       onTap: _severeAllergies.length > 1
-                          ? () => _showSevereAllergySheet(
-                              context, _severeAllergies)
+                          ? () =>
+                              _showSevereAllergySheet(context, _severeAllergies)
                           : null,
                     ),
                 ],
@@ -199,14 +227,12 @@ class _HeroBackground extends StatelessWidget {
   }
 }
 
-void _showSevereAllergySheet(
-    BuildContext context, List<Allergy> allergies) {
+void _showSevereAllergySheet(BuildContext context, List<Allergy> allergies) {
   showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
-      borderRadius:
-          BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
     ),
     builder: (_) => _SevereAllergySheet(allergies: allergies),
   );
@@ -264,8 +290,8 @@ class _SevereAllergySheet extends StatelessWidget {
                               ?.copyWith(color: AppColors.neutral900)),
                       Text(
                         '${allergies.length} substances à risque élevé',
-                        style: tt.bodySmall
-                            ?.copyWith(color: AppColors.neutral500),
+                        style:
+                            tt.bodySmall?.copyWith(color: AppColors.neutral500),
                       ),
                     ],
                   ),
@@ -285,15 +311,13 @@ class _SevereAllergySheet extends StatelessWidget {
                 children: [
                   for (final a in allergies)
                     Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: AppSpacing.sm),
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Row(
                         children: [
                           Container(
                             width: 8,
                             height: 8,
-                            margin: const EdgeInsets.only(
-                                right: AppSpacing.sm),
+                            margin: const EdgeInsets.only(right: AppSpacing.sm),
                             decoration: const BoxDecoration(
                               color: AppColors.error,
                               shape: BoxShape.circle,
@@ -302,8 +326,8 @@ class _SevereAllergySheet extends StatelessWidget {
                           Expanded(
                             child: Text(
                               a.substance,
-                              style: tt.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w600),
+                              style: tt.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),
                           Container(

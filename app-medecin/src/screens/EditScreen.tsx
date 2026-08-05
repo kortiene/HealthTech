@@ -13,7 +13,7 @@ interface PrescriptionLine {
 
 export interface NewAllergy {
   substance: string;
-  severity: 'mild' | 'moderate' | 'severe';
+  severity: "mild" | "moderate" | "severe";
 }
 
 export interface NewConsultation {
@@ -24,7 +24,13 @@ export interface NewConsultation {
 }
 
 function newLine(): PrescriptionLine {
-  return { id: crypto.randomUUID(), medication: "", dose: "", frequency: "", durationDays: "" };
+  return {
+    id: crypto.randomUUID(),
+    medication: "",
+    dose: "",
+    frequency: "",
+    durationDays: "",
+  };
 }
 
 function buildPrescriptionText(lines: PrescriptionLine[]): string | undefined {
@@ -50,9 +56,12 @@ export interface EditScreenProps {
 export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   const [note, setNote] = useState("");
   const [doctorName, setDoctorName] = useState("");
+  const [hospital, setHospital] = useState("");
+  const [contact, setContact] = useState("");
   const [lines, setLines] = useState<PrescriptionLine[]>([newLine()]);
   const [allergySubstance, setAllergySubstance] = useState("");
-  const [allergySeverity, setAllergySeverity] = useState<NewAllergy["severity"]>("mild");
+  const [allergySeverity, setAllergySeverity] =
+    useState<NewAllergy["severity"]>("mild");
   const [newAllergies, setNewAllergies] = useState<NewAllergy[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +69,10 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   function addAllergy() {
     const s = allergySubstance.trim();
     if (!s) return;
-    setNewAllergies((prev) => [...prev, { substance: s, severity: allergySeverity }]);
+    setNewAllergies((prev) => [
+      ...prev,
+      { substance: s, severity: allergySeverity },
+    ]);
     setAllergySubstance("");
     setAllergySeverity("mild");
   }
@@ -69,12 +81,20 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
     setNewAllergies((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function updateLine(id: string, field: keyof PrescriptionLine, value: string) {
-    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
+  function updateLine(
+    id: string,
+    field: keyof PrescriptionLine,
+    value: string,
+  ) {
+    setLines((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
+    );
   }
 
   function removeLine(id: string) {
-    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.id !== id) : prev));
+    setLines((prev) =>
+      prev.length > 1 ? prev.filter((l) => l.id !== id) : prev,
+    );
   }
 
   async function handleSave() {
@@ -82,26 +102,52 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
       setError("La note de consultation est requise.");
       return;
     }
+    // Auto-confirm any substance still in the input field — the doctor may have
+    // typed an allergy without pressing "Ajouter" before hitting "Enregistrer".
+    const pendingSubstance = allergySubstance.trim();
+    const finalAllergies: typeof newAllergies = pendingSubstance
+      ? [
+          ...newAllergies,
+          { substance: pendingSubstance, severity: allergySeverity },
+        ]
+      : newAllergies;
+    // Prepend hospital / contact header to the note when provided.
+    const headerParts: string[] = [];
+    if (hospital.trim())
+      headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
+    if (contact.trim()) headerParts.push(`Contact : ${contact.trim()}`);
+    const summary = headerParts.length
+      ? `${headerParts.join("\n")}\n\n${note.trim()}`
+      : note.trim();
     setIsSaving(true);
     setError(null);
     try {
       await onSaved({
-        summary: note.trim(),
+        summary,
         prescription: buildPrescriptionText(lines),
         doctorName: doctorName.trim(),
-        newAllergies,
+        newAllergies: finalAllergies,
       });
       // app.tsx navigates away on success — no need to reset state
     } catch (e) {
       setIsSaving(false);
-      setError(e instanceof Error ? e.message : "Échec de l'enregistrement — réessayez.");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Échec de l'enregistrement — réessayez.",
+      );
     }
   }
 
   return (
     <div style={{ minHeight: "100%", paddingBottom: "var(--space-xl)" }}>
       <AppBar title="Note de consultation">
-        <button type="button" className="btn-icon" onClick={onCancel} aria-label="Annuler et revenir au dossier">
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={onCancel}
+          aria-label="Annuler et revenir au dossier"
+        >
           <Icon name="close" size={22} />
         </button>
       </AppBar>
@@ -136,36 +182,109 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
         </div>
         <p className="text-label" style={{ color: "var(--color-neutral-700)" }}>
           Consultation pour{" "}
-          <strong style={{ color: "var(--color-neutral-900)" }}>{record.givenName}</strong>
+          <strong style={{ color: "var(--color-neutral-900)" }}>
+            {record.givenName}
+          </strong>
           {record.birthYear
             ? ` — ${new Date().getFullYear() - record.birthYear} ans · ${record.sex}`
             : ""}
         </p>
       </div>
 
-      <main style={{ padding: "var(--space-md)", display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
+      <main
+        style={{
+          padding: "var(--space-md)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-lg)",
+        }}
+      >
+        {/* Médecin + Établissement sur la même ligne */}
+        <div style={{ display: "flex", gap: "var(--space-md)" }}>
+          <div style={{ flex: 1 }}>
+            <label
+              className="text-title-sm field-label"
+              htmlFor="doctor-name"
+              style={{ display: "block", marginBottom: "var(--space-sm)" }}
+            >
+              Médecin
+            </label>
+            <input
+              id="doctor-name"
+              className="field-input"
+              placeholder="Dr. Nom Prénom"
+              value={doctorName}
+              onInput={(e) =>
+                setDoctorName((e.target as HTMLInputElement).value)
+              }
+            />
+          </div>
 
-        {/* Médecin */}
-        <div>
-          <label className="text-title-sm field-label" htmlFor="doctor-name" style={{ display: "block", marginBottom: "var(--space-sm)" }}>
-            Médecin
-          </label>
-          <input
-            id="doctor-name"
-            className="field-input"
-            placeholder="Dr. Nom Prénom"
-            value={doctorName}
-            onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
-          />
+          <div style={{ flex: 1 }}>
+            <label
+              className="text-title-sm field-label"
+              style={{ display: "block", marginBottom: "var(--space-sm)" }}
+            >
+              Établissement{" "}
+              <span
+                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
+              >
+                (optionnel)
+              </span>
+            </label>
+            <input
+              className="field-input"
+              placeholder="Hôpital / Clinique"
+              value={hospital}
+              onInput={(e) => setHospital((e.target as HTMLInputElement).value)}
+            />
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label
+              className="text-title-sm field-label"
+              style={{ display: "block", marginBottom: "var(--space-sm)" }}
+            >
+              Contact
+            </label>
+            <input
+              className="field-input"
+              placeholder="Tél. ou e-mail"
+              value={contact}
+              onInput={(e) => setContact((e.target as HTMLInputElement).value)}
+            />
+          </div>
         </div>
 
         {/* Note */}
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
-            <span className="icon-badge" style={{ background: "var(--color-primary-100)", width: 32, height: 32 }}>
-              <Icon name="edit_note" size={16} color="var(--color-primary-700)" />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              marginBottom: "var(--space-sm)",
+            }}
+          >
+            <span
+              className="icon-badge"
+              style={{
+                background: "var(--color-primary-100)",
+                width: 32,
+                height: 32,
+              }}
+            >
+              <Icon
+                name="edit_note"
+                size={16}
+                color="var(--color-primary-700)"
+              />
             </span>
-            <label className="text-title-sm field-label" htmlFor="note" style={{ margin: 0 }}>
+            <label
+              className="text-title-sm field-label"
+              htmlFor="note"
+              style={{ margin: 0 }}
+            >
               Note de consultation
             </label>
           </div>
@@ -180,14 +299,40 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
 
         {/* Ordonnance */}
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
-            <span className="icon-badge" style={{ background: "var(--color-primary-100)", width: 32, height: 32 }}>
-              <Icon name="medication" size={16} color="var(--color-primary-700)" />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              marginBottom: "var(--space-sm)",
+            }}
+          >
+            <span
+              className="icon-badge"
+              style={{
+                background: "var(--color-primary-100)",
+                width: 32,
+                height: 32,
+              }}
+            >
+              <Icon
+                name="medication"
+                size={16}
+                color="var(--color-primary-700)"
+              />
             </span>
-            <h2 className="text-title-sm" style={{ margin: 0 }}>Ordonnance</h2>
+            <h2 className="text-title-sm" style={{ margin: 0 }}>
+              Ordonnance
+            </h2>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-xs)",
+            }}
+          >
             {lines.map((line) => (
               <div
                 key={line.id}
@@ -198,12 +343,25 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                   padding: "var(--space-sm)",
                 }}
               >
-                <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", marginBottom: "var(--space-sm)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "var(--space-sm)",
+                    alignItems: "center",
+                    marginBottom: "var(--space-sm)",
+                  }}
+                >
                   <input
                     className="field-input"
                     placeholder="Médicament"
                     value={line.medication}
-                    onInput={(e) => updateLine(line.id, "medication", (e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      updateLine(
+                        line.id,
+                        "medication",
+                        (e.target as HTMLInputElement).value,
+                      )
+                    }
                   />
                   {lines.length > 1 && (
                     <button
@@ -211,31 +369,58 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                       className="btn-icon"
                       onClick={() => removeLine(line.id)}
                       aria-label="Retirer ce médicament"
-                      style={{ flexShrink: 0, color: "var(--color-neutral-500)" }}
+                      style={{
+                        flexShrink: 0,
+                        color: "var(--color-neutral-500)",
+                      }}
                     >
                       <Icon name="close" size={18} />
                     </button>
                   )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 72px", gap: "var(--space-sm)" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 72px",
+                    gap: "var(--space-sm)",
+                  }}
+                >
                   <input
                     className="field-input"
                     placeholder="Dose"
                     value={line.dose}
-                    onInput={(e) => updateLine(line.id, "dose", (e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      updateLine(
+                        line.id,
+                        "dose",
+                        (e.target as HTMLInputElement).value,
+                      )
+                    }
                   />
                   <input
                     className="field-input"
                     placeholder="Fréquence"
                     value={line.frequency}
-                    onInput={(e) => updateLine(line.id, "frequency", (e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      updateLine(
+                        line.id,
+                        "frequency",
+                        (e.target as HTMLInputElement).value,
+                      )
+                    }
                   />
                   <input
                     className="field-input"
                     type="number"
                     placeholder="Jours"
                     value={line.durationDays}
-                    onInput={(e) => updateLine(line.id, "durationDays", (e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      updateLine(
+                        line.id,
+                        "durationDays",
+                        (e.target as HTMLInputElement).value,
+                      )
+                    }
                   />
                 </div>
               </div>
@@ -255,15 +440,38 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
 
         {/* Allergies */}
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
-            <span className="icon-badge" style={{ background: "var(--color-allergy-bg)", width: 32, height: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              marginBottom: "var(--space-sm)",
+            }}
+          >
+            <span
+              className="icon-badge"
+              style={{
+                background: "var(--color-allergy-bg)",
+                width: 32,
+                height: 32,
+              }}
+            >
               <Icon name="warning" size={16} color="var(--color-allergy)" />
             </span>
-            <h2 className="text-title-sm" style={{ margin: 0 }}>Allergies à noter</h2>
+            <h2 className="text-title-sm" style={{ margin: 0 }}>
+              Allergies à noter
+            </h2>
           </div>
 
           {newAllergies.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)", marginBottom: "var(--space-sm)" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-xs)",
+                marginBottom: "var(--space-sm)",
+              }}
+            >
               {newAllergies.map((a, i) => (
                 <div
                   key={i}
@@ -278,21 +486,32 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                   }}
                 >
                   <div>
-                    <span className="text-body" style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}>
+                    <span
+                      className="text-body"
+                      style={{
+                        fontWeight: 600,
+                        color: "var(--color-neutral-900)",
+                      }}
+                    >
                       {a.substance}
                     </span>
                     <span
                       className="text-label"
                       style={{
                         marginLeft: "var(--space-sm)",
-                        color: a.severity === "severe"
-                          ? "var(--color-error)"
-                          : a.severity === "moderate"
-                          ? "var(--color-allergy)"
-                          : "var(--color-neutral-700)",
+                        color:
+                          a.severity === "severe"
+                            ? "var(--color-error)"
+                            : a.severity === "moderate"
+                              ? "var(--color-allergy)"
+                              : "var(--color-neutral-700)",
                       }}
                     >
-                      {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
+                      {a.severity === "severe"
+                        ? "Sévère"
+                        : a.severity === "moderate"
+                          ? "Modérée"
+                          : "Légère"}
                     </span>
                   </div>
                   <button
@@ -324,14 +543,32 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               className="field-input"
               placeholder="Substance ou allergène"
               value={allergySubstance}
-              onInput={(e) => setAllergySubstance((e.target as HTMLInputElement).value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAllergy(); } }}
+              onInput={(e) =>
+                setAllergySubstance((e.target as HTMLInputElement).value)
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addAllergy();
+                }
+              }}
             />
-            <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-sm)",
+                alignItems: "center",
+              }}
+            >
               <select
                 className="field-input"
                 value={allergySeverity}
-                onChange={(e) => setAllergySeverity((e.target as HTMLSelectElement).value as NewAllergy["severity"])}
+                onChange={(e) =>
+                  setAllergySeverity(
+                    (e.target as HTMLSelectElement)
+                      .value as NewAllergy["severity"],
+                  )
+                }
                 style={{ flex: 1 }}
               >
                 <option value="mild">Légère</option>
@@ -365,7 +602,12 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             }}
           >
             <Icon name="error" size={20} color="var(--color-error)" />
-            <p className="text-body" style={{ color: "var(--color-error)", margin: 0 }}>{error}</p>
+            <p
+              className="text-body"
+              style={{ color: "var(--color-error)", margin: 0 }}
+            >
+              {error}
+            </p>
           </div>
         )}
 

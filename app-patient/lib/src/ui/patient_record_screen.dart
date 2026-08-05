@@ -27,6 +27,7 @@ class PatientRecordScreen extends StatelessWidget {
           PatientHeroAppBar(
             record: record,
             account: account,
+            showAllergie: false,
             collapsedTitle: 'Mon Dossier',
             actions: const [
               Padding(
@@ -40,6 +41,11 @@ class PatientRecordScreen extends StatelessWidget {
                 AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                // if (record.demographics.heightCm != null ||
+                //     record.demographics.weightKg != null) ...[
+                //   _DemographicsSection(demographics: record.demographics),
+                //   const SizedBox(height: AppSpacing.md),
+                // ],
                 if (record.allergies.isNotEmpty) ...[
                   _AllergySection(allergies: record.allergies),
                   const SizedBox(height: AppSpacing.md),
@@ -163,6 +169,81 @@ Widget _sectionCard({required Widget child}) {
     ),
     child: child,
   );
+}
+
+// ─── Helper — BMI label ───────────────────────────────────────────────────────
+
+String _bmiLabel(double bmi) {
+  if (bmi < 18.5) return 'Insuffisance pondérale';
+  if (bmi < 25.0) return 'Poids normal';
+  if (bmi < 30.0) return 'Surpoids';
+  return 'Obésité';
+}
+
+// ─── Demographics (height / weight / BMI) ─────────────────────────────────────
+
+class _DemographicsSection extends StatelessWidget {
+  const _DemographicsSection({required this.demographics});
+  final Demographics demographics;
+
+  @override
+  Widget build(BuildContext context) {
+    final bmi = demographics.bmi;
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(
+            icon: Symbols.monitor_heart_rounded,
+            title: 'Mesures',
+          ),
+          if (demographics.heightCm != null)
+            _InfoRow(
+              label: 'Taille',
+              value: '${demographics.heightCm} cm',
+            ),
+          if (demographics.weightKg != null)
+            _InfoRow(
+              label: 'Poids',
+              value: '${demographics.weightKg} kg',
+            ),
+          if (bmi != null)
+            _InfoRow(
+              label: 'IMC',
+              value: '${bmi.toStringAsFixed(1)} — ${_bmiLabel(bmi)}',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: tt.bodyMedium?.copyWith(color: AppColors.neutral500),
+            ),
+          ),
+          Text(
+            value,
+            style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Allergies ────────────────────────────────────────────────────────────────

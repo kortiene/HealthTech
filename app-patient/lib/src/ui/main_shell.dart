@@ -80,6 +80,7 @@ class _MainShellState extends State<MainShell> {
         account: widget.account,
         onShowQr: _showQr,
         onScan: _showScan,
+        lastSyncedAt: widget.lastSyncedAt,
       ),
       PatientRecordScreen(
         record: widget.record,

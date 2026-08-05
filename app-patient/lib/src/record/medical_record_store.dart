@@ -100,8 +100,10 @@ class MedicalRecordStore {
     String anonymousUuid, {
     bool forceCloud = false,
   }) async {
-    Uint8List blob;
     final cached = forceCloud ? null : await _localStore.read();
+    final bool fetchedFromCloud = cached == null;
+
+    Uint8List blob;
     if (cached != null) {
       blob = cached;
     } else {
@@ -109,11 +111,18 @@ class MedicalRecordStore {
       blob = _retry != null
           ? await _retry.run(doGet, retryIf: (e) => e is BackendUnavailable)
           : await doGet();
-      await _localStore.write(blob);
     }
+
     final decrypted = await _crypto.decryptRecord(handle, blob);
     final plaintext = PlaintextCompressor.decodeIfCompressed(decrypted);
     final json = jsonDecode(utf8.decode(plaintext)) as Map<String, Object?>;
+
+    // Write to local cache ONLY after successful decryption (prevents
+    // overwriting with an un-decryptable session-key blob on QR close timing).
+    if (fetchedFromCloud) {
+      await _localStore.write(blob);
+    }
+
     return MedicalRecord.fromJson(json);
   }
 

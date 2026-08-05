@@ -329,7 +329,23 @@ class _RecordViewScreenState extends State<RecordViewScreen> {
         if (d.sex != null) _InfoRow(label: 'Sexe', value: d.sex!),
         if (d.bloodType != null)
           _InfoRow(label: 'Groupe sanguin', value: d.bloodType!),
+        if (d.heightCm != null)
+          _InfoRow(label: 'Taille', value: '${d.heightCm} cm'),
+        if (d.weightKg != null)
+          _InfoRow(label: 'Poids', value: '${d.weightKg} kg'),
+        if (d.bmi != null)
+          _InfoRow(
+            label: 'IMC',
+            value: '${d.bmi!.toStringAsFixed(1)} — ${_bmiLabel(d.bmi!)}',
+          ),
       ];
+
+  static String _bmiLabel(double bmi) {
+    if (bmi < 18.5) return 'Insuffisance pondérale';
+    if (bmi < 25.0) return 'Poids normal';
+    if (bmi < 30.0) return 'Surpoids';
+    return 'Obésité';
+  }
 }
 
 class _SectionCard extends StatelessWidget {

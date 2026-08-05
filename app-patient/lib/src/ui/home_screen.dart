@@ -13,12 +13,14 @@ class HomeScreen extends StatelessWidget {
     required this.account,
     required this.onShowQr,
     required this.onScan,
+    this.lastSyncedAt,
   });
 
   final MedicalRecord record;
   final PatientAccount account;
   final VoidCallback onShowQr;
   final VoidCallback onScan;
+  final String? lastSyncedAt;
 
   Consultation? get _lastConsultation {
     if (record.consultations.isEmpty) return null;
@@ -58,7 +60,11 @@ class HomeScreen extends StatelessWidget {
                 ],
                 _SecondaryAction(onTap: onScan),
                 const SizedBox(height: AppSpacing.md),
-                const _BackupStatusCard(lastBackupAt: null),
+                _BackupStatusCard(
+                  lastBackupAt: lastSyncedAt != null
+                      ? DateTime.tryParse(lastSyncedAt!)?.toLocal()
+                      : null,
+                ),
                 const SizedBox(height: AppSpacing.xl),
               ]),
             ),

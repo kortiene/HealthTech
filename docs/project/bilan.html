@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HealthTech — Bilan fonctionnel & avancement</title>
+  <style>
+    :root {
+      --blue-900: #0d2b5e;
+      --blue-800: #1565C0;
+      --blue-600: #1976D2;
+      --blue-100: #E3F2FD;
+      --green-700: #2e7d32;
+      --green-100: #e8f5e9;
+      --amber-700: #f57f17;
+      --amber-100: #fff8e1;
+      --red-700: #c62828;
+      --red-100: #ffebee;
+      --grey-800: #212121;
+      --grey-600: #757575;
+      --grey-200: #EEEEEE;
+      --grey-100: #F5F5F5;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--grey-800);
+      background: var(--grey-100);
+    }
+
+    header {
+      background: var(--blue-900);
+      color: var(--white);
+      padding: 40px 48px 32px;
+    }
+    header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    header .subtitle { margin-top: 6px; font-size: 15px; color: #90CAF9; }
+    header .meta { margin-top: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+    header .meta span {
+      font-size: 12px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 4px 10px;
+      color: #BBD7F8;
+    }
+
+    main { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* Global progress */
+    .progress-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .progress-card {
+      background: var(--white);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .progress-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--grey-600); margin-bottom: 8px; }
+    .progress-card .pct { font-size: 32px; font-weight: 700; color: var(--blue-800); line-height: 1; }
+    .progress-card .bar { margin-top: 10px; height: 6px; border-radius: 3px; background: var(--grey-200); }
+    .progress-card .bar-fill { height: 100%; border-radius: 3px; background: var(--blue-600); }
+    .progress-card .label { margin-top: 6px; font-size: 12px; color: var(--grey-600); }
+
+    .global-card {
+      background: var(--blue-800);
+      color: var(--white);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    .global-card .big { font-size: 64px; font-weight: 800; line-height: 1; }
+    .global-card .desc { font-size: 14px; opacity: .85; margin-top: 4px; max-width: 480px; }
+    .global-bar { flex: 1; height: 10px; border-radius: 5px; background: rgba(255,255,255,.25); }
+    .global-bar-fill { height: 100%; border-radius: 5px; background: #64B5F6; }
+
+    /* Section headers */
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--blue-900);
+      margin: 40px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--blue-100);
+    }
+    h2:first-child { margin-top: 0; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin-bottom: 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--white);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    thead th {
+      background: var(--blue-900);
+      color: var(--white);
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      font-weight: 600;
+    }
+    tbody tr:nth-child(even) { background: var(--grey-100); }
+    tbody td { padding: 9px 14px; font-size: 13px; border-bottom: 1px solid var(--grey-200); }
+    tbody tr:last-child td { border-bottom: none; }
+    .feat { font-weight: 500; }
+
+    /* Status badges */
+    .badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .done   { background: var(--green-100); color: var(--green-700); }
+    .partial{ background: var(--amber-100); color: var(--amber-700); }
+    .todo   { background: var(--red-100);   color: var(--red-700);   }
+
+    /* Milestone cards */
+    .milestones {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .milestone {
+      background: var(--white);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      border-top: 4px solid;
+    }
+    .milestone.m-done   { border-color: var(--green-700); }
+    .milestone.m-partial{ border-color: var(--amber-700); }
+    .milestone.m-todo   { border-color: var(--red-700); }
+    .milestone h3 { font-size: 13px; font-weight: 700; color: var(--blue-900); }
+    .milestone .m-sub { font-size: 12px; color: var(--grey-600); margin: 4px 0 10px; }
+    .milestone .m-pct { font-size: 26px; font-weight: 800; }
+    .milestone.m-done   .m-pct { color: var(--green-700); }
+    .milestone.m-partial .m-pct { color: var(--amber-700); }
+    .milestone.m-todo   .m-pct { color: var(--red-700); }
+
+    /* Blockers */
+    .blockers { margin-bottom: 32px; }
+    .blocker {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      background: var(--white);
+      border-left: 4px solid var(--red-700);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .blocker .num {
+      background: var(--red-100);
+      color: var(--red-700);
+      font-weight: 700;
+      font-size: 12px;
+      border-radius: 4px;
+      padding: 2px 8px;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+    .blocker .txt strong { font-size: 13px; }
+    .blocker .txt p { font-size: 12px; color: var(--grey-600); margin-top: 2px; }
+
+    /* Session badges */
+    .session-notice {
+      background: #E8F5E9;
+      border: 1px solid #A5D6A7;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: var(--green-700);
+    }
+    .session-notice strong { display: block; margin-bottom: 4px; }
+
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--grey-600);
+      padding: 24px;
+      border-top: 1px solid var(--grey-200);
+    }
+
+    code {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      background: var(--grey-200);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>HealthTech — Bilan Fonctionnel &amp; Avancement</h1>
+  <p class="subtitle">Plateforme de santé numérique local-first / zero-knowledge — Côte d'Ivoire</p>
+  <div class="meta">
+    <span>Date : 2026-08-03</span>
+    <span>Branche : main</span>
+    <span>Dernier commit : 2431d25</span>
+    <span>Issues traitées : #103 #104 #105 #106 #107 #109 #110 #112 #113</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="session-notice">
+    <strong>Issues implémentées dans la dernière session de développement</strong>
+    #103 — MinIO + PostgreSQL backing &nbsp;·&nbsp;
+    #104 — Rate-limiting par IP &nbsp;·&nbsp;
+    #105 — DELETE /blob + suppression compte &nbsp;·&nbsp;
+    #106 — Politique de confidentialité ARTCI &nbsp;·&nbsp;
+    #107 — Gate CI anti-stubs &nbsp;·&nbsp;
+    #109 — Service Worker PWA + manifest &nbsp;·&nbsp;
+    #110 — InvalidatedScreen onReset &nbsp;·&nbsp;
+    #112 — Tuile sync manuelle &nbsp;·&nbsp;
+    #113 — Suite de tests BackendClient + SettingsScreen + contrat routage SW
+  </div>
+
+  <!-- Global score -->
+  <div class="global-card">
+    <div>
+      <div class="big">75 %</div>
+      <div class="desc">
+        Cœur cryptographique durci, backend zero-knowledge opérationnel,
+        boucle de consultation complète (M1–M2 ✅), PWA scaffoldée.
+        Blocage M4 : hébergement souverain, homologation ARTCI, pentest.
+      </div>
+    </div>
+    <div style="flex:1">
+      <div class="global-bar"><div class="global-bar-fill" style="width:75%"></div></div>
+    </div>
+  </div>
+
+  <!-- Per-module progress -->
+  <h2>Avancement par module</h2>
+  <div class="progress-grid">
+    <div class="progress-card">
+      <h3>Crypto-Core (Rust)</h3>
+      <div class="pct">95 %</div>
+      <div class="bar"><div class="bar-fill" style="width:95%"></div></div>
+      <div class="label">AES-256-GCM · PBKDF2 · NIST KAT ✅ · AAD pending</div>
+    </div>
+    <div class="progress-card">
+      <h3>Backend Rust + Axum</h3>
+      <div class="pct">85 %</div>
+      <div class="bar"><div class="bar-fill" style="width:85%"></div></div>
+      <div class="label">ZK proxy · DELETE · Rate-limit · MinIO schema · branchement souverain pending</div>
+    </div>
+    <div class="progress-card">
+      <h3>App Patient Flutter</h3>
+      <div class="pct">80 %</div>
+      <div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+      <div class="label">M1–M2 complet · SQLCipher · Sync · FRB codegen pending</div>
+    </div>
+    <div class="progress-card">
+      <h3>App Médecin PWA</h3>
+      <div class="pct">55 %</div>
+      <div class="bar"><div class="bar-fill" style="width:55%"></div></div>
+      <div class="label">UI shell · Service Worker · offline banner · crypto WASM pending</div>
+    </div>
+    <div class="progress-card">
+      <h3>Infrastructure &amp; DevOps</h3>
+      <div class="pct">75 %</div>
+      <div class="bar"><div class="bar-fill" style="width:75%"></div></div>
+      <div class="label">CI/CD · Terraform · Ansible · SOPS · opérateur souverain pending</div>
+    </div>
+    <div class="progress-card">
+      <h3>Conformité ARTCI</h3>
+      <div class="pct">65 %</div>
+      <div class="bar"><div class="bar-fill" style="width:65%"></div></div>
+      <div class="label">11 ADR · STRIDE · matrice exigences · 0/22 validations juridiques</div>
+    </div>
+  </div>
+
+  <!-- Milestones -->
+  <h2>État des jalons</h2>
+  <div class="milestones">
+    <div class="milestone m-done">
+      <h3>M0 — Fondations &amp; Conformité</h3>
+      <p class="m-sub">ADRs, CI, ARTCI, threat model</p>
+      <div class="m-pct">95 %</div>
+    </div>
+    <div class="milestone m-done">
+      <h3>M1 — Crypto-Core &amp; Onboarding</h3>
+      <p class="m-sub">AES-256-GCM, Keystore, backup ZK</p>
+      <div class="m-pct">90 %</div>
+    </div>
+    <div class="milestone m-done">
+      <h3>M2 — Boucle Consultation</h3>
+      <p class="m-sub">QR, scan, déchiffrement, sync offline</p>
+      <div class="m-pct">100 %</div>
+    </div>
+    <div class="milestone m-partial">
+      <h3>M3 — Résilience &amp; Médias</h3>
+      <p class="m-sub">SQLCipher, SyncService, media offload</p>
+      <div class="m-pct">70 %</div>
+    </div>
+    <div class="milestone m-todo">
+      <h3>M4 — Durcissement &amp; Lancement</h3>
+      <p class="m-sub">Pentest, homologation, pilote terrain</p>
+      <div class="m-pct">20 %</div>
+    </div>
+  </div>
+
+  <!-- Crypto-Core -->
+  <h2>1 — Crypto-Core (Rust)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="feat">AES-256-GCM <code>encrypt_record</code> / <code>decrypt_record</code></td><td><span class="badge done">✅ Fait</span></td><td>NIST KAT passants, nonce CSPRNG frais</td></tr>
+        <tr><td class="feat">Wire format gelé : <code>nonce(12) ‖ ciphertext ‖ tag(16)</code></td><td><span class="badge done">✅ Fait</span></td><td>ADR 0003 — overhead 28 octets</td></tr>
+        <tr><td class="feat">MasterKeyHandle — génération + auto-zeroize</td><td><span class="badge done">✅ Fait</span></td><td>Buffer <code>Zeroizing</code>, wipe on Drop</td></tr>
+        <tr><td class="feat">PBKDF2-HMAC-SHA256 <code>derive_key()</code></td><td><span class="badge done">✅ Fait</span></td><td>RFC 6070 smoke-testés</td></tr>
+        <tr><td class="feat"><code>wipe()</code> — zeroize sécurisée in-place</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Constantes publiques (KEY_LEN, NONCE_LEN, TAG_LEN, OVERHEAD_LEN)</td><td><span class="badge done">✅ Fait</span></td><td>Partagées backend + app</td></tr>
+        <tr><td class="feat">AAD binding (associated data sur metadata dossier)</td><td><span class="badge todo">⏳ TODO #11</span></td><td>API stable, non intégrée au schéma</td></tr>
+        <tr><td class="feat">FFI flutter_rust_bridge codegen</td><td><span class="badge todo">⏳ Skippé #102</span></td><td>Require toolchain native — E2E local cassé</td></tr>
+        <tr><td class="feat">Binding WASM wasm-bindgen (PWA)</td><td><span class="badge todo">⏳ TODO #17</span></td><td>Skippé — incompatible stub XOR dev app</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Backend -->
+  <h2>2 — Backend Rust + Axum</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="feat">PUT /blob/{uuid} — stockage opaque ciphertext</td><td><span class="badge done">✅ Fait</span></td><td>Jamais décrypté, 413 si &gt; MAX_BLOB_BYTES</td></tr>
+        <tr><td class="feat">GET /blob/{uuid} — ETag + X-Blob-Version</td><td><span class="badge done">✅ Fait</span></td><td>Concurrence optimiste pour sync #22</td></tr>
+        <tr><td class="feat">DELETE /blob/{uuid}</td><td><span class="badge done">✅ Fait #105</span></td><td>Retourne 200/204/404 selon existence</td></tr>
+        <tr><td class="feat">PUT /media/{uuid} — images médicales (25 MiB)</td><td><span class="badge done">✅ Fait</span></td><td>Budget distinct du dossier texte</td></tr>
+        <tr><td class="feat">POST /media/{uuid}/access — URL éphémère HMAC-SHA256</td><td><span class="badge done">✅ Fait</span></td><td>TTL 5 min, no oracle sur expiry</td></tr>
+        <tr><td class="feat">DELETE /media/{uuid} — révocation par-objet</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">GET /health — probe 200/503</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Rate-limiting par IP (60 req/60 s)</td><td><span class="badge done">✅ Fait #104</span></td><td>Sliding-window token bucket, gracieux en test</td></tr>
+        <tr><td class="feat">CORS (PWA cross-origin)</td><td><span class="badge done">✅ Fait</span></td><td>tower-http CorsLayer</td></tr>
+        <tr><td class="feat">Erreurs redacted (no DSN, no detail)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">MemoryStore (dev / tests)</td><td><span class="badge done">✅ Fait</span></td><td>HashMap in-process, defaut APP_ENV=dev</td></tr>
+        <tr><td class="feat">Schema MinIO + PostgreSQL (<code>blob_metadata</code>, <code>media_metadata</code>)</td><td><span class="badge done">✅ Fait #103</span></td><td>Migration SQL prête, ObjectMetaStore implémenté</td></tr>
+        <tr><td class="feat">Branchement souverain MinIO / Postgres actif</td><td><span class="badge todo">⏳ attend #8</span></td><td>Code prêt — opérateur in-country non sélectionné</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- App Patient -->
+  <h2>3 — App Patient Flutter</h2>
+
+  <p style="font-size:12px;color:var(--grey-600);margin-bottom:12px;margin-top:-4px;">
+    Architecture : <code>main.dart</code> (prod, FrbCryptoCore) · <code>main_dev.dart</code> (dev, _DevCryptoCore XOR 0x5A — jamais en prod)
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td colspan="3" style="background:var(--blue-100);font-weight:700;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--blue-900)">Sécurité &amp; Gestion des clés</td></tr>
+        <tr><td class="feat">Génération clé maître — Rust CSPRNG, jamais Dart</td><td><span class="badge done">✅ Fait</span></td><td>MasterKeyService, KeystoreChannel</td></tr>
+        <tr><td class="feat">Scellement Android Keystore (StrongBox → TEE fallback)</td><td><span class="badge done">✅ Fait</span></td><td>Kotlin shim prêt, FRB codegen deferred</td></tr>
+        <tr><td class="feat">SealedBlobStore (blob scellé, jamais clé claire sur disque)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">BiometricService (empreinte / face)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Récupération PBKDF2 (questions contexte ivoirien)</td><td><span class="badge partial">⚠️ Partiel</span></td><td>Fonction prête — calibration itérations pending</td></tr>
+        <tr><td class="feat">iOS Secure Enclave shim (Swift)</td><td><span class="badge todo">⏳ Follow-up</span></td><td>Stub uniquement</td></tr>
+
+        <tr><td colspan="3" style="background:var(--blue-100);font-weight:700;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--blue-900)">Dossier médical</td></tr>
+        <tr><td class="feat">Schéma MedicalRecord complet (JSON, ≤ 500 Ko)</td><td><span class="badge done">✅ Fait</span></td><td>demographics, allergies, conditions, meds, consultations</td></tr>
+        <tr><td class="feat">Consultation + Prescription + renderText()</td><td><span class="badge done">✅ Fait</span></td><td>append-only, merge déterministe</td></tr>
+        <tr><td class="feat">PlaintextCompressor (gzip avant chiffrement)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">RecordSizeGuard (gate bloquant 500 Ko)</td><td><span class="badge done">✅ Fait</span></td><td>Fail avant chiffrement</td></tr>
+        <tr><td class="feat">PerfBudget (budget déchiffrement 3 s, gate CI)</td><td><span class="badge done">✅ Fait #27</span></td><td>Décomposé, assertions déterministes</td></tr>
+
+        <tr><td colspan="3" style="background:var(--blue-100);font-weight:700;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--blue-900)">Boucle de consultation (M2)</td></tr>
+        <tr><td class="feat">Génération QR (TTL 120 s, session key embarquée)</td><td><span class="badge done">✅ Fait #16</span></td><td>AccessToken, expiry validation</td></tr>
+        <tr><td class="feat">Scan QR + fetch blob backend</td><td><span class="badge done">✅ Fait #17</span></td><td>ScanService, parse + validate TTL</td></tr>
+        <tr><td class="feat">Déchiffrement RAM-only (jamais disque)</td><td><span class="badge done">✅ Fait #17</span></td><td>ConsultationSession, wipeMemory()</td></tr>
+        <tr><td class="feat">Note rapide + ordonnance (merge append-only)</td><td><span class="badge done">✅ Fait #18</span></td><td>ConsultationEditScreen + ConsultationMerge</td></tr>
+        <tr><td class="feat">Re-chiffrement session key + size guard</td><td><span class="badge done">✅ Fait #18</span></td><td>ConsultationEditService, in-RAM</td></tr>
+        <tr><td class="feat">Fin de session — finally-block wipe garanti</td><td><span class="badge done">✅ Fait #19</span></td><td>SessionEndService, aucun chemin réseau n'empêche le wipe</td></tr>
+        <tr><td class="feat">File offline SQLCipher (ciphertext opaque, Keystore-sealed)</td><td><span class="badge done">✅ Fait #21</span></td><td>SqlCipherUploadQueue, drift, WAL</td></tr>
+        <tr><td class="feat">SyncService drain (FIFO, no-loss/no-duplicate, backoff exponentiel)</td><td><span class="badge done">✅ Fait #22</span></td><td>ManualSyncTrigger + AppLifecycleSyncTrigger</td></tr>
+        <tr><td class="feat">E2E test boucle complète (#16→#19 + offline)</td><td><span class="badge done">✅ Fait #20</span></td><td>Fake crypto XOR, invariants server-opacity asserted</td></tr>
+
+        <tr><td colspan="3" style="background:var(--blue-100);font-weight:700;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--blue-900)">UI Screens</td></tr>
+        <tr><td class="feat">SplashScreen, OnboardingScreen, PinScreen</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">HomeScreen, PatientRecordScreen</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">QrScreen (affichage QR)</td><td><span class="badge partial">⚠️ Partiel</span></td><td>qr_flutter rendering — build natif required</td></tr>
+        <tr><td class="feat">RecordViewScreen (badge offline, sync, timer 15 min)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">ConsultationEditScreen</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">SettingsScreen (sync manuel, politique vie privée, suppression compte)</td><td><span class="badge done">✅ Fait #105 #106 #110 #112</span></td><td>Politique 8 sections ARTCI, zone danger</td></tr>
+        <tr><td class="feat">InvalidatedScreen (onReset)</td><td><span class="badge done">✅ Fait #110</span></td><td>Clé Keystore invalidée → recovery flow</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- App Médecin -->
+  <h2>4 — App Médecin Preact PWA</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="feat">App shell UI (scan → record → edit → terminate)</td><td><span class="badge done">✅ Fait</span></td><td>FSM Preact, vitest green, Vite build ✅</td></tr>
+        <tr><td class="feat">UX zéro-menu mono-flow (4 étapes, pas de hamburger)</td><td><span class="badge done">✅ Fait</span></td><td>ADR 0002, norme UX #28</td></tr>
+        <tr><td class="feat">Timer idle 15 min (auto-terminate)</td><td><span class="badge done">✅ Fait</span></td><td>IDLE_TIMEOUT_MS constant, smoke test</td></tr>
+        <tr><td class="feat">TerminatingOverlay + page-reload (wipe heap navigateur)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Offline banner (orange, NetworkInformation API)</td><td><span class="badge done">✅ Fait #109</span></td><td>Fixed top, #EF6C00</td></tr>
+        <tr><td class="feat">PWA manifest + theme-color</td><td><span class="badge done">✅ Fait #109</span></td><td>install-to-home-screen ready</td></tr>
+        <tr><td class="feat">Service Worker (app-shell cache, NetworkOnly /blob/ /media/)</td><td><span class="badge done">✅ Fait #109</span></td><td>Workbox, ciphertext patient jamais mis en cache</td></tr>
+        <tr><td class="feat">Affichage dossier médical (placeholder → real decrypt)</td><td><span class="badge partial">⚠️ Partiel</span></td><td>UI prête, données réelles pending #17</td></tr>
+        <tr><td class="feat">Scan QR caméra (getUserMedia + WASM decoder)</td><td><span class="badge todo">⏳ TODO #17</span></td><td>getUserMedia API câblée, lib WASM TBD</td></tr>
+        <tr><td class="feat">Déchiffrement AES-256-GCM WASM (Web Worker, RAM-only)</td><td><span class="badge todo">⏳ TODO #17</span></td><td>Skippé — incompatible dev XOR stub</td></tr>
+        <tr><td class="feat">File offline IndexedDB (ciphertext, no plaintext)</td><td><span class="badge todo">⏳ TODO #21</span></td><td></td></tr>
+        <tr><td class="feat">Drain résync sur reconnexion</td><td><span class="badge todo">⏳ TODO #21</span></td><td>Même logique que SyncService Flutter</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Infra -->
+  <h2>5 — Infrastructure &amp; DevOps</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="feat">CI/CD GitHub Actions (lint, test, build, SCA, APK, image Docker)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Gate CI — no dev-stubs dans lib/main.dart</td><td><span class="badge done">✅ Fait #107</span></td><td>grep -qE "src/stubs/" → exit 1</td></tr>
+        <tr><td class="feat">cargo-deny + osv-scanner + gitleaks (SCA)</td><td><span class="badge done">✅ Fait</span></td><td>Cross-ecosystem (Cargo, npm, pub)</td></tr>
+        <tr><td class="feat">Terraform IaC (provider lock Côte d'Ivoire)</td><td><span class="badge done">✅ Fait</span></td><td>compute, storage, database, networking</td></tr>
+        <tr><td class="feat">Ansible (playbooks Docker, TLS, HA)</td><td><span class="badge done">✅ Fait</span></td><td>Syntax-check gate CI</td></tr>
+        <tr><td class="feat">SOPS + age (secrets per-env, Config redacted en Debug)</td><td><span class="badge done">✅ Fait</span></td><td>ADR 0007</td></tr>
+        <tr><td class="feat">Residency guard-rail (fail-closed, pre-Terraform)</td><td><span class="badge done">✅ Fait</span></td><td>Provider étranger → CI bloqué</td></tr>
+        <tr><td class="feat">Gates UX norm + low-end profile (<code>just ux-check</code>)</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Opérateur souverain sélectionné + provisionnement MinIO/PG</td><td><span class="badge todo">⏳ Pending #8</span></td><td>Critères fixés, contrat opérateur TBD</td></tr>
+        <tr><td class="feat">Attestation de localisation (ARTCI)</td><td><span class="badge todo">⏳ Pending</span></td><td>Template ready, signature opérateur required</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Conformité -->
+  <h2>6 — Conformité &amp; Documentation</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%">Fonctionnalité</th><th>État</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="feat">11 ADRs (architecture, crypto, infra, secrets, conformité)</td><td><span class="badge done">✅ Fait</span></td><td>ADR 0001–0010, décisions gelées</td></tr>
+        <tr><td class="feat">Threat model STRIDE (8 catégories, contremesures tracées)</td><td><span class="badge done">✅ Fait</span></td><td>docs/compliance/threat-model/</td></tr>
+        <tr><td class="feat">Matrice ARTCI (22 exigences → 20 contrôles → preuves)</td><td><span class="badge done">✅ Fait</span></td><td>loi-2013-450-artci-matrix.md</td></tr>
+        <tr><td class="feat">Registre des traitements RGPD ivoirien</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Cartographie données &amp; flux patient</td><td><span class="badge done">✅ Fait</span></td><td></td></tr>
+        <tr><td class="feat">Politique de confidentialité (8 sections, français)</td><td><span class="badge done">✅ Fait #106</span></td><td>SettingsScreen → _PrivacyPolicySheet</td></tr>
+        <tr><td class="feat">8 écarts documentés (ECART-01…08)</td><td><span class="badge partial">⚠️ Documentés</span></td><td>Issues à créer + résoudre avant M4</td></tr>
+        <tr><td class="feat">Dossier homologation consolidé</td><td><span class="badge partial">⚠️ Partiel</span></td><td>Structure complète, 0/22 Must sign-off</td></tr>
+        <tr><td class="feat">Validation juridique ARTCI (sign-off des 22 Must)</td><td><span class="badge todo">⏳ Bloquant #30</span></td><td>Conseil juridique required</td></tr>
+        <tr><td class="feat">Pentest externe (Critical/High corrigés)</td><td><span class="badge todo">⏳ Post-M3 #25</span></td><td>Scope défini, vendor TBD</td></tr>
+        <tr><td class="feat">Revue crypto indépendante</td><td><span class="badge todo">⏳ Deferred #26</span></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Blockers -->
+  <h2>Blockers M4 — Chemin critique vers le lancement</h2>
+  <div class="blockers">
+    <div class="blocker">
+      <span class="num">#8</span>
+      <div class="txt">
+        <strong>Hébergement souverain (Côte d'Ivoire)</strong>
+        <p>Sélection de l'opérateur + provisionnement MinIO / PostgreSQL in-country. Sans cela, le backend tourne en MemoryStore (données perdues au redémarrage) et la conformité ARTCI de résidence des données ne peut pas être attestée.</p>
+      </div>
+    </div>
+    <div class="blocker">
+      <span class="num">#30</span>
+      <div class="txt">
+        <strong>Homologation ARTCI — 0/22 exigences juridiquement validées</strong>
+        <p>8 écarts documentés (ECART-01…08 : rétention, suppression, DPO, mineurs, break-glass…). La soumission du dossier et l'autorisation commerciale sont bloquées jusqu'à résolution + sign-off du conseil juridique.</p>
+      </div>
+    </div>
+    <div class="blocker">
+      <span class="num">#25</span>
+      <div class="txt">
+        <strong>Pentest externe</strong>
+        <p>Scope défini, vendor à choisir. Toute vulnérabilité Critical/High bloque le lancement. Timing : post-M3 complete.</p>
+      </div>
+    </div>
+    <div class="blocker">
+      <span class="num">#17 / #108</span>
+      <div class="txt">
+        <strong>Crypto WASM pour la PWA médecin</strong>
+        <p>AES-256-GCM dans le Web Worker (RAM-only), scan QR caméra réel. Skippé pour ne pas casser les tests E2E locaux (incompatible avec le stub XOR dev Flutter). Obligatoire avant pilote terrain.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tests -->
+  <h2>Couverture de tests</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Suite</th><th>Périmètre</th><th>État</th></tr></thead>
+      <tbody>
+        <tr><td><code>cargo test -p crypto-core</code></td><td>NIST KAT, round-trip, tamper, derive, wipe</td><td><span class="badge done">✅ Green</span></td></tr>
+        <tr><td><code>cargo test -p backend</code></td><td>ZK proxy, zero-plaintext, rate-limit, DELETE, ObjectMetaStore schema</td><td><span class="badge done">✅ Green</span></td></tr>
+        <tr><td><code>flutter test</code></td><td>E2E boucle, sync, merge, offline queue, UI screens, BackendClient</td><td><span class="badge done">✅ Green</span></td></tr>
+        <tr><td><code>npm test</code> (vitest)</td><td>App PWA, routage SW, no-menu, idle timeout</td><td><span class="badge done">✅ Green</span></td></tr>
+        <tr><td>Tests device-backed (SQLCipher WAL)</td><td>Durabilité SQLCipher, migration v1→v2, crash recovery</td><td><span class="badge todo">⏳ Deferred</span></td></tr>
+        <tr><td>Tests device-backed (FRB + crypto réel)</td><td>E2E sur device Android avec AES-256-GCM réel</td><td><span class="badge todo">⏳ Deferred</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer>
+  HealthTech · Confidentiel · Généré le 2026-08-03 · Branche main · Commit 2431d25
+</footer>
+
+</body>
+</html>

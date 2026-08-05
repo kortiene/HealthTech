@@ -113,6 +113,8 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
     birthYear: d.birth_year ?? d.birthYear ?? new Date().getFullYear() - 30,
     sex: sexLabel(d.sex),
     bloodType: d.blood_type ?? d.bloodType ?? "—",
+    heightCm: d.height_cm ?? d.heightCm ?? undefined,
+    weightKg: d.weight_kg ?? d.weightKg ?? undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allergies: (raw.allergies ?? []).map((a: any) => ({
       substance: a.substance,

@@ -16,7 +16,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'src/cloud/backend_client.dart' show BackendClient, BackendUnavailable;
+import 'src/cloud/backend_client.dart'
+    show BackendClient, BackendUnavailable, BlobNotFound;
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 // import 'src/legal/consent_model.dart' -- used transitively by OnboardingController;
@@ -44,6 +45,7 @@ final String _kBackendBaseUrl =
 const String _kQrBackendUrl = 'http://localhost:8081';
 
 const String _kPinKey = 'patient_pin';
+const String _kLastSyncKey = 'last_sync_at';
 const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
@@ -175,6 +177,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   String? _loadError;
   final _biometricService = BiometricService();
   bool _biometricEnabled = false;
+  String? _lastSyncedAt;
 
   static const _masterKey = MasterKeyService(
     cryptoCore: _DevCryptoCore(),
@@ -240,6 +243,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           }
           final pin = await _storage.read(key: _kPinKey);
           _biometricEnabled = await _biometricService.isEnabled();
+          _lastSyncedAt = await _storage.read(key: _kLastSyncKey);
           if (!mounted) return;
           if (pin != null && pin.isNotEmpty) {
             _storedPin = pin;
@@ -283,7 +287,23 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          _record = await _recordStore.read(handle, _account!.anonymousUuid);
+          // Cloud-first on startup: picks up doctor's session changes from
+          // a prior QR scan without requiring another QR cycle.
+          MedicalRecord? cloudRecord;
+          try {
+            cloudRecord = await _recordStore.read(
+              handle,
+              _account!.anonymousUuid,
+              forceCloud: true,
+            );
+          } on BackendUnavailable {
+            // Offline — fall back to local cache below.
+          } catch (e, st) {
+            // ignore: avoid_print
+            print('[_loadAppData] cloud read ERROR: $e\n$st');
+          }
+          _record = cloudRecord ??
+              await _recordStore.read(handle, _account!.anonymousUuid);
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(
@@ -321,8 +341,50 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     _storedPin = newPin;
   }
 
+  Future<void> _onManualSync() async {
+    if (_record == null || _account == null) return;
+    final handle = await _masterKey.unsealForUse();
+    try {
+      await _recordStore.write(_record!, handle, _account!.anonymousUuid);
+      final now = DateTime.now().toUtc().toIso8601String();
+      await _storage.write(key: _kLastSyncKey, value: now);
+      if (mounted) setState(() => _lastSyncedAt = now);
+    } finally {
+      await _masterKey.wipeHandle(handle);
+    }
+  }
+
+  Future<void> _onDeleteAccount() async {
+    try {
+      final uuid = _account?.anonymousUuid;
+      if (uuid != null) {
+        try {
+          await BackendClient(_kBackendBaseUrl).delete(uuid);
+        } on BackendUnavailable {
+          // offline
+        } on BlobNotFound {
+          // already gone
+        }
+      }
+      await _recordStore.deleteLocal();
+      await _storage.deleteAll();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _record = null;
+          _account = null;
+          _storedPin = null;
+          _lastSyncedAt = null;
+          _biometricEnabled = false;
+          _phase = _Phase.onboarding;
+        });
+      }
+    }
+  }
+
   // Called when the patient closes the QR screen — re-fetches from the backend
-  // so any consultation the doctor just wrote is immediately visible.
+  // so any consultation the doctor just wrote is immediately visible, then
+  // re-encrypts with the master key to take back ownership from the session-key blob.
   Future<void> _onQrClosed() async {
     final handle = await _masterKey.unsealForUse();
     try {
@@ -331,11 +393,22 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         _account!.anonymousUuid,
         forceCloud: true,
       );
+      // Update UI immediately — don't let a write failure block the display.
       if (mounted) setState(() => _record = updated);
+      // Re-encrypt with master key — takes back ownership from session-key blob.
+      try {
+        await _recordStore.write(updated, handle, _account!.anonymousUuid);
+        final now = DateTime.now().toUtc().toIso8601String();
+        await _storage.write(key: _kLastSyncKey, value: now);
+        if (mounted) setState(() => _lastSyncedAt = now);
+      } on BackendUnavailable {
+        // Offline — local write already happened inside write(); cloud retry later.
+      }
     } on BackendUnavailable {
-      // offline — keep existing record, doctor's note will appear on next sync
-    } catch (_) {
-      // any other error — keep existing record silently
+      // offline — keep existing record
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[_onQrClosed] ERROR: $e\n$st');
     } finally {
       await _masterKey.wipeHandle(handle);
     }
@@ -347,6 +420,9 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     try {
       try {
         await _recordStore.write(record, handle, _account!.anonymousUuid);
+        final now = DateTime.now().toUtc().toIso8601String();
+        await _storage.write(key: _kLastSyncKey, value: now);
+        if (mounted) setState(() => _lastSyncedAt = now);
       } on BackendUnavailable {
         // local write succeeded; sync will retry when backend is available
       }
@@ -426,6 +502,9 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           onChangePin: _onChangePin,
           biometricService: _biometricService,
           biometricEnabled: _biometricEnabled,
+          lastSyncedAt: _lastSyncedAt,
+          onManualSync: _onManualSync,
+          onDeleteAccount: _onDeleteAccount,
         ),
       _Phase.invalidated => _InvalidatedScreen(error: _loadError),
     };

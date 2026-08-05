@@ -98,15 +98,23 @@ class ConsultationEditScreen extends StatefulWidget {
 
 class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
   final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _hospitalController = TextEditingController();
+  final TextEditingController _contactController = TextEditingController();
   final List<_LineControllers> _lines = [_LineControllers()];
+  final List<_AllergyControllers> _allergyLines = [];
   bool _saving = false;
   String? _error;
 
   @override
   void dispose() {
     _noteController.dispose();
+    _hospitalController.dispose();
+    _contactController.dispose();
     for (final line in _lines) {
       line.dispose();
+    }
+    for (final a in _allergyLines) {
+      a.dispose();
     }
     super.dispose();
   }
@@ -118,6 +126,12 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
       _lines.removeAt(index).dispose();
       if (_lines.isEmpty) _lines.add(_LineControllers());
     });
+  }
+
+  void _addAllergyLine() => setState(() => _allergyLines.add(_AllergyControllers()));
+
+  void _removeAllergyLine(int index) {
+    setState(() => _allergyLines.removeAt(index).dispose());
   }
 
   Prescription _buildPrescription() {
@@ -136,9 +150,9 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
-    final summary = _noteController.text.trim();
+    final noteText = _noteController.text.trim();
     final prescription = _buildPrescription();
-    if (summary.isEmpty && prescription.isEmpty) {
+    if (noteText.isEmpty && prescription.isEmpty) {
       setState(() => _error = 'Ajoutez une note ou une ordonnance.');
       return;
     }
@@ -153,13 +167,36 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
     final date = nowIso.substring(0, 10); // yyyy-MM-dd
     final consultationId = widget.idFactory();
 
+    // Build optional header from hospital / contact fields.
+    final doctorInfo = [
+      if (_hospitalController.text.trim().isNotEmpty)
+        'Établissement : ${_hospitalController.text.trim()}',
+      if (_contactController.text.trim().isNotEmpty)
+        'Contact : ${_contactController.text.trim()}',
+    ].join(' — ');
+
+    final fullSummary =
+        doctorInfo.isNotEmpty ? '$doctorInfo\n\n$noteText' : noteText;
+
+    // Collect allergies the doctor noted during this consultation.
+    final newAllergies = [
+      for (final a in _allergyLines)
+        if (a.substance.text.trim().isNotEmpty)
+          Allergy(
+            substance: a.substance.text.trim(),
+            severity: a.severity,
+            notedAt: date,
+          ),
+    ];
+
     try {
       final merged = mergeConsultation(
         widget.record,
         practitionerRef: widget.practitionerRef,
         date: date,
-        summary: summary,
+        summary: fullSummary,
         prescription: prescription.isEmpty ? null : prescription,
+        newAllergies: newAllergies,
         newConsultationId: consultationId,
         nowIso: nowIso,
       );
@@ -197,6 +234,24 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           TextField(
+            controller: _hospitalController,
+            decoration: const InputDecoration(
+              labelText: 'Hôpital / établissement — optionnel',
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _contactController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Contact / téléphone — optionnel',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
             controller: _noteController,
             minLines: 3,
             maxLines: 6,
@@ -224,6 +279,26 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
               onPressed: _addLine,
               icon: const Icon(Icons.add),
               label: const Text('Ajouter un médicament'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Allergies notées',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const Divider(),
+          for (var i = 0; i < _allergyLines.length; i++)
+            _AllergyLineRow(
+              key: ValueKey(_allergyLines[i]),
+              controllers: _allergyLines[i],
+              onRemove: () => _removeAllergyLine(i),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _addAllergyLine,
+              icon: const Icon(Icons.add),
+              label: const Text('Ajouter une allergie'),
             ),
           ),
           if (_error != null) ...[
@@ -263,6 +338,86 @@ class _LineControllers {
     dose.dispose();
     frequency.dispose();
     duration.dispose();
+  }
+}
+
+/// Holds state for one allergy entry the doctor noted during consultation.
+class _AllergyControllers {
+  final TextEditingController substance = TextEditingController();
+  String severity = 'mild';
+
+  void dispose() => substance.dispose();
+}
+
+class _AllergyLineRow extends StatefulWidget {
+  const _AllergyLineRow({
+    super.key,
+    required this.controllers,
+    required this.onRemove,
+  });
+
+  final _AllergyControllers controllers;
+  final VoidCallback onRemove;
+
+  @override
+  State<_AllergyLineRow> createState() => _AllergyLineRowState();
+}
+
+class _AllergyLineRowState extends State<_AllergyLineRow> {
+  static const _severities = ['mild', 'moderate', 'severe'];
+  static const _severityLabels = {
+    'mild': 'Légère',
+    'moderate': 'Modérée',
+    'severe': 'Sévère',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: widget.controllers.substance,
+              decoration: const InputDecoration(
+                labelText: 'Substance / allergène',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: DropdownButtonFormField<String>(
+              value: widget.controllers.severity,
+              decoration: const InputDecoration(
+                labelText: 'Gravité',
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+              items: [
+                for (final s in _severities)
+                  DropdownMenuItem(
+                    value: s,
+                    child: Text(_severityLabels[s]!),
+                  ),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => widget.controllers.severity = v);
+              },
+            ),
+          ),
+          IconButton(
+            onPressed: widget.onRemove,
+            icon: const Icon(Icons.remove_circle_outline),
+            tooltip: 'Retirer',
+          ),
+        ],
+      ),
+    );
   }
 }
 

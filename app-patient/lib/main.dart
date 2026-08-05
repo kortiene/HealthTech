@@ -183,7 +183,23 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          _record = await _recordStore.read(handle, _account!.anonymousUuid);
+          // Cloud-first on startup: picks up doctor's session changes from
+          // a prior QR scan without requiring another QR cycle.
+          MedicalRecord? cloudRecord;
+          try {
+            cloudRecord = await _recordStore.read(
+              handle,
+              _account!.anonymousUuid,
+              forceCloud: true,
+            );
+          } on BackendUnavailable {
+            // Offline — fall back to local cache below.
+          } catch (_) {
+            // Decrypt error (session-key blob in prod) — local is intact,
+            // fall back below.
+          }
+          _record = cloudRecord ??
+              await _recordStore.read(handle, _account!.anonymousUuid);
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(
@@ -229,11 +245,21 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         _account!.anonymousUuid,
         forceCloud: true,
       );
+      // Update UI immediately — don't let a write failure block the display.
       if (mounted) setState(() => _record = updated);
+      // Re-encrypt with master key — takes back ownership from session-key blob.
+      try {
+        await _recordStore.write(updated, handle, _account!.anonymousUuid);
+        final now = DateTime.now().toUtc().toIso8601String();
+        await _storage.write(key: _kLastSyncKey, value: now);
+        if (mounted) setState(() => _lastSyncedAt = now);
+      } on BackendUnavailable {
+        // Offline — local write already happened inside write(); cloud retry later.
+      }
     } on BackendUnavailable {
       // offline — keep existing record
     } catch (_) {
-      // keep existing record silently
+      // timing issue (patient closed before doctor finished) — keep existing record
     } finally {
       await _masterKey.wipeHandle(handle);
     }
