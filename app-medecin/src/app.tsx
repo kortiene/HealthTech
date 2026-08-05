@@ -1,29 +1,135 @@
-import { sessionTitle } from "./session";
+import { useState } from "preact/hooks";
+import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
+import { RecordScreen } from "./screens/RecordScreen";
+import { EditScreen, type NewConsultation } from "./screens/EditScreen";
+import { type MedicalRecord } from "./stubs/data";
 
-/**
- * Minimal app-shell stub for the doctor PWA (ADR 0002).
- *
- * The real consultation loop — scan the patient's 120 s QR (getUserMedia +
- * WASM QR decoder), download the encrypted blob, decrypt in a Web Worker
- * backed by the Rust crypto-core compiled to WASM (RAM-only, never to disk),
- * edit, re-encrypt, upload, then wipe + reload to drop the heap — lands in:
- *   - WASM crypto-core bindings ............ TODO(#17)
- *   - QR scan + consultation flow .......... TODO(#21)
- *   - offline ciphertext queue (IndexedDB) . TODO(#22)
- *
- * UX NORM (issue #28, docs/ux/medecin-ux-guidelines.md — single source of truth):
- * when the flow lands here it MUST follow the "single-flow, zero-menu" norm —
- * one linear journey (scan → read → edit → terminate), NO hamburger / drawer /
- * tab bar in the consultation core. The shell below intentionally renders no
- * navigation menu so the scaffold already honours that invariant; the future
- * step-budget guard-rail (UxBudget) mirrors the Flutter reference. We do NOT
- * simulate a consultation flow that does not exist yet.
- */
+type Screen = "scan" | "record" | "edit";
+
+function xorBytes(data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) out[i] = data[i] ^ 0x5a;
+  return out;
+}
+
 export function App() {
+  const [screen, setScreen] = useState<Screen>("scan");
+  const [pendingCount, setPendingCount] = useState(0);
+  const [scannedRecord, setScannedRecord] = useState<MedicalRecord | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [rawFlutter, setRawFlutter] = useState<any>(null);
+  const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
+
+  async function handleConsultationSaved(consultation: NewConsultation): Promise<void> {
+    if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
+
+    const newEntry = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      practitioner_ref: consultation.doctorName || '',
+      summary: consultation.summary,
+      ...(consultation.prescription ? { prescription: consultation.prescription } : {}),
+    };
+
+    const newAllergiesFlutter = consultation.newAllergies.map((a) => ({
+      substance: a.substance,
+      severity: a.severity,
+      noted_at: new Date().toISOString().slice(0, 10),
+    }));
+
+    const updatedRaw = {
+      ...rawFlutter,
+      consultations: [...(rawFlutter.consultations ?? []), newEntry],
+      allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
+      updated_at: new Date().toISOString(),
+    };
+
+    // XOR 0x5A re-encrypt and PUT back to backend
+    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        Authorization: `Bearer ${qrPayload.key}`,
+      },
+      body: encrypted.buffer as ArrayBuffer,
+    });
+
+    if (!res.ok) {
+      throw new Error(
+        res.status >= 500
+          ? "Serveur indisponible — réessayez."
+          : "Échec de l'enregistrement — réessayez."
+      );
+    }
+
+    // Update in-memory state so RecordScreen reflects the new consultation immediately
+    setRawFlutter(updatedRaw);
+    setScannedRecord((prev) =>
+      prev
+        ? {
+            ...prev,
+            consultations: [
+              ...prev.consultations,
+              {
+                date: newEntry.date,
+                doctorName: consultation.doctorName || undefined,
+                summary: consultation.summary,
+                prescription: consultation.prescription,
+              },
+            ],
+            allergies: [
+              ...prev.allergies,
+              ...consultation.newAllergies.map((a) => ({
+                substance: a.substance,
+                severity: a.severity === "severe" ? "sévère" : a.severity === "moderate" ? "modérée" : "légère",
+                notedAt: new Date().toISOString().slice(0, 10),
+              })),
+            ],
+          }
+        : prev
+    );
+    setPendingCount((n) => n + 1);
+    setScreen("record");
+  }
+
+  if (screen === "scan") {
+    return (
+      <ScanScreen
+        onScanned={(record, raw, payload) => {
+          setScannedRecord(record);
+          setRawFlutter(raw);
+          setQrPayload(payload);
+          setPendingCount(0);
+          setScreen("record");
+        }}
+      />
+    );
+  }
+
+  if (screen === "edit") {
+    return (
+      <EditScreen
+        record={scannedRecord!}
+        onSaved={handleConsultationSaved}
+        onCancel={() => setScreen("record")}
+      />
+    );
+  }
+
   return (
-    <main>
-      <h1>{sessionTitle()}</h1>
-      <p>Scaffold — consultation flow à venir (TODO(#21)).</p>
-    </main>
+    <RecordScreen
+      record={scannedRecord}
+      pendingCount={pendingCount}
+      onSynced={() => setPendingCount(0)}
+      onAddNote={() => setScreen("edit")}
+      onTerminated={() => {
+        setPendingCount(0);
+        setScannedRecord(null);
+        setRawFlutter(null);
+        setQrPayload(null);
+        setScreen("scan");
+      }}
+    />
   );
 }

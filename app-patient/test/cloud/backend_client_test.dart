@@ -140,6 +140,63 @@ void main() {
     });
   });
 
+  group('BackendClient.delete', () {
+    test('200 OK → returns normally', () async {
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((_) async => http.Response('', 200)),
+      );
+      await expectLater(client.delete(uuid), completes);
+    });
+
+    test('204 No Content → returns normally', () async {
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((_) async => http.Response('', 204)),
+      );
+      await expectLater(client.delete(uuid), completes);
+    });
+
+    test('404 → throws BlobNotFound', () async {
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((_) async => http.Response('', 404)),
+      );
+      expect(() => client.delete(uuid), throwsA(isA<BlobNotFound>()));
+    });
+
+    test('5xx → throws BackendUnavailable', () async {
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((_) async => http.Response('', 500)),
+      );
+      expect(() => client.delete(uuid), throwsA(isA<BackendUnavailable>()));
+    });
+
+    test('network error → throws BackendUnavailable', () async {
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((_) async => throw Exception('unreachable')),
+      );
+      expect(() => client.delete(uuid), throwsA(isA<BackendUnavailable>()));
+    });
+
+    test('issues DELETE to correct path', () async {
+      http.Request? captured;
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((req) async {
+          captured = req;
+          return http.Response('', 204);
+        }),
+      );
+      await client.delete(uuid);
+      expect(captured, isNotNull);
+      expect(captured!.url.path, '/blob/$uuid');
+      expect(captured!.method, 'DELETE');
+    });
+  });
+
   group('BlobNotFound', () {
     test('toString is non-empty', () {
       expect(const BlobNotFound('x').toString(), isNotEmpty);

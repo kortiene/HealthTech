@@ -40,6 +40,11 @@ dependencies:
   # Kotlin platform-channel shim). ADR 0001. TODO(#11).
   flutter_secure_storage: ^9.2.2
 
+  # Biometric / device-credential unlock — UI layer only. The master key unsealing
+  # remains in Keystore/TEE (KeystoreSealer). local_auth requires
+  # FlutterFragmentActivity on Android (see MainActivity.kt).
+  local_auth: ^2.3.0
+
   # HTTP client for cloud backup transport (issue #14).
   # Used by BackendClient (PUT/GET /blob/{uuid}); injectable in tests via MockClient.
   http: ^1.2.0
@@ -51,6 +56,10 @@ dependencies:
 
   path_provider: ^2.1.4
   path: ^1.9.0
+
+  # UI: typography (Inter) and Material Symbols icons.
+  google_fonts: ^6.2.0
+  material_symbols_icons: ^4.2843.0
 
 dev_dependencies:
   flutter_test:

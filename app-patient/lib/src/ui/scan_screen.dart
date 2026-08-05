@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../cloud/backend_client.dart';
+import '../doctor/consultation_edit_service.dart';
+import '../doctor/offline_upload_queue.dart';
 import '../doctor/scan_service.dart';
 import '../rust/crypto_core_bindings.dart';
 import 'record_view_screen.dart';
@@ -19,9 +21,23 @@ import 'record_view_screen.dart';
 /// is stopped while processing and restarted on error or after the record
 /// view is dismissed, allowing the doctor to scan again.
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key, required this.service});
+  const ScanScreen({
+    super.key,
+    required this.service,
+    this.editService,
+    this.queue,
+  });
 
   final ScanService service;
+
+  /// Injectable [ConsultationEditService]; defaults to [FrbCryptoCore] when
+  /// null (production path). Pass a dev/test stub to avoid the Rust codegen.
+  final ConsultationEditService? editService;
+
+  /// Injectable [OfflineUploadQueue]; defaults to [SqlCipherUploadQueue] when
+  /// null (production path). Pass [InMemoryUploadQueue] on platforms where
+  /// SQLCipher is unavailable (macOS dev, host tests).
+  final OfflineUploadQueue? queue;
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -61,7 +77,12 @@ class _ScanScreenState extends State<ScanScreen> {
       }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => RecordViewScreen(record: record, payload: payload),
+          builder: (_) => RecordViewScreen(
+            record: record,
+            payload: payload,
+            editService: widget.editService,
+            queue: widget.queue,
+          ),
         ),
       );
       // RecordViewScreen.dispose() wiped the payload — restart for next scan.

@@ -26,9 +26,18 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 
+# CORS middleware — allows the doctor PWA (browser) to fetch blobs cross-origin.
+tower-http = { version = "0.5", features = ["cors"] }
+
 # Structured logging.
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Durable blob backing: MinIO (S3-compatible) + PostgreSQL 16 (#103, ADR 0005).
+# Only active for staging/prod (APP_ENV); dev falls back to MemoryStore.
+aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
+aws-credential-types = { version = "1", features = ["hardcoded-credentials"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 
 [dev-dependencies]
 # Tower's oneshot service harness lets us exercise the router in tests without a socket.

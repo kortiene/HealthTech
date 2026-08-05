@@ -32,6 +32,8 @@ class Demographics {
     this.birthYear,
     this.sex,
     this.bloodType,
+    this.heightCm,
+    this.weightKg,
   });
 
   factory Demographics.fromJson(Map<String, Object?> json) {
@@ -40,6 +42,8 @@ class Demographics {
       birthYear: json['birth_year'] as int?,
       sex: json['sex'] as String?,
       bloodType: json['blood_type'] as String?,
+      heightCm: json['height_cm'] as int?,
+      weightKg: (json['weight_kg'] as num?)?.toDouble(),
     );
   }
 
@@ -50,11 +54,27 @@ class Demographics {
   final String? sex;
   final String? bloodType;
 
+  /// Height in centimetres (optional).
+  final int? heightCm;
+
+  /// Weight in kilograms (optional).
+  final double? weightKg;
+
+  /// Body-mass index, computed on demand. Returns null when either dimension
+  /// is absent or height is zero.
+  double? get bmi {
+    if (heightCm == null || weightKg == null || heightCm! <= 0) return null;
+    final h = heightCm! / 100.0;
+    return weightKg! / (h * h);
+  }
+
   Map<String, Object?> toJson() => {
         if (givenName != null) 'given_name': givenName,
         if (birthYear != null) 'birth_year': birthYear,
         if (sex != null) 'sex': sex,
         if (bloodType != null) 'blood_type': bloodType,
+        if (heightCm != null) 'height_cm': heightCm,
+        if (weightKg != null) 'weight_kg': weightKg,
       };
 
   @override
@@ -63,10 +83,13 @@ class Demographics {
       other.givenName == givenName &&
       other.birthYear == birthYear &&
       other.sex == sex &&
-      other.bloodType == bloodType;
+      other.bloodType == bloodType &&
+      other.heightCm == heightCm &&
+      other.weightKg == weightKg;
 
   @override
-  int get hashCode => Object.hash(givenName, birthYear, sex, bloodType);
+  int get hashCode =>
+      Object.hash(givenName, birthYear, sex, bloodType, heightCm, weightKg);
 }
 
 class Allergy {
@@ -78,9 +101,9 @@ class Allergy {
 
   factory Allergy.fromJson(Map<String, Object?> json) {
     return Allergy(
-      substance: json['substance'] as String,
-      severity: json['severity'] as String,
-      notedAt: json['noted_at'] as String,
+      substance: json['substance'] as String? ?? '',
+      severity: json['severity'] as String? ?? 'mild',
+      notedAt: json['noted_at'] as String? ?? '',
     );
   }
 

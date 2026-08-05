@@ -1,0 +1,141 @@
+/*
+  Système de design HealthTech — jetons partagés.
+  Source de vérité : Design Brief HealthTech v1.0 — Juillet 2026, §2.
+*/
+
+:root {
+  /* Primaire — vert émeraude */
+  --color-primary-900: #003d39;
+  --color-primary-700: #006c67;
+  --color-primary-500: #00a89e;
+  --color-primary-100: #e0f5f4;
+  --color-primary-50: #f0fafa;
+
+  /* Neutres */
+  --color-neutral-900: #1a1a1a;
+  --color-neutral-700: #3d3d3d;
+  --color-neutral-500: #737373;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-100: #f5f5f5;
+  --color-white: #ffffff;
+
+  /* Accent — ambre chaud */
+  --color-accent-700: #d97706;
+  --color-accent-500: #f59e0b;
+  --color-accent-100: #fef3c7;
+
+  /* Sémantiques */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-allergy: #b91c1c;
+  --color-allergy-bg: #fff1f2;
+
+  /* Typographie — famille Inter, fallback système */
+  --font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --font-family-symbols: "Material Symbols Rounded";
+
+  --text-display-size: 32px;
+  --text-display-weight: 700;
+  --text-display-lh: 1.2;
+
+  --text-headline-size: 24px;
+  --text-headline-weight: 700;
+  --text-headline-lh: 1.3;
+
+  --text-title-size: 18px;
+  --text-title-weight: 600;
+  --text-title-lh: 1.4;
+
+  --text-title-sm-size: 16px;
+  --text-title-sm-weight: 600;
+  --text-title-sm-lh: 1.4;
+
+  --text-body-lg-size: 16px;
+  --text-body-lg-weight: 400;
+  --text-body-lg-lh: 1.5;
+
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+  --text-body-lh: 1.5;
+
+  --text-label-size: 13px;
+  --text-label-weight: 500;
+  --text-label-lh: 1.4;
+
+  --text-caption-size: 11px;
+  --text-caption-weight: 400;
+  --text-caption-lh: 1.4;
+
+  /* Espacements */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Rayons */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  /* Cibles tactiles — minimum 44px (§3.1) */
+  --tap-target-min: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  color: var(--color-neutral-900);
+  background: var(--color-primary-50);
+  -webkit-font-smoothing: antialiased;
+}
+
+.material-symbol {
+  font-family: var(--font-family-symbols);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

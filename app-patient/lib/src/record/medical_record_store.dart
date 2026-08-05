@@ -97,10 +97,13 @@ class MedicalRecordStore {
   /// Throws [DecryptError] on a bad key or corrupted blob.
   Future<MedicalRecord> read(
     MasterKeyHandle handle,
-    String anonymousUuid,
-  ) async {
+    String anonymousUuid, {
+    bool forceCloud = false,
+  }) async {
+    final cached = forceCloud ? null : await _localStore.read();
+    final bool fetchedFromCloud = cached == null;
+
     Uint8List blob;
-    final cached = await _localStore.read();
     if (cached != null) {
       blob = cached;
     } else {
@@ -108,14 +111,27 @@ class MedicalRecordStore {
       blob = _retry != null
           ? await _retry.run(doGet, retryIf: (e) => e is BackendUnavailable)
           : await doGet();
-      await _localStore.write(blob);
     }
+
     final decrypted = await _crypto.decryptRecord(handle, blob);
     final plaintext = PlaintextCompressor.decodeIfCompressed(decrypted);
     final json = jsonDecode(utf8.decode(plaintext)) as Map<String, Object?>;
+
+    // Write to local cache ONLY after successful decryption (prevents
+    // overwriting with an un-decryptable session-key blob on QR close timing).
+    if (fetchedFromCloud) {
+      await _localStore.write(blob);
+    }
+
     return MedicalRecord.fromJson(json);
   }
 
   /// Whether a local record blob exists on this device.
   Future<bool> exists() => _localStore.exists();
+
+  /// Delete the local blob from this device.
+  ///
+  /// Does not touch the cloud copy. Call [BackendClient.delete] separately
+  /// to remove the cloud blob as part of account deletion.
+  Future<void> deleteLocal() => _localStore.delete();
 }

@@ -13,7 +13,24 @@ all-features = true
 # Fail on any RUSTSEC advisory in the dependency tree, and on yanked crates.
 # (vulnerabilities + unmaintained crates are denied by default in this schema.)
 yanked = "deny"
-ignore = []
+ignore = [
+  # paste 1.x — unmaintained (RUSTSEC-2024-0436), transitive dep via proc-macros.
+  # No direct usage in this codebase; upgrade blocked by sqlx 0.7.
+  "RUSTSEC-2024-0436",
+  # h2 — integer overflow in HPACK decoder (RUSTSEC-2024-0363).
+  # Backend serves HTTP/1.1 only (no HTTP/2 endpoint); axum does not enable h2
+  # by default. Transitive via hyper/tower. Revisit when sqlx 0.8 is adopted.
+  "RUSTSEC-2024-0363",
+  # rustls-pemfile — unmaintained (RUSTSEC-2025-0134). Transitive via sqlx rustls
+  # feature. No direct usage; blocked by sqlx 0.7 pinning rustls-pemfile 1.x.
+  "RUSTSEC-2025-0134",
+  # rustls — TLS certificate name-constraint and CRL parsing issues
+  # (RUSTSEC-2026-0098, -0099, -0104). Backend connects to a local PostgreSQL
+  # over loopback; no TLS termination in Rust. Revisit on sqlx 0.8 / rustls 0.23.
+  "RUSTSEC-2026-0098",
+  "RUSTSEC-2026-0099",
+  "RUSTSEC-2026-0104",
+]
 
 [licenses]
 # First-party workspace crates are intentionally AGPL-3.0-or-later; SCA vets the

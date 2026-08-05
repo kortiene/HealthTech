@@ -172,3 +172,21 @@ dev-up:
 # Tear the local dev stack down.
 dev-down:
     docker compose -f infra/dev/compose.yaml down
+
+# --- Local dev run shortcuts (issue #32) -----------------------------------
+
+# Start the Rust backend on port 8081 against the local dev stack.
+# Requires dev-up to be running first.
+dev-backend:
+    BIND_ADDR=0.0.0.0:8081 cargo run -p backend
+
+# Run the patient Flutter app in dev mode on an Android emulator.
+# Targets main_dev.dart (XOR stub, no FRB codegen needed).
+dev-flutter:
+    cd app-patient && flutter run --target lib/main_dev.dart
+
+# Start everything for a full local test: dev stack + backend + Flutter.
+dev-all: dev-up
+    @echo "Dev stack is up. Start backend and Flutter in separate terminals:"
+    @echo "  just dev-backend"
+    @echo "  just dev-flutter"

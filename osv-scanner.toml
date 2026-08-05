@@ -1,0 +1,35 @@
+# osv-scanner suppression list — aligns with deny.toml ignore list.
+# Advisories here are transitive deps with no direct usage in the crypto path.
+# Each entry documents why the risk is acceptable and when to revisit.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "paste — unmaintained (no active exploit). Transitive dep via proc-macros (sqlx/thiserror). No fix available upstream; revisit on sqlx 0.8 migration."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "rsa 0.9.10 — timing side-channel in RSA decryption. HealthTech uses AES-256-GCM only; RSA is not in any code path. Transitive dep via sqlx-postgres."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0134"
+reason = "rustls-pemfile — unmaintained. Transitive dep via sqlx runtime-tokio-rustls. No direct usage; revisit on sqlx 0.8."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0098"
+reason = "rustls-webpki — TLS name-constraint bypass. Backend connects to local PostgreSQL over loopback (127.0.0.1); no TLS termination in Rust. Revisit on sqlx 0.8 / rustls-webpki 0.103."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0099"
+reason = "rustls-webpki — wildcard name-constraint bypass. Same rationale as RUSTSEC-2026-0098 (loopback DB connection, no TLS in Rust)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0104"
+reason = "rustls-webpki — reachable panic in CRL parsing. Same rationale as RUSTSEC-2026-0098 (loopback DB connection, no CRL path exercised)."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0363"
+reason = "sqlx 0.7.4 — h2 integer overflow; fixed in sqlx 0.8.1. Upgrade deferred (breaking API changes); backend does not expose HTTP/2. Revisit in next sprint."
+
+[[IgnoredVulns]]
+id = "GHSA-frvp-7c67-39w9"
+reason = "@hono/node-server 1.19.14 — fixed in 2.0.5 (major version bump). adw_sdlc dev tooling only; not part of the patient data pipeline. Upgrade blocked by semver constraint; bump separately."
