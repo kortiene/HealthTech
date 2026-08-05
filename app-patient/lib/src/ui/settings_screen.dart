@@ -419,7 +419,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => const _PrivacyPolicySheet(),
     );
   }
-
 }
 
 // ─── Section container ────────────────────────────────────────────────────────
