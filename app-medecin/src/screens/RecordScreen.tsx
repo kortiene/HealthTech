@@ -15,8 +15,7 @@ import {
   type Consultation,
 } from "../stubs/data";
 import { TerminatingOverlay } from "./TerminatingOverlay";
-
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "../session";
 
 interface RecordScreenProps {
   record: MedicalRecord | null;
@@ -336,6 +335,77 @@ function ConsultationTimeline({ consultations }: { consultations: Consultation[]
   );
 }
 
+// ─── Bannière d'avertissement de fermeture ────────────────────────────────────
+
+/**
+ * Bannière persistante fixée en haut, affichée `WARN_BEFORE_MS` avant la
+ * fermeture automatique pour inactivité. Affiche un compte à rebours vivant et
+ * un bouton « Prolonger ». Le compte à rebours est purement indicatif : la
+ * fermeture autoritaire reste pilotée par `closeTimer` dans RecordScreen (pas
+ * par l'intervalle ci-dessous), pour éviter toute dérive.
+ */
+function _SessionWarningBanner({
+  remainingMs,
+  onExtend,
+}: {
+  remainingMs: number;
+  onExtend: () => void;
+}) {
+  const [remaining, setRemaining] = useState(remainingMs);
+
+  useEffect(() => {
+    setRemaining(remainingMs);
+    const id = window.setInterval(() => {
+      setRemaining((prev) => Math.max(0, prev - 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [remainingMs]);
+
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-sm)",
+        padding: "var(--space-md)",
+        background: "var(--color-accent-700)",
+        color: "var(--color-white)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        zIndex: 60,
+      }}
+    >
+      <Icon name="schedule" size={20} color="var(--color-white)" />
+      <p className="text-body-lg" style={{ flex: 1, margin: 0, color: "var(--color-white)" }}>
+        Votre session se fermera dans {formatCountdown(remaining)} faute d'activité.
+      </p>
+      <button
+        type="button"
+        onClick={onExtend}
+        aria-label="Prolonger la session"
+        style={{
+          minHeight: "44px",
+          padding: "0 var(--space-md)",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--color-white)",
+          color: "var(--color-accent-700)",
+          border: "none",
+          fontWeight: 700,
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        Prolonger
+      </button>
+    </div>
+  );
+}
+
 // ─── RecordScreen ─────────────────────────────────────────────────────────────
 
 /**
@@ -347,16 +417,40 @@ export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAdd
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
   const [snack, setSnack] = useState<{ message: string; tone: SnackBarTone } | null>(null);
-  const idleTimer = useRef<number | undefined>(undefined);
+  const [isWarning, setIsWarning] = useState(false);
+  const warnTimer = useRef<number | undefined>(undefined);
+  const closeTimer = useRef<number | undefined>(undefined);
 
+  /**
+   * Canonical "I am active" signal — resets the two-phase idle timer and clears
+   * any pre-close warning. Called on every scroll/click over the record, and by
+   * the « Prolonger » button.
+   *
+   * #120 integration seam: when VoiceNoteScreen / MediaRecorder lands, the
+   * recorder must call this on each `dataavailable` event (and on `start`) so an
+   * active recording counts as activity and never auto-closes mid-recording.
+   * Lift this into a shared session-activity hook or pass it down as `onActivity`.
+   */
   function resetIdleTimer() {
-    if (idleTimer.current) window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => terminateSession(), IDLE_TIMEOUT_MS);
+    if (warnTimer.current) window.clearTimeout(warnTimer.current);
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    setIsWarning(false);
+    warnTimer.current = window.setTimeout(
+      () => setIsWarning(true),
+      IDLE_TIMEOUT_MS - WARN_BEFORE_MS,
+    );
+    closeTimer.current = window.setTimeout(
+      () => terminateSession(),
+      IDLE_TIMEOUT_MS,
+    );
   }
 
   useEffect(() => {
     resetIdleTimer();
-    return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
+    return () => {
+      if (warnTimer.current) window.clearTimeout(warnTimer.current);
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    };
   }, []);
 
   async function syncNow() {
@@ -397,6 +491,10 @@ export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAdd
         <SyncBadge pendingCount={pendingCount} isSyncing={isSyncing} onSync={syncNow} />
         <TerminateButton onTerminate={terminateSession} />
       </AppBar>
+
+      {isWarning && !isTerminating && (
+        <_SessionWarningBanner remainingMs={WARN_BEFORE_MS} onExtend={resetIdleTimer} />
+      )}
 
       <PatientHeroBanner record={record} />
 
@@ -456,3 +554,6 @@ export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAdd
     </div>
   );
 }
+
+// Exported for VNode/a11y unit tests only — not part of the public component API.
+export { _SessionWarningBanner as SessionWarningBanner };
