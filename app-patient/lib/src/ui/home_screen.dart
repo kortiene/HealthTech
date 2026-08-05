@@ -25,8 +25,8 @@ class HomeScreen extends StatelessWidget {
   Consultation? get _lastConsultation {
     if (record.consultations.isEmpty) return null;
     final indexed = List<MapEntry<int, Consultation>>.generate(
-      record.consultations.length,
-      (i) => MapEntry(i, record.consultations[i]));
+        record.consultations.length,
+        (i) => MapEntry(i, record.consultations[i]));
     indexed.sort((a, b) {
       final cmp = b.value.date.compareTo(a.value.date);
       return cmp != 0 ? cmp : b.key - a.key;
@@ -152,8 +152,19 @@ class _LastConsultationCard extends StatelessWidget {
 
   String _formatDate(DateTime d) {
     const months = [
-      '', 'jan.', 'fév.', 'mars', 'avr.', 'mai', 'juin',
-      'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.'
+      '',
+      'jan.',
+      'fév.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sep.',
+      'oct.',
+      'nov.',
+      'déc.'
     ];
     return '${d.day} ${months[d.month]} ${d.year}';
   }

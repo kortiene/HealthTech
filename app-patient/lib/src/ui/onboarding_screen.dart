@@ -245,7 +245,8 @@ class _ConsentStep extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.md),
               ),
             ),
-            child: const Text('Créer mon compte', style: TextStyle(fontSize: 16)),
+            child:
+                const Text('Créer mon compte', style: TextStyle(fontSize: 16)),
           ),
         ],
       ),
@@ -258,8 +259,16 @@ class _TrustCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final items = [
-      (Symbols.lock_rounded, 'Chiffrement AES-256-GCM', 'Données protégées sur l\'appareil'),
-      (Symbols.visibility_off_rounded, 'Zéro connaissance', 'Le serveur ne voit jamais vos données'),
+      (
+        Symbols.lock_rounded,
+        'Chiffrement AES-256-GCM',
+        'Données protégées sur l\'appareil'
+      ),
+      (
+        Symbols.visibility_off_rounded,
+        'Zéro connaissance',
+        'Le serveur ne voit jamais vos données'
+      ),
       (Symbols.verified_rounded, 'Conforme ARTCI', 'Loi ivoirienne n°2013-450'),
     ];
     return Container(
@@ -298,7 +307,8 @@ class _TrustCard extends StatelessWidget {
                       ),
                       Text(
                         item.$3,
-                        style: tt.bodySmall?.copyWith(color: AppColors.neutral700),
+                        style:
+                            tt.bodySmall?.copyWith(color: AppColors.neutral700),
                       ),
                     ],
                   ),

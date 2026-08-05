@@ -78,11 +78,11 @@ class _ScanScreenState extends State<ScanScreen> {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => RecordViewScreen(
-                  record: record,
-                  payload: payload,
-                  editService: widget.editService,
-                  queue: widget.queue,
-                ),
+            record: record,
+            payload: payload,
+            editService: widget.editService,
+            queue: widget.queue,
+          ),
         ),
       );
       // RecordViewScreen.dispose() wiped the payload — restart for next scan.

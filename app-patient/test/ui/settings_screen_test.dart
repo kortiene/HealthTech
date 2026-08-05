@@ -22,7 +22,8 @@ const _account = PatientAccount(
   anonymousUuid: '00000000-0000-4000-8000-000000000001',
   cmuNumber: '123456789012',
   phone: '+2250700000001',
-  consent: ConsentRecord(version: '1.0', acceptedAt: '2025-01-01T00:00:00.000Z'),
+  consent:
+      ConsentRecord(version: '1.0', acceptedAt: '2025-01-01T00:00:00.000Z'),
   createdAt: '2025-01-01T00:00:00.000Z',
 );
 
@@ -79,7 +80,8 @@ void main() {
       expect(find.text('Jamais'), findsOneWidget);
     });
 
-    testWidgets('shows a non-empty value when lastSyncedAt is set', (tester) async {
+    testWidgets('shows a non-empty value when lastSyncedAt is set',
+        (tester) async {
       await tester.pumpWidget(
         _buildScreen(lastSyncedAt: '2025-06-01T10:00:00.000Z'),
       );
@@ -91,7 +93,9 @@ void main() {
     testWidgets('sync tile calls onManualSync when tapped', (tester) async {
       var called = false;
       await tester.pumpWidget(
-        _buildScreen(onManualSync: () async { called = true; }),
+        _buildScreen(onManualSync: () async {
+          called = true;
+        }),
       );
       final tile = await _scrollTo(tester, 'Sauvegarder maintenant');
       await tester.tap(tile);
@@ -109,10 +113,13 @@ void main() {
   });
 
   group('SettingsScreen — delete account (#105)', () {
-    testWidgets('onDeleteAccount is invoked after confirmation', (tester) async {
+    testWidgets('onDeleteAccount is invoked after confirmation',
+        (tester) async {
       var called = false;
       await tester.pumpWidget(
-        _buildScreen(onDeleteAccount: () async { called = true; }),
+        _buildScreen(onDeleteAccount: () async {
+          called = true;
+        }),
       );
 
       // The danger-zone tile is below the fold — scroll until visible.

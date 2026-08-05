@@ -99,7 +99,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
-
                 Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -163,7 +162,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ],
                   ),
                 ),
-
                 Positioned(
                   bottom: 48,
                   left: 0,
@@ -181,12 +179,10 @@ class _SplashScreenState extends State<SplashScreen>
                         const SizedBox(width: 6),
                         Text(
                           'Chiffrement de bout en bout',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: AppColors.white.withAlpha(100),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.white.withAlpha(100),
+                                  ),
                         ),
                       ],
                     ),

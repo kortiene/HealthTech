@@ -128,7 +128,8 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
     });
   }
 
-  void _addAllergyLine() => setState(() => _allergyLines.add(_AllergyControllers()));
+  void _addAllergyLine() =>
+      setState(() => _allergyLines.add(_AllergyControllers()));
 
   void _removeAllergyLine(int index) {
     setState(() => _allergyLines.removeAt(index).dispose());

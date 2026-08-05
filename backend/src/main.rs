@@ -301,12 +301,7 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
     // access to GET/PUT/DELETE /blob and /media. Restrict in production via ADR 0008.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
-        .allow_methods([
-            Method::GET,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
+        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     Router::new()
@@ -359,8 +354,7 @@ async fn main() {
 
     axum::serve(
         listener,
-        app(store, media, access)
-            .into_make_service_with_connect_info::<SocketAddr>(),
+        app(store, media, access).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
     .expect("backend server error");

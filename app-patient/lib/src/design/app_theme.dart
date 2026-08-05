@@ -10,32 +10,32 @@ class AppColors {
   static const primary700 = Color(0xFF006C67);
   static const primary500 = Color(0xFF00A89E);
   static const primary100 = Color(0xFFE0F5F4);
-  static const primary50  = Color(0xFFF0FAFA);
+  static const primary50 = Color(0xFFF0FAFA);
 
   static const neutral900 = Color(0xFF1A1A1A);
   static const neutral700 = Color(0xFF3D3D3D);
   static const neutral500 = Color(0xFF737373);
   static const neutral200 = Color(0xFFE5E5E5);
   static const neutral100 = Color(0xFFF5F5F5);
-  static const white      = Color(0xFFFFFFFF);
+  static const white = Color(0xFFFFFFFF);
 
   static const accent700 = Color(0xFFD97706);
   static const accent500 = Color(0xFFF59E0B);
   static const accent100 = Color(0xFFFEF3C7);
 
-  static const success   = Color(0xFF059669);
-  static const warning   = Color(0xFFD97706);
-  static const error     = Color(0xFFDC2626);
-  static const errorBg   = Color(0xFFFEF2F2);
-  static const allergy   = Color(0xFFB91C1C);
+  static const success = Color(0xFF059669);
+  static const warning = Color(0xFFD97706);
+  static const error = Color(0xFFDC2626);
+  static const errorBg = Color(0xFFFEF2F2);
+  static const allergy = Color(0xFFB91C1C);
   static const allergyBg = Color(0xFFFFF1F2);
 }
 
 class AppRadii {
   AppRadii._();
-  static const sm   = 12.0;
-  static const md   = 16.0;
-  static const lg   = 24.0;
+  static const sm = 12.0;
+  static const md = 16.0;
+  static const lg = 24.0;
   static const pill = 999.0;
 }
 
@@ -175,8 +175,7 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.neutral900,
-        contentTextStyle:
-            textTheme.bodyLarge?.copyWith(color: AppColors.white),
+        contentTextStyle: textTheme.bodyLarge?.copyWith(color: AppColors.white),
         actionTextColor: AppColors.primary100,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -190,10 +189,9 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.primary100,
-        labelStyle:
-            textTheme.labelLarge?.copyWith(color: AppColors.primary900),
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm, vertical: 4),
+        labelStyle: textTheme.labelLarge?.copyWith(color: AppColors.primary900),
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.pill),
         ),
@@ -218,28 +216,44 @@ class AppTheme {
     final base = GoogleFonts.interTextTheme();
     return base.copyWith(
       displaySmall: GoogleFonts.inter(
-          fontSize: 32, fontWeight: FontWeight.w700, height: 1.2,
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
           color: AppColors.neutral900),
       headlineSmall: GoogleFonts.inter(
-          fontSize: 24, fontWeight: FontWeight.w700, height: 1.3,
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          height: 1.3,
           color: AppColors.neutral900),
       titleLarge: GoogleFonts.inter(
-          fontSize: 18, fontWeight: FontWeight.w600, height: 1.4,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
           color: AppColors.neutral900),
       titleSmall: GoogleFonts.inter(
-          fontSize: 16, fontWeight: FontWeight.w600, height: 1.4,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
           color: AppColors.neutral900),
       bodyLarge: GoogleFonts.inter(
-          fontSize: 16, fontWeight: FontWeight.w400, height: 1.5,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          height: 1.5,
           color: AppColors.neutral900),
       bodyMedium: GoogleFonts.inter(
-          fontSize: 14, fontWeight: FontWeight.w400, height: 1.5,
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          height: 1.5,
           color: AppColors.neutral700),
       labelLarge: GoogleFonts.inter(
-          fontSize: 13, fontWeight: FontWeight.w500, height: 1.4,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          height: 1.4,
           color: AppColors.neutral700),
       bodySmall: GoogleFonts.inter(
-          fontSize: 11, fontWeight: FontWeight.w400, height: 1.4,
+          fontSize: 11,
+          fontWeight: FontWeight.w400,
+          height: 1.4,
           color: AppColors.neutral500),
     );
   }

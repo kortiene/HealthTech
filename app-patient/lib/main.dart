@@ -60,7 +60,16 @@ class PatientApp extends StatelessWidget {
 
 // ── Phase FSM ─────────────────────────────────────────────────────────────────
 
-enum _Phase { splash, probing, onboarding, pinCreate, locked, loading, home, invalidated }
+enum _Phase {
+  splash,
+  probing,
+  onboarding,
+  pinCreate,
+  locked,
+  loading,
+  home,
+  invalidated
+}
 
 class _AppRoot extends StatefulWidget {
   const _AppRoot();
@@ -449,8 +458,8 @@ class _InvalidatedScreen extends StatelessWidget {
               Text(
                 error ??
                     'La clé de chiffrement est inaccessible. '
-                    'Vous pouvez recréer un nouveau profil — '
-                    'les données précédentes ne seront pas récupérables.',
+                        'Vous pouvez recréer un nouveau profil — '
+                        'les données précédentes ne seront pas récupérables.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),

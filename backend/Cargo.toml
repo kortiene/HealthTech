@@ -37,7 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Only active for staging/prod (APP_ENV); dev falls back to MemoryStore.
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
 aws-credential-types = { version = "1", features = ["hardcoded-credentials"] }
-sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "uuid"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 
 [dev-dependencies]
 # Tower's oneshot service harness lets us exercise the router in tests without a socket.

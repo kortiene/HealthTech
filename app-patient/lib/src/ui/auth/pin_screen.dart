@@ -169,7 +169,8 @@ class _PinScreenState extends State<PinScreen>
             ],
             const Spacer(),
             _buildNumpad(isDark),
-            if (widget.mode == PinMode.verify && widget.onBiometric != null) ...[
+            if (widget.mode == PinMode.verify &&
+                widget.onBiometric != null) ...[
               const SizedBox(height: 16),
               _buildBiometricButton(isDark),
             ],
@@ -185,9 +186,7 @@ class _PinScreenState extends State<PinScreen>
       width: 72,
       height: 72,
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.white.withAlpha(25)
-            : AppColors.primary100,
+        color: isDark ? AppColors.white.withAlpha(25) : AppColors.primary100,
         shape: BoxShape.circle,
       ),
       child: Icon(
@@ -271,15 +270,21 @@ class _PinScreenState extends State<PinScreen>
 
   Widget _buildNumpad(bool isDark) {
     final keyFg = isDark ? AppColors.white : AppColors.neutral900;
-    final keyBg = isDark
-        ? AppColors.white.withAlpha(20)
-        : AppColors.neutral100;
+    final keyBg = isDark ? AppColors.white.withAlpha(20) : AppColors.neutral100;
 
     final keys = <String?>[
-      '1', '2', '3',
-      '4', '5', '6',
-      '7', '8', '9',
-      null, '0', 'del',
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      null,
+      '0',
+      'del',
     ];
 
     return Padding(
@@ -318,9 +323,7 @@ class _PinScreenState extends State<PinScreen>
   }
 
   Widget _buildBiometricButton(bool isDark) {
-    final keyBg = isDark
-        ? AppColors.white.withAlpha(20)
-        : AppColors.neutral100;
+    final keyBg = isDark ? AppColors.white.withAlpha(20) : AppColors.neutral100;
     final keyFg = isDark ? AppColors.white : AppColors.neutral900;
 
     return Padding(

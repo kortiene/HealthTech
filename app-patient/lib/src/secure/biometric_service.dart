@@ -26,8 +26,7 @@ class BiometricService {
     return can && supported;
   }
 
-  Future<bool> isEnabled() async =>
-      (await _storage.read(key: _kKey)) == 'true';
+  Future<bool> isEnabled() async => (await _storage.read(key: _kKey)) == 'true';
 
   Future<bool> authenticate(String reason) async {
     try {

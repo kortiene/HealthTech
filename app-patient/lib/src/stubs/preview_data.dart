@@ -14,9 +14,14 @@ abstract final class PreviewData {
       bloodType: 'O+',
     ),
     allergies: [
-      Allergy(substance: 'Pénicilline', severity: 'severe', notedAt: '2024-03-10'),
-      Allergy(substance: "Piqûre d'abeille", severity: 'severe', notedAt: '2024-01-15'),
-      Allergy(substance: 'Arachides', severity: 'moderate', notedAt: '2024-06-01'),
+      Allergy(
+          substance: 'Pénicilline', severity: 'severe', notedAt: '2024-03-10'),
+      Allergy(
+          substance: "Piqûre d'abeille",
+          severity: 'severe',
+          notedAt: '2024-01-15'),
+      Allergy(
+          substance: 'Arachides', severity: 'moderate', notedAt: '2024-06-01'),
     ],
     chronicConditions: [
       ChronicCondition(name: 'Asthme bronchique', icd10: 'J45'),
@@ -40,8 +45,7 @@ abstract final class PreviewData {
         id: 'c-001',
         date: '2026-06-12',
         practitionerRef: 'Dr. Koné',
-        summary:
-            'Contrôle de routine. Tension artérielle 120/80. '
+        summary: 'Contrôle de routine. Tension artérielle 120/80. '
             'Bonne tolérance au traitement.',
         prescription: 'Paracétamol 500 mg — 3×/jour, 5 jours',
       ),
@@ -49,7 +53,8 @@ abstract final class PreviewData {
         id: 'c-002',
         date: '2026-03-02',
         practitionerRef: 'Dr. Koné',
-        summary: "Crise d'asthme légère. SpO2 96 %. Traitement de fond maintenu.",
+        summary:
+            "Crise d'asthme légère. SpO2 96 %. Traitement de fond maintenu.",
       ),
       Consultation(
         id: 'c-003',

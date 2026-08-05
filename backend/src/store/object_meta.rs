@@ -112,12 +112,13 @@ impl ObjectMetaStore {
         let size = bytes.len();
 
         // Check if UUID exists in Postgres to determine Created vs Replaced.
-        let existing: Option<i64> = sqlx::query("SELECT version FROM blob_metadata WHERE uuid = $1")
-            .bind(uuid)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|_| StoreError::Unavailable)?
-            .map(|r| r.get::<i64, _>(0));
+        let existing: Option<i64> =
+            sqlx::query("SELECT version FROM blob_metadata WHERE uuid = $1")
+                .bind(uuid)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|_| StoreError::Unavailable)?
+                .map(|r| r.get::<i64, _>(0));
 
         // Write opaque ciphertext to MinIO (verbatim, zero-knowledge).
         self.s3
@@ -146,14 +147,12 @@ impl ObjectMetaStore {
             .map_err(|_| StoreError::Unavailable)?;
             (new_version, true)
         } else {
-            sqlx::query(
-                "INSERT INTO blob_metadata (uuid, size, version) VALUES ($1, $2, 1)",
-            )
-            .bind(uuid)
-            .bind(size as i64)
-            .execute(&self.pool)
-            .await
-            .map_err(|_| StoreError::Unavailable)?;
+            sqlx::query("INSERT INTO blob_metadata (uuid, size, version) VALUES ($1, $2, 1)")
+                .bind(uuid)
+                .bind(size as i64)
+                .execute(&self.pool)
+                .await
+                .map_err(|_| StoreError::Unavailable)?;
             (1u64, false)
         };
 
