@@ -188,6 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Switch.adaptive(
                         value: _biometrics,
                         onChanged: _onBiometricChanged,
+                        // ignore: deprecated_member_use
                         activeColor: AppColors.primary700,
                       ),
                     ),
@@ -223,6 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Switch.adaptive(
                         value: _autoSync,
                         onChanged: (v) => setState(() => _autoSync = v),
+                        // ignore: deprecated_member_use
                         activeColor: AppColors.primary700,
                       ),
                     ),

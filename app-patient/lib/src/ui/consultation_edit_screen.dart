@@ -392,6 +392,7 @@ class _AllergyLineRowState extends State<_AllergyLineRow> {
           Expanded(
             flex: 2,
             child: DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use
               value: widget.controllers.severity,
               decoration: const InputDecoration(
                 labelText: 'Gravité',
