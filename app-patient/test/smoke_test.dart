@@ -8,13 +8,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app_patient/main.dart';
+import 'package:app_patient/src/ui/splash_screen.dart';
 
 void main() {
   testWidgets('patient app renders with key-state routing', (tester) async {
     await tester.pumpWidget(const PatientApp());
 
-    // First frame: the master-key state probe is still in flight → spinner.
+    // First frame: FSM starts at _Phase.splash — branded splash screen shown
+    // before the master-key state probe begins.
     expect(find.byType(MaterialApp), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(SplashScreen), findsOneWidget);
   });
 }
