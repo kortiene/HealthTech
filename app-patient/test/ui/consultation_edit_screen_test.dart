@@ -75,6 +75,14 @@ Future<Future<ConsultationEditResult?>> _pushScreen(
   WidgetTester tester, {
   _FakeConsultationEditService? service,
 }) async {
+  // The form is taller than the default 800×600 test surface after hospital /
+  // contact / allergy fields were added.  Widen the logical viewport so every
+  // widget — including the Enregistrer button — is onstage (skipOffstage:true).
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   late Future<ConsultationEditResult?> resultFuture;
   await tester.pumpWidget(
     MaterialApp(
