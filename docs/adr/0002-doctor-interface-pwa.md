@@ -7,7 +7,7 @@
 The professional interface must be **web and mobile**, ultra-fast, learnable in **< 5 minutes**, and run
 the security-critical consultation loop: scan the patient's 120 s QR → download the encrypted blob →
 **decrypt in RAM only (never to disk)** → edit a note/prescription → re-encrypt → upload → wipe; auto-close
-after 15 min inactivity. It must load fast on clinic 3G/flaky wifi.
+after 30 min inactivity (see the #122 update below). It must load fast on clinic 3G/flaky wifi.
 
 ## Decision
 
@@ -15,8 +15,19 @@ Build the doctor interface as an **installable PWA using Preact + TypeScript + V
 running in the **WebAssembly build of the shared Rust core** ([ADR 0003](./0003-shared-crypto-core-rust.md))
 inside a Web Worker. QR scan via `getUserMedia` + a WASM QR decoder (`zxing-wasm`/`jsQR`). The decrypted
 record lives **only** in JS/WASM linear memory — never IndexedDB/localStorage/Cache/disk. On "Terminer",
-15-min idle, tab close, or after upload, buffers are overwritten and **the page is reloaded to force a
+idle timeout, tab close, or after upload, buffers are overwritten and **the page is reloaded to force a
 fresh heap**. The Service Worker caches only the app shell (code), never plaintext or blobs.
+
+### Update #122 — idle window raised to 30 min + pre-close warning
+
+The idle auto-close window is raised from **15 min to 30 min** (`IDLE_TIMEOUT_MS`) to fit real
+consultations with interruptions. To avoid silently wiping a doctor's in-progress note, a persistent
+warning banner appears **2 min before** close (`WARN_BEFORE_MS`, at T-28 min) with a live countdown and a
+**« Prolonger »** button that resets the full 30-min window. The wipe-on-idle guarantee is unchanged: T-0
+still runs the existing secure-close path (overwrite buffers + reload-to-drop-heap). The trade-off — a
+longer maximum in-RAM plaintext exposure window (30 vs 15 min), extendable by explicit human action — is the
+deliberate, approved ask of #122 and is flagged for the pentest (#25). Timeout remains a **client-only** UX
+safeguard; the server stays zero-knowledge and stateless w.r.t. sessions.
 
 ## Consequences
 

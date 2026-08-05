@@ -121,6 +121,8 @@ message d'erreur ou d'état : **« message = cause + action à faire »** (modè
 | Erreur — déchiffrement | « Erreur de déchiffrement — QR invalide » |
 | État — enregistré hors-ligne | « Consultation enregistrée hors-ligne — synchro à la reconnexion » |
 | Confirmation — synchro | « N consultation(s) synchronisée(s). » |
+| Avertissement — session expirante | « Votre session se fermera dans {mm:ss} faute d'activité. » |
+| Action — prolonger session | « Prolonger » |
 
 Ces chaînes existent déjà côté Flutter. Le test d'invariants UX (§7) vérifie la présence des
 **libellés d'action clés** (« Ajouter une note / ordonnance », « Terminer ») et l'absence de
@@ -139,6 +141,13 @@ contourner :
   d'écran vide sans retour.
 - **Hors-ligne / « N en attente »** : état **rassurant, jamais un rouge d'erreur** pour un simple
   hors-ligne — « Consultation enregistrée hors-ligne — synchro à la reconnexion » (#21/#22).
+- **Avertissement pré-fermeture (#122)** : à T-28 min (2 min avant l'expiration de 30 min
+  d'inactivité), un **banner fixe en haut** (`role="alert"`, palette ambre/warning) affiche le
+  message d'expiration avec compte à rebours `{mm:ss}` et un bouton **« Prolonger »** (min 44 px,
+  accessibilité `aria-label`). Le clic réinitialise la totalité de la fenêtre de 30 min et masque
+  le banner. Toute activité (clic, scroll) produit le même effet. Le banner ne s'affiche que
+  pendant l'état `record` (session déchiffrée ouverte) — jamais sur l'écran de scan ou pendant
+  `TerminatingOverlay`.
 - **Wipe / fin de session** : la fin de session (#19) est **visiblement confirmée** (overlay de
   traitement puis fermeture) ; l'UX ne doit pas donner l'illusion qu'un dossier reste ouvert
   après « Terminer ».

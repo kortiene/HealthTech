@@ -144,7 +144,7 @@
   *Avancement :* fusion append-only (`doctor/consultation_merge.dart`), modèle d'ordonnance (`record/prescription.dart`), rechiffrement RAM avec la clé de session + garde 500 Kio préservant la nouvelle note (`doctor/consultation_edit_service.dart`), formulaire d'édition rapide (`ui/consultation_edit_screen.dart`) et porteur de session RAM (`doctor/consultation_session.dart`). **Restant :** renvoi cloud + wipe RAM de fin de session (#19), identité praticien (placeholder `practitioner-unverified`).
 
 - **#19 — Fin de session : rechiffrement, renvoi cloud & wipe RAM** · `Must` · `M` · `feature` `security`
-  Au clic « Terminer » ou après 15 min d'inactivité : chiffrer le nouveau dossier, l'envoyer au cloud, vider la RAM du médecin.
+  Au clic « Terminer » ou après 30 min d'inactivité (avertissement persistant 2 min avant — #122) : chiffrer le nouveau dossier, l'envoyer au cloud, vider la RAM du médecin.
   *Acceptation :* après fin de session, aucune donnée patient résiduelle en mémoire ; blob mis à jour côté serveur.
   *Implémente :* US-2.3 · *Dépend de :* #17, #18, #14.
 
