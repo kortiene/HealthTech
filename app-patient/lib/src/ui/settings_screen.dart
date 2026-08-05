@@ -420,11 +420,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showNotImplemented(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fonctionnalité disponible prochainement')),
-    );
-  }
 }
 
 // ─── Section container ────────────────────────────────────────────────────────
@@ -1133,13 +1128,13 @@ class _PrivacyPolicySheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _PolicySection(
+                  const _PolicySection(
                     title: '1. Responsable du traitement',
                     body:
                         'HealthTech SAS, opérateur agréé ARTCI (Côte d\'Ivoire). '
                         'Contact DPO : privacy@healthtech.ci',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '2. Données collectées',
                     body: '• Numéro CMU (identifiant couverture maladie)\n'
                         '• Numéro de téléphone\n'
@@ -1148,14 +1143,14 @@ class _PrivacyPolicySheet extends StatelessWidget {
                         'Elles sont chiffrées localement sur votre appareil '
                         '(AES-256-GCM) avant tout stockage ou transmission.',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '3. Finalité du traitement',
                     body:
                         'Gestion de votre dossier médical personnel. Partage sécurisé '
                         'avec vos praticiens via QR code à durée limitée (120 secondes). '
                         'Aucun traitement commercial ou publicitaire.',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '4. Architecture zéro connaissance',
                     body:
                         'Le serveur HealthTech ne stocke que des ciphertextes opaques '
@@ -1164,7 +1159,7 @@ class _PrivacyPolicySheet extends StatelessWidget {
                         'La clé de chiffrement reste sur votre appareil dans le keystore '
                         'sécurisé (Android Keystore / Secure Enclave iOS).',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '5. Durée de conservation',
                     body:
                         'Vos données locales sont conservées jusqu\'à la suppression '
@@ -1172,7 +1167,7 @@ class _PrivacyPolicySheet extends StatelessWidget {
                         'Les blobs chiffrés sur le serveur sont supprimés sur demande '
                         'via le bouton « Supprimer mon compte ».',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '6. Vos droits (loi 2013-450)',
                     body:
                         '• Droit d\'accès : votre dossier est visible dans l\'onglet Mon Dossier\n'
@@ -1181,7 +1176,7 @@ class _PrivacyPolicySheet extends StatelessWidget {
                         '• Droit à la portabilité : export disponible prochainement\n\n'
                         'Pour exercer vos droits : privacy@healthtech.ci',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '7. Sécurité',
                     body:
                         'Chiffrement AES-256-GCM · PBKDF2-HMAC-SHA256 (dérivation PIN) · '
@@ -1189,7 +1184,7 @@ class _PrivacyPolicySheet extends StatelessWidget {
                         'Clé maîtresse dans le keystore matériel · '
                         'Audit de sécurité externe prévu (M4).',
                   ),
-                  _PolicySection(
+                  const _PolicySection(
                     title: '8. Transferts hors Côte d\'Ivoire',
                     body:
                         'Les données sont hébergées sur un serveur localisé en '

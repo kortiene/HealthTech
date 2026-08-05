@@ -41,11 +41,11 @@ class PatientRecordScreen extends StatelessWidget {
                 AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // if (record.demographics.heightCm != null ||
-                //     record.demographics.weightKg != null) ...[
-                //   _DemographicsSection(demographics: record.demographics),
-                //   const SizedBox(height: AppSpacing.md),
-                // ],
+                if (record.demographics.heightCm != null ||
+                    record.demographics.weightKg != null) ...[
+                  _DemographicsSection(demographics: record.demographics),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 if (record.allergies.isNotEmpty) ...[
                   _AllergySection(allergies: record.allergies),
                   const SizedBox(height: AppSpacing.md),
