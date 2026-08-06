@@ -22,16 +22,20 @@ mod media;
 mod rate_limit;
 mod store;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use axum::{
     body::Bytes,
     extract::{ConnectInfo, DefaultBodyLimit, Path, RawQuery, State},
-    http::{header, HeaderName, HeaderValue, Method, StatusCode},
+    http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
@@ -42,8 +46,21 @@ use media::{MediaPutOutcome, MediaStore, StoredMedia, MAX_MEDIA_BYTES};
 use rate_limit::RateLimiter;
 use store::{BlobStore, PutOutcome, StoredBlob, MAX_BLOB_BYTES};
 
+/// Write-token TTL matches the patient QR session TTL (120 s).
+/// After expiry the UUID is unprotected again so the patient app can write
+/// back the master-key blob without needing to carry the ephemeral write token.
+const WRITE_TOKEN_TTL: Duration = Duration::from_secs(120);
+const WRITE_TOKEN_HEADER: &str = "x-write-token";
+
+/// Per-UUID write-token entry: raw 32-byte token + expiry timestamp.
+#[derive(Clone, Copy)]
+struct WriteTokenEntry {
+    token: [u8; 32],
+    expires_at: Instant,
+}
+
 /// Shared handler state: the blob-store seam (#9), the media-store seam (#23), the media
-/// access-URL signer (#23), and per-IP rate limiters (#104).
+/// access-URL signer (#23), per-IP rate limiters (#104), and write-token map (#118).
 #[derive(Clone)]
 struct AppState {
     store: BlobStore,
@@ -51,6 +68,10 @@ struct AppState {
     access: MediaAccess,
     write_limiter: RateLimiter,
     read_limiter: RateLimiter,
+    /// Ephemeral write-token registry (#118). Maps `anonymous_uuid → token + expiry`.
+    /// The patient registers a token on the initial session PUT; the doctor presents
+    /// it via `Authorization: Bearer` on subsequent PUTs. Entries expire after 120 s.
+    write_tokens: Arc<RwLock<HashMap<Uuid, WriteTokenEntry>>>,
 }
 
 /// Build the `ETag` + `X-Blob-Version` headers carrying the optimistic-concurrency version (#22).
@@ -86,6 +107,14 @@ async fn health(State(state): State<AppState>) -> Response {
     }
 }
 
+/// Decode a base64url-no-pad string from an HTTP header value into exactly 32 bytes.
+fn decode_32_bytes(header_val: &str) -> Option<[u8; 32]> {
+    URL_SAFE_NO_PAD
+        .decode(header_val.trim())
+        .ok()
+        .and_then(|b| b.try_into().ok())
+}
+
 /// Store an opaque encrypted blob under an anonymous UUID.
 ///
 /// The body is persisted **verbatim**; the server never inspects or decrypts it. An invalid UUID
@@ -93,9 +122,19 @@ async fn health(State(state): State<AppState>) -> Response {
 /// with `413` by the body-limit layer — both before any persistence. Logs carry only
 /// non-identifying fields (UUID, ciphertext size, version) — never the body.
 /// Rate-limited to 60 write requests / 60 s per IP (#104).
+///
+/// Write-token enforcement (#118):
+/// - If `X-Write-Token` is present the patient is establishing a new session; the token is
+///   registered (or rotated) for this UUID and the PUT is allowed.
+/// - If `X-Write-Token` is absent and an un-expired token is registered for this UUID, the
+///   caller must present the matching token via `Authorization: Bearer <token_b64url>`. A
+///   wrong or missing bearer returns `403 Forbidden`.
+/// - If no token is registered (or the entry has expired), the PUT is allowed unconditionally
+///   (backward-compatible for the patient's master-key write after session expiry).
 async fn put_blob(
     connect_info: Option<ConnectInfo<SocketAddr>>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(uuid): Path<Uuid>,
     body: Bytes,
 ) -> Response {
@@ -104,6 +143,48 @@ async fn put_blob(
             return rate_limit::rate_limit_exceeded().into_response();
         }
     }
+
+    // --- Write-token enforcement (#118) ------------------------------------------
+    let new_token: Option<[u8; 32]> = headers
+        .get(WRITE_TOKEN_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(decode_32_bytes);
+
+    if let Some(token) = new_token {
+        // Patient is establishing / rotating the write token for this session.
+        state.write_tokens.write().unwrap().insert(
+            uuid,
+            WriteTokenEntry { token, expires_at: Instant::now() + WRITE_TOKEN_TTL },
+        );
+    } else {
+        // Check if an un-expired write token is registered for this UUID.
+        let stored = state
+            .write_tokens
+            .read()
+            .unwrap()
+            .get(&uuid)
+            .copied()
+            .filter(|e| e.expires_at > Instant::now())
+            .map(|e| e.token);
+
+        if let Some(expected) = stored {
+            // Doctor must present the write token via Authorization: Bearer.
+            let presented: Option<[u8; 32]> = headers
+                .get(header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.strip_prefix("Bearer "))
+                .and_then(decode_32_bytes);
+            match presented {
+                Some(t) if t == expected => {} // authorized
+                _ => {
+                    tracing::debug!(%uuid, "write-token mismatch — 403");
+                    return StatusCode::FORBIDDEN.into_response();
+                }
+            }
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────────
+
     match state.store.put(uuid, body).await {
         Ok(PutOutcome::Created(meta)) => {
             tracing::debug!(%uuid, size = meta.size, version = meta.version, "blob created");
@@ -299,10 +380,15 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
         .layer(DefaultBodyLimit::max(MAX_MEDIA_BYTES));
     // Permissive CORS for dev: the doctor PWA (browser) needs cross-origin
     // access to GET/PUT/DELETE /blob and /media. Restrict in production via ADR 0008.
+    // X-Write-Token (#118) is required by the patient PUT that registers a session token.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
-        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS])
-        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS, Method::POST])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static(WRITE_TOKEN_HEADER),
+        ]);
 
     Router::new()
         .route("/health", get(health))
@@ -314,6 +400,7 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
             access,
             write_limiter: RateLimiter::write_limiter(),
             read_limiter: RateLimiter::read_limiter(),
+            write_tokens: Arc::new(RwLock::new(HashMap::new())),
         })
         .layer(cors)
 }
@@ -993,6 +1080,145 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert!(body.is_empty(), "PUT 201 response must carry no body");
+    }
+
+    // --- Write-token enforcement (#118) ----------------------------------------------------------
+
+    fn write_token_bytes() -> [u8; 32] {
+        [0xAB; 32]
+    }
+    fn b64(bytes: &[u8]) -> String {
+        URL_SAFE_NO_PAD.encode(bytes)
+    }
+
+    /// Patient PUT with X-Write-Token registers the token and succeeds.
+    #[tokio::test]
+    async fn write_token_setup_put_succeeds() {
+        let app = test_app();
+        let uuid = Uuid::new_v4();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(WRITE_TOKEN_HEADER, b64(&write_token_bytes()))
+                    .body(Body::from(&b"ciphertext"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+    }
+
+    /// After token registration, a PUT with the correct bearer is authorised.
+    #[tokio::test]
+    async fn write_token_correct_bearer_allows_put() {
+        let app = test_app();
+        let uuid = Uuid::new_v4();
+        let token = write_token_bytes();
+        // Register token
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(WRITE_TOKEN_HEADER, b64(&token))
+                    .body(Body::from(&b"session-blob"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // Doctor PUT with correct bearer
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", b64(&token)))
+                    .body(Body::from(&b"updated-blob"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    /// After token registration, a PUT with no bearer returns 403.
+    #[tokio::test]
+    async fn write_token_missing_bearer_is_403() {
+        let app = test_app();
+        let uuid = Uuid::new_v4();
+        // Register token
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(WRITE_TOKEN_HEADER, b64(&write_token_bytes()))
+                    .body(Body::from(&b"session-blob"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // PUT without bearer → 403
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .body(Body::from(&b"unauthorised"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// After token registration, a PUT with a wrong bearer returns 403.
+    #[tokio::test]
+    async fn write_token_wrong_bearer_is_403() {
+        let app = test_app();
+        let uuid = Uuid::new_v4();
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(WRITE_TOKEN_HEADER, b64(&write_token_bytes()))
+                    .body(Body::from(&b"session-blob"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let wrong = [0xCCu8; 32];
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{uuid}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", b64(&wrong)))
+                    .body(Body::from(&b"unauthorised"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// No write token registered → PUT without bearer is still allowed (patient master-key write).
+    #[tokio::test]
+    async fn no_registered_token_allows_plain_put() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/blob/{}", Uuid::new_v4()))
+                    .body(Body::from(&b"plain-patient-write"[..]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     // --- ZK: nonce freshness & wire-format proofs -------------------------------------------------

@@ -44,13 +44,15 @@ export function App() {
       updated_at: new Date().toISOString(),
     };
 
-    // XOR 0x5A re-encrypt and PUT back to backend
+    // XOR 0x5A re-encrypt and PUT back to backend.
+    // Use the write token (wt) as the Bearer — the backend enforces read-only
+    // sessions by rejecting PUTs when wt is absent (#118).
     const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/octet-stream",
-        Authorization: `Bearer ${qrPayload.key}`,
+        ...(qrPayload.wt ? { Authorization: `Bearer ${qrPayload.wt}` } : {}),
       },
       body: encrypted.buffer as ArrayBuffer,
     });
@@ -121,6 +123,7 @@ export function App() {
     <RecordScreen
       record={scannedRecord}
       pendingCount={pendingCount}
+      readOnly={!qrPayload?.wt}
       onSynced={() => setPendingCount(0)}
       onAddNote={() => setScreen("edit")}
       onTerminated={() => {
