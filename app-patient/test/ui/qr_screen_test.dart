@@ -95,7 +95,8 @@ void main() {
     expect(find.byType(QrImageView), findsOneWidget);
   });
 
-  testWidgets('autoMode readWrite: QR shows Consultation badge', (tester) async {
+  testWidgets('autoMode readWrite: QR shows Consultation badge',
+      (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: QrScreen(
@@ -109,7 +110,8 @@ void main() {
     expect(find.text('Consultation'), findsOneWidget);
   });
 
-  testWidgets('autoMode readOnly: QR shows Lecture seule badge', (tester) async {
+  testWidgets('autoMode readOnly: QR shows Lecture seule badge',
+      (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: QrScreen(

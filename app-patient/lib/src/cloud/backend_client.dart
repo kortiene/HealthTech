@@ -54,8 +54,7 @@ class BackendClient {
     try {
       final headers = <String, String>{
         'Content-Type': 'application/octet-stream',
-        if (writeToken != null)
-          'x-write-token': base64Url.encode(writeToken),
+        if (writeToken != null) 'x-write-token': base64Url.encode(writeToken),
       };
       final resp = await _http.put(uri, body: ciphertext, headers: headers);
       if (resp.statusCode == 200 || resp.statusCode == 201) return;

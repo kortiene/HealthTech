@@ -154,7 +154,10 @@ async fn put_blob(
         // Patient is establishing / rotating the write token for this session.
         state.write_tokens.write().unwrap().insert(
             uuid,
-            WriteTokenEntry { token, expires_at: Instant::now() + WRITE_TOKEN_TTL },
+            WriteTokenEntry {
+                token,
+                expires_at: Instant::now() + WRITE_TOKEN_TTL,
+            },
         );
     } else {
         // Check if an un-expired write token is registered for this UUID.
@@ -383,7 +386,13 @@ fn app(store: BlobStore, media: MediaStore, access: MediaAccess) -> Router {
     // X-Write-Token (#118) is required by the patient PUT that registers a session token.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
-        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS, Method::POST])
+        .allow_methods([
+            Method::GET,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+            Method::POST,
+        ])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,

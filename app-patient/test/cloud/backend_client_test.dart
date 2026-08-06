@@ -92,8 +92,7 @@ void main() {
       await client.put(uuid, Uint8List(4), writeToken: wt);
       expect(captured!.headers['x-write-token'], isNotNull);
       // base64Url.decode must recover the exact 32 bytes
-      final decoded =
-          base64Url.decode(captured!.headers['x-write-token']!);
+      final decoded = base64Url.decode(captured!.headers['x-write-token']!);
       expect(decoded, equals(wt));
     });
 

@@ -327,8 +327,8 @@ class _QrView extends StatelessWidget {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -340,8 +340,7 @@ class _QrView extends StatelessWidget {
                         color: readOnly
                             ? AppColors.white.withAlpha(20)
                             : AppColors.primary500.withAlpha(30),
-                        borderRadius:
-                            BorderRadius.circular(AppRadii.pill),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
                         border: Border.all(
                           color: readOnly
                               ? AppColors.white.withAlpha(60)
@@ -413,16 +412,14 @@ class _QrView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    _CountdownRing(
-                        seconds: remainingSeconds, urgent: isUrgent),
+                    _CountdownRing(seconds: remainingSeconds, urgent: isUrgent),
                     const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: AppColors.white.withAlpha(15),
-                        borderRadius:
-                            BorderRadius.circular(AppRadii.pill),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -613,8 +610,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 32),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Symbols.refresh_rounded,
-                  color: AppColors.white),
+              icon: const Icon(Symbols.refresh_rounded, color: AppColors.white),
               label: const Text(
                 'Réessayer',
                 style: TextStyle(color: AppColors.white),
