@@ -8,7 +8,7 @@
  * The crypto-core API + wire format are FROZEN by #10: decryptRecord consumes a
  * `nonce(12) || ciphertext || tag(16)` blob and the module is stateless / no-I/O,
  * so the doctor record is decrypted in RAM only and wiped on idle (see
- * IDLE_TIMEOUT_MS, #19). See crypto-core/README.md.
+ * SESSION_IDLE_MINUTES, #19). See crypto-core/README.md.
  */
 
 /** App-shell title rendered on first paint. */
@@ -17,14 +17,21 @@ export function sessionTitle(): string {
 }
 
 /**
- * Idle auto-close window (ms): wipe RAM + reload after 30 min — see ADR 0002 (#122).
- * A pre-close warning is shown WARN_BEFORE_MS before this fires.
+ * Primary knob for the idle auto-close window (ADR 0002, #122).
+ * Change this single number to adjust the timeout everywhere.
+ * All downstream constants are derived from it.
+ *
+ * Production: 30  (minutes)
+ * Manual dev test: change to 1 or 2 to observe the warning banner quickly.
  */
-export const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 min
+export const SESSION_IDLE_MINUTES = 10;
+
+/** Idle auto-close threshold in ms — derived from SESSION_IDLE_MINUTES. */
+export const IDLE_TIMEOUT_MS = SESSION_IDLE_MINUTES * 60 * 1000;
 
 /**
- * Show the pre-close warning this long before IDLE_TIMEOUT_MS (2 min, #122):
- * the doctor gets a persistent banner + « Prolonger » at T-28 min.
+ * The pre-close warning banner is shown this long before IDLE_TIMEOUT_MS (#122):
+ * the doctor sees a persistent "session will close in m:ss" banner + « Prolonger ».
  */
 export const WARN_BEFORE_MS = 2 * 60 * 1000; // 2 min
 

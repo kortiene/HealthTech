@@ -12,9 +12,8 @@
 //     including the suppression guard when isTerminating=true.
 //
 // Timer-driven behaviour tests (warn at T-28 min, close at T-30 min, extend
-// resets both timers) require a DOM environment (window.setTimeout + Preact
-// reconciliation). They remain a gap; once jsdom is added as a devDependency
-// those tests should live alongside this file using vi.useFakeTimers().
+// resets both timers) live in RecordScreen.timer.test.tsx — jsdom env +
+// vi.useFakeTimers().
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

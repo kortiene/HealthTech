@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { AllergySectionCard } from "../components/AllergySectionCard";
 import { AppBar } from "../components/AppBar";
+import { Icon } from "../components/Icon";
+import { SectionCard } from "../components/SectionCard";
+import { SnackBar, type SnackBarTone } from "../components/SnackBar";
 import { SyncBadge } from "../components/SyncBadge";
 import { TerminateButton } from "../components/TerminateButton";
-import { SectionCard } from "../components/SectionCard";
-import { AllergySectionCard } from "../components/AllergySectionCard";
-import { SnackBar, type SnackBarTone } from "../components/SnackBar";
-import { Icon } from "../components/Icon";
+import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "../session";
 import {
-  previewRecord,
   formatDateFr,
-  type MedicalRecord,
-  type Medication,
+  previewRecord,
   type ChronicCondition,
   type Consultation,
+  type MedicalRecord,
+  type Medication,
 } from "../stubs/data";
 import { TerminatingOverlay } from "./TerminatingOverlay";
-import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "../session";
 
 interface RecordScreenProps {
   record: MedicalRecord | null;
@@ -32,7 +32,7 @@ interface RecordScreenProps {
 function PatientHeroBanner({ record }: { record: MedicalRecord }) {
   const age = new Date().getFullYear() - record.birthYear;
   const hasSevereAllergy = record.allergies.some((a) =>
-    a.severity.toLowerCase().includes("sév")
+    a.severity.toLowerCase().includes("sév"),
   );
 
   return (
@@ -70,21 +70,37 @@ function PatientHeroBanner({ record }: { record: MedicalRecord }) {
           {record.givenName[0]?.toUpperCase()}
         </div>
         <div>
-          <p className="text-headline" style={{ color: "var(--color-white)", fontWeight: 700 }}>
+          <p
+            className="text-headline"
+            style={{ color: "var(--color-white)", fontWeight: 700 }}
+          >
             {record.givenName}
           </p>
-          <p className="text-body" style={{ color: "rgba(255,255,255,0.6)", margin: "2px 0 0" }}>
+          <p
+            className="text-body"
+            style={{ color: "rgba(255,255,255,0.6)", margin: "2px 0 0" }}
+          >
             {age} ans · {record.sex}
           </p>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}>
+      <div
+        style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)" }}
+      >
         <HeroChip label={record.bloodType} accent="blood" />
-        {record.heightCm != null && <HeroChip label={`${record.heightCm} cm`} />}
-        {record.weightKg != null && <HeroChip label={`${record.weightKg} kg`} />}
-        {record.cmuNumber != null && <HeroChip label="CMU ✓" accent="success" />}
-        {hasSevereAllergy && <HeroChip label="Allergie sévère" accent="allergy" />}
+        {record.heightCm != null && (
+          <HeroChip label={`${record.heightCm} cm`} />
+        )}
+        {record.weightKg != null && (
+          <HeroChip label={`${record.weightKg} kg`} />
+        )}
+        {record.cmuNumber != null && (
+          <HeroChip label="CMU ✓" accent="success" />
+        )}
+        {hasSevereAllergy && (
+          <HeroChip label="Allergie sévère" accent="allergy" />
+        )}
       </div>
     </div>
   );
@@ -92,7 +108,13 @@ function PatientHeroBanner({ record }: { record: MedicalRecord }) {
 
 type ChipAccent = "default" | "blood" | "success" | "allergy";
 
-function HeroChip({ label, accent = "default" }: { label: string; accent?: ChipAccent }) {
+function HeroChip({
+  label,
+  accent = "default",
+}: {
+  label: string;
+  accent?: ChipAccent;
+}) {
   const styles: Record<ChipAccent, { bg: string; color: string }> = {
     default: { bg: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)" },
     blood: { bg: "rgba(220,38,38,0.28)", color: "#fca5a5" },
@@ -135,7 +157,10 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      <p className="text-body-lg" style={{ flex: 1, margin: 0, fontWeight: 500 }}>
+      <p
+        className="text-body-lg"
+        style={{ flex: 1, margin: 0, fontWeight: 500 }}
+      >
         {condition.name}
       </p>
       <span
@@ -187,10 +212,20 @@ function MedicationCard({ med }: { med: Medication }) {
         <Icon name="medication" size={20} color="var(--color-primary-700)" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p className="text-body-lg" style={{ fontWeight: 600, color: "var(--color-neutral-900)", margin: 0 }}>
+        <p
+          className="text-body-lg"
+          style={{
+            fontWeight: 600,
+            color: "var(--color-neutral-900)",
+            margin: 0,
+          }}
+        >
           {med.name}
         </p>
-        <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: "2px 0 0" }}>
+        <p
+          className="text-caption"
+          style={{ color: "var(--color-neutral-500)", margin: "2px 0 0" }}
+        >
           {med.frequency}
         </p>
       </div>
@@ -215,9 +250,13 @@ function MedicationCard({ med }: { med: Medication }) {
 
 // ─── Consultations timeline ───────────────────────────────────────────────────
 
-function ConsultationTimeline({ consultations }: { consultations: Consultation[] }) {
+function ConsultationTimeline({
+  consultations,
+}: {
+  consultations: Consultation[];
+}) {
   const sorted = [...consultations].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
   const last = sorted.length - 1;
 
@@ -231,8 +270,15 @@ function ConsultationTimeline({ consultations }: { consultations: Consultation[]
           marginBottom: "var(--space-md)",
         }}
       >
-        <span className="icon-badge" style={{ background: "var(--color-primary-100)" }}>
-          <Icon name="folder_shared" size={18} color="var(--color-primary-700)" />
+        <span
+          className="icon-badge"
+          style={{ background: "var(--color-primary-100)" }}
+        >
+          <Icon
+            name="folder_shared"
+            size={18}
+            color="var(--color-primary-700)"
+          />
         </span>
         <h2 className="text-title-sm">Consultations</h2>
         <span
@@ -266,8 +312,12 @@ function ConsultationTimeline({ consultations }: { consultations: Consultation[]
                 width: 12,
                 height: 12,
                 borderRadius: "50%",
-                background: i === 0 ? "var(--color-primary-700)" : "var(--color-neutral-200)",
-                boxShadow: i === 0 ? "0 0 0 3px var(--color-primary-100)" : "none",
+                background:
+                  i === 0
+                    ? "var(--color-primary-700)"
+                    : "var(--color-neutral-200)",
+                boxShadow:
+                  i === 0 ? "0 0 0 3px var(--color-primary-100)" : "none",
                 flexShrink: 0,
                 marginTop: 6,
               }}
@@ -297,16 +347,26 @@ function ConsultationTimeline({ consultations }: { consultations: Consultation[]
           >
             <p
               className="text-label"
-              style={{ color: "var(--color-primary-700)", marginBottom: 4, fontWeight: 600 }}
+              style={{
+                color: "var(--color-primary-700)",
+                marginBottom: 4,
+                fontWeight: 600,
+              }}
             >
               {formatDateFr(c.date)}
               {c.doctorName && (
-                <span style={{ color: "var(--color-neutral-500)", fontWeight: 400 }}>
-                  {" "}· {c.doctorName}
+                <span
+                  style={{ color: "var(--color-neutral-500)", fontWeight: 400 }}
+                >
+                  {" "}
+                  · {c.doctorName}
                 </span>
               )}
             </p>
-            <p className="text-body" style={{ color: "var(--color-neutral-900)", margin: "0 0 4px" }}>
+            <p
+              className="text-body"
+              style={{ color: "var(--color-neutral-900)", margin: "0 0 4px" }}
+            >
               {c.summary}
             </p>
             {c.prescription && (
@@ -321,10 +381,18 @@ function ConsultationTimeline({ consultations }: { consultations: Consultation[]
                   alignItems: "flex-start",
                 }}
               >
-                <Icon name="medication" size={13} color="var(--color-primary-700)" />
+                <Icon
+                  name="medication"
+                  size={13}
+                  color="var(--color-primary-700)"
+                />
                 <p
                   className="text-caption"
-                  style={{ color: "var(--color-primary-900)", margin: 0, lineHeight: 1.5 }}
+                  style={{
+                    color: "var(--color-primary-900)",
+                    margin: 0,
+                    lineHeight: 1.5,
+                  }}
                 >
                   {c.prescription}
                 </p>
@@ -383,8 +451,12 @@ function _SessionWarningBanner({
       }}
     >
       <Icon name="schedule" size={20} color="var(--color-white)" />
-      <p className="text-body-lg" style={{ flex: 1, margin: 0, color: "var(--color-white)" }}>
-        Votre session se fermera dans {formatCountdown(remaining)} faute d'activité.
+      <p
+        className="text-body-lg"
+        style={{ flex: 1, margin: 0, color: "var(--color-white)" }}
+      >
+        Votre session se fermera dans {formatCountdown(remaining)} faute
+        d'activité.
       </p>
       <button
         type="button"
@@ -414,11 +486,21 @@ function _SessionWarningBanner({
  * Écran Dossier médical. Ordre des sections figé (§3.2) :
  * Hero → Allergies → Pathologies → Médicaments → Consultations.
  */
-export function RecordScreen({ record: recordProp, pendingCount, readOnly = false, onSynced, onAddNote, onTerminated }: RecordScreenProps) {
+export function RecordScreen({
+  record: recordProp,
+  pendingCount,
+  readOnly = false,
+  onSynced,
+  onAddNote,
+  onTerminated,
+}: RecordScreenProps) {
   const record = recordProp ?? previewRecord;
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
-  const [snack, setSnack] = useState<{ message: string; tone: SnackBarTone } | null>(null);
+  const [snack, setSnack] = useState<{
+    message: string;
+    tone: SnackBarTone;
+  } | null>(null);
   const [isWarning, setIsWarning] = useState(false);
   const warnTimer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
@@ -463,10 +545,16 @@ export function RecordScreen({ record: recordProp, pendingCount, readOnly = fals
       const synced = pendingCount;
       onSynced();
       setIsSyncing(false);
-      setSnack({ message: `${synced} consultation(s) synchronisée(s).`, tone: "success" });
+      setSnack({
+        message: `${synced} consultation(s) synchronisée(s).`,
+        tone: "success",
+      });
     } catch {
       setIsSyncing(false);
-      setSnack({ message: "Échec de la synchronisation — nouvelle tentative en attente.", tone: "error" });
+      setSnack({
+        message: "Échec de la synchronisation — nouvelle tentative en attente.",
+        tone: "error",
+      });
     }
   }
 
@@ -477,25 +565,43 @@ export function RecordScreen({ record: recordProp, pendingCount, readOnly = fals
       const offline = false;
       if (offline) {
         setIsTerminating(false);
-        setSnack({ message: "Consultation enregistrée hors-ligne — synchro à la reconnexion", tone: "warning" });
+        setSnack({
+          message:
+            "Consultation enregistrée hors-ligne — synchro à la reconnexion",
+          tone: "warning",
+        });
       } else {
         onTerminated();
       }
     } catch {
       setIsTerminating(false);
-      setSnack({ message: "Échec de l'enregistrement — réessayez.", tone: "error" });
+      setSnack({
+        message: "Échec de l'enregistrement — réessayez.",
+        tone: "error",
+      });
     }
   }
 
   return (
-    <div onScroll={resetIdleTimer} onClick={resetIdleTimer} style={{ minHeight: "100%", paddingBottom: "88px" }}>
+    <div
+      onScroll={resetIdleTimer}
+      onClick={resetIdleTimer}
+      style={{ minHeight: "100%", paddingBottom: "88px" }}
+    >
       <AppBar title="Dossier médical" subtitle={record.givenName}>
-        <SyncBadge pendingCount={pendingCount} isSyncing={isSyncing} onSync={syncNow} />
+        <SyncBadge
+          pendingCount={pendingCount}
+          isSyncing={isSyncing}
+          onSync={syncNow}
+        />
         <TerminateButton onTerminate={terminateSession} />
       </AppBar>
 
       {isWarning && !isTerminating && (
-        <_SessionWarningBanner remainingMs={WARN_BEFORE_MS} onExtend={resetIdleTimer} />
+        <_SessionWarningBanner
+          remainingMs={WARN_BEFORE_MS}
+          onExtend={resetIdleTimer}
+        />
       )}
 
       <PatientHeroBanner record={record} />
@@ -514,7 +620,14 @@ export function RecordScreen({ record: recordProp, pendingCount, readOnly = fals
           }}
         >
           <Icon name="lock" size={15} color="var(--color-neutral-500)" />
-          <p className="text-caption" style={{ margin: 0, color: "var(--color-neutral-500)", fontWeight: 600 }}>
+          <p
+            className="text-caption"
+            style={{
+              margin: 0,
+              color: "var(--color-neutral-500)",
+              fontWeight: 600,
+            }}
+          >
             Mode lecture seule — aucune note ne peut être ajoutée
           </p>
         </div>
@@ -573,7 +686,13 @@ export function RecordScreen({ record: recordProp, pendingCount, readOnly = fals
         </button>
       )}
 
-      {snack && <SnackBar message={snack.message} tone={snack.tone} onDismiss={() => setSnack(null)} />}
+      {snack && (
+        <SnackBar
+          message={snack.message}
+          tone={snack.tone}
+          onDismiss={() => setSnack(null)}
+        />
+      )}
       {isTerminating && <TerminatingOverlay />}
     </div>
   );
