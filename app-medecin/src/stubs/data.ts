@@ -23,6 +23,8 @@ export interface MediaDescriptor {
   url: string;
   mime: string;
   durationMs?: number;
+  /** plaintext byte size — used for UI budget display */
+  sizeBytes?: number;
   /** base64 — 32 zero bytes in dev (TODO #17: real per-media key) */
   contentKey: string;
   /** SHA-256 base64 of the plaintext, computed via crypto.subtle */
@@ -155,10 +157,11 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       prescription: c.prescription,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       media: (c.media ?? []).map((m: any) => ({
-        mediaId: m.media_id ?? m.mediaId ?? m.uuid ?? "",
+        mediaId: m.uuid ?? m.media_id ?? m.mediaId ?? "",
         url: m.url ?? "",
         mime: m.mime ?? "audio/webm",
         durationMs: m.duration_ms ?? m.durationMs,
+        sizeBytes: m.size_bytes ?? m.sizeBytes,
         contentKey: m.content_key ?? m.contentKey ?? "",
         contentHash: m.content_hash ?? m.contentHash ?? "",
       })),

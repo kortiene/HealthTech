@@ -109,12 +109,23 @@ export function App() {
   ): Promise<void> {
     if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
 
+    const addedAt = new Date().toISOString();
     const newEntry = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().slice(0, 10),
+      date: addedAt.slice(0, 10),
       practitioner_ref: consultation.doctorName,
       summary: consultation.summary,
-      media: consultation.media,
+      // Snake_case keys match Flutter MediaDescriptor.fromJson expectations
+      media: consultation.media.map((m) => ({
+        uuid: m.mediaId,
+        content_key: m.contentKey,
+        content_hash: m.contentHash,
+        alg: "A256GCM",
+        mime: m.mime,
+        size_bytes: m.sizeBytes ?? 0,
+        added_at: addedAt,
+        ...(m.durationMs !== undefined ? { duration_ms: m.durationMs } : {}),
+      })),
     };
 
     const updatedRaw = {

@@ -156,6 +156,7 @@ export function VoiceNoteScreen({
             url: `${backendUrl}/media/${mediaId}`,
             mime: audioBlob.type || "audio/webm",
             durationMs,
+            sizeBytes: plainBytes.length,
             // 32 zero bytes — real per-media key when WASM crypto-core lands (#17)
             contentKey: btoa(String.fromCharCode(...new Uint8Array(32))),
             contentHash,
