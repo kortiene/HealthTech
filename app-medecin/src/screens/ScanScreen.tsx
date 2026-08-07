@@ -13,6 +13,8 @@ export interface QrPayload {
   url: string;
   key: string;
   exp?: number;
+  /** Write token (base64url). Present only in read-write sessions. */
+  wt?: string;
 }
 
 export interface ScanScreenProps {

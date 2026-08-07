@@ -1,12 +1,15 @@
-// QR code consultation access screen (issue #16).
+// QR code consultation access screen (issue #16 / #118).
 //
-// Displays the session QR code with a 120-second countdown.  The session key
-// is held in [QrPayload.sessionKey] in RAM only; [QrPayload.wipe] is called
-// on disposal and regeneration to overwrite the key bytes in place.
+// The patient first picks a sharing mode ([_ModeSelectorView]):
+//   - "Lecture seule"  → QrMode.readOnly  — doctor can read, not write back.
+//   - "Consultation"   → QrMode.readWrite — doctor can read and add a note.
 //
-// Security: the screen never persists the session key.  The QR content is
-// generated fresh on each [QrController.generate] call and rendered only
-// as a visual QR image — it is not logged, shared, or retained elsewhere.
+// The selected mode is forwarded to [QrController.generate], which embeds the
+// write token in the QR payload only for readWrite sessions. The session key and
+// write token are held in RAM only and wiped on [dispose] / expiry.
+//
+// [QrScreen.autoMode] bypasses the mode selector — inject in widget tests to
+// get the loading/QR/error states without interacting with the selector.
 
 import 'dart:async';
 
@@ -18,9 +21,13 @@ import '../design/app_theme.dart';
 import '../qr/access_token.dart';
 
 class QrScreen extends StatefulWidget {
-  const QrScreen({super.key, required this.controller});
+  const QrScreen({super.key, required this.controller, this.autoMode});
 
   final QrController controller;
+
+  /// Skips the mode selector and generates immediately with this mode.
+  /// Intended for widget tests only.
+  final QrMode? autoMode;
 
   @override
   State<QrScreen> createState() => _QrScreenState();
@@ -32,11 +39,14 @@ class _QrScreenState extends State<QrScreen> {
   bool _generating = false;
   Timer? _countdownTimer;
   int _remainingSeconds = 0;
+  QrMode? _selectedMode; // null = mode-selector phase
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(_generate);
+    if (widget.autoMode != null) {
+      Future.microtask(() => _generate(widget.autoMode!));
+    }
   }
 
   @override
@@ -46,7 +56,7 @@ class _QrScreenState extends State<QrScreen> {
     super.dispose();
   }
 
-  Future<void> _generate() async {
+  Future<void> _generate(QrMode mode) async {
     _countdownTimer?.cancel();
     setState(() {
       _generating = true;
@@ -54,9 +64,10 @@ class _QrScreenState extends State<QrScreen> {
       _payload?.wipe();
       _payload = null;
       _remainingSeconds = 0;
+      _selectedMode = mode;
     });
     try {
-      final p = await widget.controller.generate();
+      final p = await widget.controller.generate(mode: mode);
       if (!mounted) {
         p.wipe();
         return;
@@ -113,18 +124,150 @@ class _QrScreenState extends State<QrScreen> {
   }
 
   Widget _buildBody() {
+    if (_selectedMode == null) {
+      return _ModeSelectorView(onSelect: _generate);
+    }
     if (_generating) return const _LoadingView();
     if (_error != null) {
-      return _ErrorView(message: _error!, onRetry: _generate);
+      return _ErrorView(
+        message: _error!,
+        onRetry: () => _generate(_selectedMode!),
+      );
     }
     final p = _payload;
     if (p == null) return const _LoadingView();
     if (_remainingSeconds == 0) {
-      return _ExpiredView(onRegenerate: _generate);
+      return _ExpiredView(onRegenerate: () => _generate(_selectedMode!));
     }
     return _QrView(
       qrData: p.toQrString(),
       remainingSeconds: _remainingSeconds,
+      readOnly: p.isReadOnly,
+    );
+  }
+}
+
+// ── Mode selector ─────────────────────────────────────────────────────────────
+
+class _ModeSelectorView extends StatelessWidget {
+  const _ModeSelectorView({required this.onSelect});
+  final void Function(QrMode) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Mode de partage',
+            style: TextStyle(
+              color: AppColors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Choisissez ce que votre médecin pourra faire avec votre dossier.',
+            style: TextStyle(
+              color: AppColors.white.withAlpha(153),
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 32),
+          _ModeCard(
+            icon: Symbols.visibility_rounded,
+            title: 'Lecture seule',
+            subtitle:
+                'Le médecin consulte votre dossier sans pouvoir y ajouter de note.',
+            onTap: () => onSelect(QrMode.readOnly),
+          ),
+          const SizedBox(height: 16),
+          _ModeCard(
+            icon: Symbols.edit_note_rounded,
+            title: 'Consultation',
+            subtitle:
+                'Le médecin peut lire votre dossier et y ajouter une note de consultation.',
+            onTap: () => onSelect(QrMode.readWrite),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.white.withAlpha(15),
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        splashColor: AppColors.primary500.withAlpha(40),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary500.withAlpha(30),
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+                child: Icon(icon, color: AppColors.primary500, size: 22),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: AppColors.white.withAlpha(153),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Symbols.chevron_right_rounded,
+                color: AppColors.white.withAlpha(100),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -163,88 +306,147 @@ class _LoadingView extends StatelessWidget {
 }
 
 class _QrView extends StatelessWidget {
-  const _QrView({required this.qrData, required this.remainingSeconds});
+  const _QrView({
+    required this.qrData,
+    required this.remainingSeconds,
+    required this.readOnly,
+  });
 
   final String qrData;
   final int remainingSeconds;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
     final isUrgent = remainingSeconds <= 30;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Présentez ce code à votre médecin',
-              style: TextStyle(
-                color: AppColors.white.withAlpha(180),
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(AppRadii.lg),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(80),
-                    blurRadius: 32,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: QrImageView(
-                data: qrData,
-                version: QrVersions.auto,
-                size: 260,
-                errorCorrectionLevel: QrErrorCorrectLevel.M,
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: Color(0xFF003D39),
-                ),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: Color(0xFF003D39),
-                ),
-              ),
-            ),
-            const SizedBox(height: 28),
-            _CountdownRing(seconds: remainingSeconds, urgent: isUrgent),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.white.withAlpha(15),
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Symbols.shield_rounded,
-                    size: 14,
-                    color: AppColors.primary500,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Valable 120 s — Partagez uniquement avec votre médecin',
-                    style: TextStyle(
-                      color: AppColors.white.withAlpha(153),
-                      fontSize: 11,
+    // Scrollable so the QR + mode badge + countdown fit on small viewports.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Mode badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: readOnly
+                            ? AppColors.white.withAlpha(20)
+                            : AppColors.primary500.withAlpha(30),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                        border: Border.all(
+                          color: readOnly
+                              ? AppColors.white.withAlpha(60)
+                              : AppColors.primary500.withAlpha(80),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            readOnly
+                                ? Symbols.visibility_rounded
+                                : Symbols.edit_note_rounded,
+                            size: 14,
+                            color: readOnly
+                                ? AppColors.white.withAlpha(180)
+                                : AppColors.primary500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            readOnly ? 'Lecture seule' : 'Consultation',
+                            style: TextStyle(
+                              color: readOnly
+                                  ? AppColors.white.withAlpha(180)
+                                  : AppColors.primary500,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    Text(
+                      'Présentez ce code à votre médecin',
+                      style: TextStyle(
+                        color: AppColors.white.withAlpha(180),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(AppRadii.lg),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(80),
+                            blurRadius: 32,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: QrImageView(
+                        data: qrData,
+                        version: QrVersions.auto,
+                        size: 260,
+                        errorCorrectionLevel: QrErrorCorrectLevel.M,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: Color(0xFF003D39),
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Color(0xFF003D39),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _CountdownRing(seconds: remainingSeconds, urgent: isUrgent),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withAlpha(15),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Symbols.shield_rounded,
+                            size: 14,
+                            color: AppColors.primary500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Valable 120 s — Partagez uniquement avec votre médecin',
+                            style: TextStyle(
+                              color: AppColors.white.withAlpha(153),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

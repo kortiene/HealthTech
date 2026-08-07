@@ -5,6 +5,7 @@
 // returns opaque bytes indexed by an anonymous UUID (zero-knowledge boundary).
 // Logs carry only the UUID and HTTP status, never the ciphertext body.
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -39,17 +40,23 @@ class BackendClient {
 
   /// Upload opaque ciphertext — `PUT /blob/{uuid}`.
   ///
+  /// [writeToken] is the 32-byte ephemeral write token from the QR session
+  /// (#118). When provided it is base64url-encoded and sent as
+  /// `X-Write-Token`; the backend registers it so the doctor's PWA can later
+  /// PUT with `Authorization: Bearer {wt}`.
+  ///
   /// Returns normally on HTTP 200 or 201. The body is never inspected,
   /// logged, or decoded: it is opaque ciphertext only. Throws
   /// [BackendUnavailable] on any other status or network error.
-  Future<void> put(String uuid, Uint8List ciphertext) async {
+  Future<void> put(String uuid, Uint8List ciphertext,
+      {Uint8List? writeToken}) async {
     final uri = Uri.parse('$baseUrl/blob/$uuid');
     try {
-      final resp = await _http.put(
-        uri,
-        body: ciphertext,
-        headers: const {'Content-Type': 'application/octet-stream'},
-      );
+      final headers = <String, String>{
+        'Content-Type': 'application/octet-stream',
+        if (writeToken != null) 'x-write-token': base64Url.encode(writeToken),
+      };
+      final resp = await _http.put(uri, body: ciphertext, headers: headers);
       if (resp.statusCode == 200 || resp.statusCode == 201) return;
       throw BackendUnavailable(
         'PUT /blob/$uuid → ${resp.statusCode}',

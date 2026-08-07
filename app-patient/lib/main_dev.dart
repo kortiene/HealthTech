@@ -536,11 +536,11 @@ class _DevQrController implements QrController {
   final MedicalRecordStore _recordStore;
 
   @override
-  Future<QrPayload> generate() async {
+  Future<QrPayload> generate({QrMode mode = QrMode.readWrite}) async {
     if (!await _recordStore.exists()) {
       await _seedEmptyRecord();
     }
-    return _inner.generate();
+    return _inner.generate(mode: mode);
   }
 
   Future<void> _seedEmptyRecord() async {

@@ -173,6 +173,70 @@ void main() {
       p.wipe();
       expect(p.sessionKey, everyElement(0));
     });
+
+    test('readWrite: toQrString embeds wt field', () {
+      final wt = Uint8List.fromList(List.filled(32, 0xCC));
+      final p = QrPayload(
+        uuid: _uuid,
+        backendUrl: _base,
+        sessionKey: Uint8List(32),
+        expiresAt: DateTime.now().add(const Duration(seconds: 120)),
+        writeToken: wt,
+      );
+      final map = jsonDecode(p.toQrString()) as Map<String, Object?>;
+      expect(map['wt'], isNotNull);
+      final decoded = base64Url.decode(map['wt'] as String);
+      expect(decoded, List.filled(32, 0xCC));
+    });
+
+    test('readOnly: toQrString has no wt field', () {
+      final map =
+          jsonDecode(_freshPayload().toQrString()) as Map<String, Object?>;
+      expect(map.containsKey('wt'), isFalse);
+    });
+
+    test('readWrite round-trip: wt survives fromQrString', () {
+      final wt = Uint8List.fromList(List.filled(32, 0xAA));
+      final p = QrPayload(
+        uuid: _uuid,
+        backendUrl: _base,
+        sessionKey: Uint8List(32),
+        expiresAt: DateTime.now().add(const Duration(seconds: 120)),
+        writeToken: wt,
+      );
+      final restored = QrPayload.fromQrString(p.toQrString());
+      expect(restored.writeToken, isNotNull);
+      expect(restored.writeToken!, List.filled(32, 0xAA));
+      expect(restored.isReadOnly, isFalse);
+    });
+
+    test('isReadOnly: true when no writeToken', () {
+      expect(_freshPayload().isReadOnly, isTrue);
+    });
+
+    test('isReadOnly: false when writeToken present', () {
+      final p = QrPayload(
+        uuid: _uuid,
+        backendUrl: _base,
+        sessionKey: Uint8List(32),
+        expiresAt: DateTime.now().add(const Duration(seconds: 120)),
+        writeToken: Uint8List(32),
+      );
+      expect(p.isReadOnly, isFalse);
+    });
+
+    test('wipe zeros writeToken bytes', () {
+      final wt = Uint8List.fromList(List.filled(32, 0xFF));
+      final p = QrPayload(
+        uuid: _uuid,
+        backendUrl: _base,
+        sessionKey: Uint8List(32),
+        expiresAt: DateTime.now().add(const Duration(seconds: 120)),
+        writeToken: wt,
+      );
+      p.wipe();
+      expect(wt, everyElement(0));
+    });
   });
 
   group('AccessTokenService.generate', () {
@@ -254,6 +318,59 @@ void main() {
       await svc.generate(_uuid, _handle, _base);
       final blobAfter = await local.read();
       expect(blobAfter, equals(blobBefore));
+    });
+
+    test('readWrite: payload has 32-byte writeToken', () async {
+      final (store, _) = await _buildStore();
+      final svc = AccessTokenService(
+        crypto: _crypto,
+        recordStore: store,
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 201)),
+        ),
+      );
+      final payload =
+          await svc.generate(_uuid, _handle, _base, mode: QrMode.readWrite);
+      expect(payload.writeToken, isNotNull);
+      expect(payload.writeToken!, hasLength(32));
+      expect(payload.isReadOnly, isFalse);
+    });
+
+    test('readOnly: payload has no writeToken', () async {
+      final (store, _) = await _buildStore();
+      final svc = AccessTokenService(
+        crypto: _crypto,
+        recordStore: store,
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((_) async => http.Response('', 201)),
+        ),
+      );
+      final payload =
+          await svc.generate(_uuid, _handle, _base, mode: QrMode.readOnly);
+      expect(payload.writeToken, isNull);
+      expect(payload.isReadOnly, isTrue);
+    });
+
+    test('generate sends X-Write-Token header on PUT', () async {
+      final (store, _) = await _buildStore();
+      final capturedHeaders = <String, String>{};
+      final svc = AccessTokenService(
+        crypto: _crypto,
+        recordStore: store,
+        client: BackendClient(
+          _base,
+          httpClient: MockClient((req) async {
+            if (req.method == 'PUT') capturedHeaders.addAll(req.headers);
+            return http.Response('', 201);
+          }),
+        ),
+      );
+      await svc.generate(_uuid, _handle, _base, mode: QrMode.readWrite);
+      expect(capturedHeaders['x-write-token'], isNotNull);
+      final decoded = base64Url.decode(capturedHeaders['x-write-token']!);
+      expect(decoded, hasLength(32));
     });
   });
 }

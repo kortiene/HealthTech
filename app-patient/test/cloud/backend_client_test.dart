@@ -4,6 +4,7 @@
 // are made. Tests verify HTTP contract (status codes, byte passthrough, error
 // mapping) and the ZK invariant (body is never logged or transformed).
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,36 @@ void main() {
       expect(captured!.url.path, '/blob/$uuid');
       expect(captured!.method, 'PUT');
       expect(captured!.bodyBytes, payload);
+    });
+
+    test('with writeToken sends X-Write-Token header (base64url)', () async {
+      final wt = Uint8List.fromList(List.filled(32, 0xAB));
+      http.Request? captured;
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((req) async {
+          captured = req;
+          return http.Response('', 201);
+        }),
+      );
+      await client.put(uuid, Uint8List(4), writeToken: wt);
+      expect(captured!.headers['x-write-token'], isNotNull);
+      // base64Url.decode must recover the exact 32 bytes
+      final decoded = base64Url.decode(captured!.headers['x-write-token']!);
+      expect(decoded, equals(wt));
+    });
+
+    test('without writeToken: no X-Write-Token header', () async {
+      http.Request? captured;
+      final client = BackendClient(
+        base,
+        httpClient: MockClient((req) async {
+          captured = req;
+          return http.Response('', 201);
+        }),
+      );
+      await client.put(uuid, Uint8List(4));
+      expect(captured!.headers.containsKey('x-write-token'), isFalse);
     });
   });
 

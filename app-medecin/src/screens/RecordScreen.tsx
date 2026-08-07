@@ -20,6 +20,8 @@ import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "../session";
 interface RecordScreenProps {
   record: MedicalRecord | null;
   pendingCount: number;
+  /** True when the QR was shared in read-only mode — doctor cannot add notes (#118). */
+  readOnly?: boolean;
   onSynced: () => void;
   onAddNote: () => void;
   onTerminated: () => void;
@@ -412,7 +414,7 @@ function _SessionWarningBanner({
  * Écran Dossier médical. Ordre des sections figé (§3.2) :
  * Hero → Allergies → Pathologies → Médicaments → Consultations.
  */
-export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAddNote, onTerminated }: RecordScreenProps) {
+export function RecordScreen({ record: recordProp, pendingCount, readOnly = false, onSynced, onAddNote, onTerminated }: RecordScreenProps) {
   const record = recordProp ?? previewRecord;
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
@@ -498,6 +500,26 @@ export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAdd
 
       <PatientHeroBanner record={record} />
 
+      {readOnly && (
+        <div
+          role="status"
+          aria-label="Mode lecture seule — vous ne pouvez pas ajouter de note"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            padding: "10px var(--space-md)",
+            background: "rgba(0,0,0,0.06)",
+            borderBottom: "1px solid var(--color-neutral-200)",
+          }}
+        >
+          <Icon name="lock" size={15} color="var(--color-neutral-500)" />
+          <p className="text-caption" style={{ margin: 0, color: "var(--color-neutral-500)", fontWeight: 600 }}>
+            Mode lecture seule — aucune note ne peut être ajoutée
+          </p>
+        </div>
+      )}
+
       <main style={{ padding: "var(--space-md)" }}>
         <AllergySectionCard allergies={record.allergies} />
 
@@ -522,32 +544,34 @@ export function RecordScreen({ record: recordProp, pendingCount, onSynced, onAdd
         )}
       </main>
 
-      <button
-        type="button"
-        onClick={onAddNote}
-        aria-label="Ajouter une note ou une ordonnance"
-        style={{
-          position: "fixed",
-          right: "var(--space-md)",
-          bottom: "var(--space-md)",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "var(--space-sm)",
-          minHeight: "56px",
-          padding: "0 var(--space-lg)",
-          borderRadius: "var(--radius-lg)",
-          background: "var(--color-primary-700)",
-          color: "var(--color-white)",
-          border: "none",
-          boxShadow: "0 8px 24px rgba(0,108,103,0.35)",
-          fontWeight: 600,
-          cursor: "pointer",
-          fontSize: 15,
-        }}
-      >
-        <Icon name="note_add" size={22} color="var(--color-white)" />
-        Ajouter une note
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onAddNote}
+          aria-label="Ajouter une note ou une ordonnance"
+          style={{
+            position: "fixed",
+            right: "var(--space-md)",
+            bottom: "var(--space-md)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            minHeight: "56px",
+            padding: "0 var(--space-lg)",
+            borderRadius: "var(--radius-lg)",
+            background: "var(--color-primary-700)",
+            color: "var(--color-white)",
+            border: "none",
+            boxShadow: "0 8px 24px rgba(0,108,103,0.35)",
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: 15,
+          }}
+        >
+          <Icon name="note_add" size={22} color="var(--color-white)" />
+          Ajouter une note
+        </button>
+      )}
 
       {snack && <SnackBar message={snack.message} tone={snack.tone} onDismiss={() => setSnack(null)} />}
       {isTerminating && <TerminatingOverlay />}
