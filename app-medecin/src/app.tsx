@@ -1,10 +1,12 @@
 import { useState } from "preact/hooks";
 import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
 import { RecordScreen } from "./screens/RecordScreen";
+import { NoteChoiceScreen } from "./screens/NoteChoiceScreen";
 import { EditScreen, type NewConsultation } from "./screens/EditScreen";
+import { VoiceNoteScreen } from "./screens/VoiceNoteScreen";
 import { type MedicalRecord } from "./stubs/data";
 
-type Screen = "scan" | "record" | "edit";
+type Screen = "scan" | "record" | "note-choice" | "edit" | "voice-note";
 
 function xorBytes(data: Uint8Array): Uint8Array {
   const out = new Uint8Array(data.length);
@@ -109,12 +111,30 @@ export function App() {
     );
   }
 
+  if (screen === "note-choice") {
+    return (
+      <NoteChoiceScreen
+        onWritten={() => setScreen("edit")}
+        onVoice={() => setScreen("voice-note")}
+        onCancel={() => setScreen("record")}
+      />
+    );
+  }
+
   if (screen === "edit") {
     return (
       <EditScreen
         record={scannedRecord!}
         onSaved={handleConsultationSaved}
-        onCancel={() => setScreen("record")}
+        onCancel={() => setScreen("note-choice")}
+      />
+    );
+  }
+
+  if (screen === "voice-note") {
+    return (
+      <VoiceNoteScreen
+        onCancel={() => setScreen("note-choice")}
       />
     );
   }
@@ -125,7 +145,7 @@ export function App() {
       pendingCount={pendingCount}
       readOnly={!qrPayload?.wt}
       onSynced={() => setPendingCount(0)}
-      onAddNote={() => setScreen("edit")}
+      onAddNote={() => setScreen("note-choice")}
       onTerminated={() => {
         setPendingCount(0);
         setScannedRecord(null);
