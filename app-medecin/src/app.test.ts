@@ -6,8 +6,8 @@ describe("session helpers", () => {
     expect(sessionTitle()).toBe("HealthTech — Interface Médecin");
   });
 
-  it("auto-closes after 30 minutes of inactivity (ADR 0002, #122)", () => {
-    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
+  it("auto-closes after 10 minutes of inactivity (ADR 0002, #122)", () => {
+    expect(IDLE_TIMEOUT_MS).toBe(600_000);
   });
 
   it("shows pre-close warning 2 min before idle close (WARN_BEFORE_MS, #122)", () => {

@@ -93,16 +93,16 @@ describe("App shell — session helpers re-validated after UX norm update (#28)"
     expect(sessionTitle()).toBe("HealthTech — Interface Médecin");
   });
 
-  it("IDLE_TIMEOUT_MS is 30 min (ADR 0002 — wipe-on-idle, #122)", () => {
-    expect(IDLE_TIMEOUT_MS).toBe(30 * 60 * 1000);
+  it("IDLE_TIMEOUT_MS is 10 min (ADR 0002 — wipe-on-idle, #122)", () => {
+    expect(IDLE_TIMEOUT_MS).toBe(10 * 60 * 1000);
   });
 
   it("WARN_BEFORE_MS is 2 min — pre-close warning threshold (#122)", () => {
     expect(WARN_BEFORE_MS).toBe(2 * 60 * 1000);
   });
 
-  it("quiet window is 28 min — warning fires at IDLE_TIMEOUT_MS − WARN_BEFORE_MS (#122)", () => {
-    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(28 * 60 * 1000);
+  it("quiet window is 8 min — warning fires at IDLE_TIMEOUT_MS − WARN_BEFORE_MS (#122)", () => {
+    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(8 * 60 * 1000);
   });
 });
 
@@ -136,8 +136,8 @@ describe(
       expect(true).toBe(true);
     });
 
-    it("IDLE_TIMEOUT_MS is 30 min — session-expiry timeout (wipe-on-idle, #29/#122)", () => {
-      expect(IDLE_TIMEOUT_MS).toBe(30 * 60 * 1000);
+    it("IDLE_TIMEOUT_MS is 10 min — session-expiry timeout (wipe-on-idle, #29/#122)", () => {
+      expect(IDLE_TIMEOUT_MS).toBe(10 * 60 * 1000);
     });
 
     it("sessionTitle() returns the French interface label (no sensitive data in title)", () => {

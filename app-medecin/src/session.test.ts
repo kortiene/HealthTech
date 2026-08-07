@@ -15,18 +15,18 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 describe("session constants (#122)", () => {
-  it("SESSION_IDLE_MINUTES is 30 (primary config knob)", () => {
-    expect(SESSION_IDLE_MINUTES).toBe(30);
+  it("SESSION_IDLE_MINUTES is 10 (primary config knob)", () => {
+    expect(SESSION_IDLE_MINUTES).toBe(10);
   });
 
   it("IDLE_TIMEOUT_MS is derived from SESSION_IDLE_MINUTES", () => {
     expect(IDLE_TIMEOUT_MS).toBe(SESSION_IDLE_MINUTES * 60 * 1000);
-    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
+    expect(IDLE_TIMEOUT_MS).toBe(600_000);
   });
 
-  it("IDLE_TIMEOUT_MS is 30 min (wipe-on-idle, ADR 0002)", () => {
-    expect(IDLE_TIMEOUT_MS).toBe(30 * 60 * 1000);
-    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
+  it("IDLE_TIMEOUT_MS is 10 min (wipe-on-idle, ADR 0002)", () => {
+    expect(IDLE_TIMEOUT_MS).toBe(10 * 60 * 1000);
+    expect(IDLE_TIMEOUT_MS).toBe(600_000);
   });
 
   it("WARN_BEFORE_MS is 2 min (pre-close warning window)", () => {
@@ -38,9 +38,9 @@ describe("session constants (#122)", () => {
     expect(WARN_BEFORE_MS).toBeLessThan(IDLE_TIMEOUT_MS);
   });
 
-  it("quiet window is exactly 28 min (IDLE_TIMEOUT_MS − WARN_BEFORE_MS)", () => {
-    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(28 * 60 * 1000);
-    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(1_680_000);
+  it("quiet window is exactly 8 min (IDLE_TIMEOUT_MS − WARN_BEFORE_MS)", () => {
+    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(8 * 60 * 1000);
+    expect(IDLE_TIMEOUT_MS - WARN_BEFORE_MS).toBe(480_000);
   });
 
   it("warning window covers exactly the last 2 min before close", () => {
@@ -103,8 +103,8 @@ describe("formatCountdown — mm:ss display (#122)", () => {
     expect(formatCountdown(90 * 60 * 1_000)).toBe("90:00");
   });
 
-  it("IDLE_TIMEOUT_MS → '30:00'", () => {
-    expect(formatCountdown(IDLE_TIMEOUT_MS)).toBe("30:00");
+  it("IDLE_TIMEOUT_MS → '10:00'", () => {
+    expect(formatCountdown(IDLE_TIMEOUT_MS)).toBe("10:00");
   });
 
   it("61000 ms → '1:01' (non-zero minutes AND non-zero seconds)", () => {

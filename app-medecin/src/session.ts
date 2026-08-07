@@ -24,7 +24,7 @@ export function sessionTitle(): string {
  * Production: 30  (minutes)
  * Manual dev test: change to 1 or 2 to observe the warning banner quickly.
  */
-export const SESSION_IDLE_MINUTES = 30;
+export const SESSION_IDLE_MINUTES = 10;
 
 /** Idle auto-close threshold in ms — derived from SESSION_IDLE_MINUTES. */
 export const IDLE_TIMEOUT_MS = SESSION_IDLE_MINUTES * 60 * 1000;
