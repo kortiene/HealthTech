@@ -2,11 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../cloud/media_client.dart';
 import '../design/app_theme.dart';
 import '../record/medical_record.dart';
 import '../secure/patient_account.dart';
@@ -802,15 +802,20 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     }
     setState(() => _status = _PlayerStatus.loading);
     try {
-      final resp = await http.get(Uri.parse(_resolveUrl(rawUrl)));
-      if (resp.statusCode != 200) {
-        throw Exception('HTTP ${resp.statusCode}');
-      }
-      // XOR 0x5A dev stub decrypt — NOT a cipher; removed before prod (#17).
-      final cipher = resp.bodyBytes;
-      final plain = Uint8List(cipher.length);
-      for (var i = 0; i < cipher.length; i++) {
-        plain[i] = cipher[i] ^ 0x5A;
+      // Extract baseUrl from the stored media URL and apply Android fix.
+      final uri = Uri.parse(_resolveUrl(rawUrl));
+      final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+      final client = MediaClient(baseUrl);
+
+      // Proper access flow: POST /media/{uuid}/access → ephemeral URL → GET bytes.
+      // Direct GET /media/{uuid} is 403 — the backend requires a signed access grant.
+      final grant = await client.requestAccess(widget.media.uuid);
+      final ciphertext = await client.fetchCiphertext(grant.url);
+
+      // XOR 0x5A dev stub decrypt — NOT a cipher; replaced by WASM decrypt in prod (#17).
+      final plain = Uint8List(ciphertext.length);
+      for (var i = 0; i < ciphertext.length; i++) {
+        plain[i] = ciphertext[i] ^ 0x5A;
       }
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${widget.media.uuid}.webm');
