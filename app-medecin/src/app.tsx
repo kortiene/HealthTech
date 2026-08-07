@@ -115,9 +115,12 @@ export function App() {
       date: addedAt.slice(0, 10),
       practitioner_ref: consultation.doctorName,
       summary: consultation.summary,
-      // Snake_case keys match Flutter MediaDescriptor.fromJson expectations
+      // Snake_case keys match Flutter MediaDescriptor.fromJson expectations.
+      // url is preserved so the patient app can fetch without minting an ephemeral
+      // access URL (dev only — prod uses MediaClient.requestAccess, TODO #17).
       media: consultation.media.map((m) => ({
         uuid: m.mediaId,
+        url: m.url,
         content_key: m.contentKey,
         content_hash: m.contentHash,
         alg: "A256GCM",

@@ -240,6 +240,8 @@ class MediaDescriptor {
     required this.sizeBytes,
     required this.addedAt,
     this.alg = 'A256GCM',
+    this.url,
+    this.durationMs,
   });
 
   factory MediaDescriptor.fromJson(Map<String, Object?> json) {
@@ -252,6 +254,8 @@ class MediaDescriptor {
       mime: json['mime'] as String? ?? 'application/octet-stream',
       sizeBytes: (json['size_bytes'] ?? json['sizeBytes']) as int? ?? 0,
       addedAt: (json['added_at'] ?? json['addedAt']) as String? ?? '',
+      url: json['url'] as String?,
+      durationMs: (json['duration_ms'] ?? json['durationMs']) as int?,
     );
   }
 
@@ -278,6 +282,13 @@ class MediaDescriptor {
   /// ISO-8601 UTC timestamp the media was attached.
   final String addedAt;
 
+  /// Direct download URL stored by the PWA (dev only). Absent when ephemeral
+  /// URLs are minted on demand via MediaClient.requestAccess (prod, #17).
+  final String? url;
+
+  /// Recording duration in milliseconds (for UI display before decode).
+  final int? durationMs;
+
   Map<String, Object?> toJson() => {
         'uuid': uuid,
         'content_key': contentKey,
@@ -286,6 +297,8 @@ class MediaDescriptor {
         'mime': mime,
         'size_bytes': sizeBytes,
         'added_at': addedAt,
+        if (url != null) 'url': url,
+        if (durationMs != null) 'duration_ms': durationMs,
       };
 
   @override
