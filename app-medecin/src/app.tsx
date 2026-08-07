@@ -3,7 +3,10 @@ import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
 import { RecordScreen } from "./screens/RecordScreen";
 import { NoteChoiceScreen } from "./screens/NoteChoiceScreen";
 import { EditScreen, type NewConsultation } from "./screens/EditScreen";
-import { VoiceNoteScreen } from "./screens/VoiceNoteScreen";
+import {
+  VoiceNoteScreen,
+  type NewVoiceConsultation,
+} from "./screens/VoiceNoteScreen";
 import { type MedicalRecord } from "./stubs/data";
 
 type Screen = "scan" | "record" | "note-choice" | "edit" | "voice-note";
@@ -28,7 +31,7 @@ export function App() {
     const newEntry = {
       id: crypto.randomUUID(),
       date: new Date().toISOString().slice(0, 10),
-      practitioner_ref: consultation.doctorName || '',
+      practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
       ...(consultation.prescription ? { prescription: consultation.prescription } : {}),
     };
@@ -63,11 +66,10 @@ export function App() {
       throw new Error(
         res.status >= 500
           ? "Serveur indisponible — réessayez."
-          : "Échec de l'enregistrement — réessayez."
+          : "Échec de l'enregistrement — réessayez.",
       );
     }
 
-    // Update in-memory state so RecordScreen reflects the new consultation immediately
     setRawFlutter(updatedRaw);
     setScannedRecord((prev) =>
       prev
@@ -86,12 +88,76 @@ export function App() {
               ...prev.allergies,
               ...consultation.newAllergies.map((a) => ({
                 substance: a.substance,
-                severity: a.severity === "severe" ? "sévère" : a.severity === "moderate" ? "modérée" : "légère",
+                severity:
+                  a.severity === "severe"
+                    ? "sévère"
+                    : a.severity === "moderate"
+                      ? "modérée"
+                      : "légère",
                 notedAt: new Date().toISOString().slice(0, 10),
               })),
             ],
           }
-        : prev
+        : prev,
+    );
+    setPendingCount((n) => n + 1);
+    setScreen("record");
+  }
+
+  async function handleVoiceConsultationSaved(
+    consultation: NewVoiceConsultation,
+  ): Promise<void> {
+    if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
+
+    const newEntry = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      practitioner_ref: consultation.doctorName,
+      summary: consultation.summary,
+      media: consultation.media,
+    };
+
+    const updatedRaw = {
+      ...rawFlutter,
+      consultations: [...(rawFlutter.consultations ?? []), newEntry],
+      updated_at: new Date().toISOString(),
+    };
+
+    // PUT updated blob (media is already on /media endpoint; this blob carries the reference)
+    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(qrPayload.wt ? { Authorization: `Bearer ${qrPayload.wt}` } : {}),
+      },
+      body: encrypted.buffer as ArrayBuffer,
+    });
+
+    if (!res.ok) {
+      throw new Error(
+        res.status >= 500
+          ? "Serveur indisponible — réessayez."
+          : "Échec de l'enregistrement — réessayez.",
+      );
+    }
+
+    setRawFlutter(updatedRaw);
+    setScannedRecord((prev) =>
+      prev
+        ? {
+            ...prev,
+            consultations: [
+              ...prev.consultations,
+              {
+                date: newEntry.date,
+                doctorName: consultation.doctorName,
+                summary: consultation.summary,
+                media: consultation.media,
+              },
+            ],
+          }
+        : prev,
     );
     setPendingCount((n) => n + 1);
     setScreen("record");
@@ -134,6 +200,9 @@ export function App() {
   if (screen === "voice-note") {
     return (
       <VoiceNoteScreen
+        backendUrl={qrPayload?.url ?? ""}
+        writeToken={qrPayload?.wt}
+        onSaved={handleVoiceConsultationSaved}
         onCancel={() => setScreen("note-choice")}
       />
     );

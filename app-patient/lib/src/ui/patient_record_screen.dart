@@ -788,6 +788,47 @@ class _ConsultationSheet extends StatelessWidget {
                   style: tt.bodyLarge?.copyWith(color: AppColors.primary900)),
             ),
           ],
+          // ── Voice notes (#120) ──────────────────────────────────────────────
+          for (final m in consultation.media)
+            if (m.mime.startsWith('audio/')) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  const Icon(Icons.mic_rounded,
+                      size: 16, color: AppColors.neutral500),
+                  const SizedBox(width: 6),
+                  Text('Note vocale',
+                      style: tt.labelLarge?.copyWith(
+                          color: AppColors.neutral500, letterSpacing: 0.5)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.neutral100,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(color: AppColors.neutral200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.mic_rounded,
+                        size: 20, color: AppColors.neutral500),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Note vocale du Dr. ${consultation.practitionerRef}'
+                        ' — lecture disponible dans une prochaine version',
+                        // TODO(#17): déchiffrement WASM requis pour la lecture
+                        style: tt.bodyMedium
+                            ?.copyWith(color: AppColors.neutral700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
         ],
       ),
     );
