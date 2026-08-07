@@ -2,15 +2,28 @@
 //
 // All tests are pure (no DOM, no timers, no Preact) and run in the default
 // Node vitest environment. Timer-driven integration tests (warn/close sequence
-// in RecordScreen) require jsdom; see RecordScreen.test.ts for VNode-level
-// structural coverage.
+// in RecordScreen) live in RecordScreen.timer.test.tsx (jsdom env).
 
 import { describe, expect, it } from "vitest";
-import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "./session";
+import {
+  SESSION_IDLE_MINUTES,
+  IDLE_TIMEOUT_MS,
+  WARN_BEFORE_MS,
+  formatCountdown,
+} from "./session";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 describe("session constants (#122)", () => {
+  it("SESSION_IDLE_MINUTES is 30 (primary config knob)", () => {
+    expect(SESSION_IDLE_MINUTES).toBe(30);
+  });
+
+  it("IDLE_TIMEOUT_MS is derived from SESSION_IDLE_MINUTES", () => {
+    expect(IDLE_TIMEOUT_MS).toBe(SESSION_IDLE_MINUTES * 60 * 1000);
+    expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
+  });
+
   it("IDLE_TIMEOUT_MS is 30 min (wipe-on-idle, ADR 0002)", () => {
     expect(IDLE_TIMEOUT_MS).toBe(30 * 60 * 1000);
     expect(IDLE_TIMEOUT_MS).toBe(1_800_000);
