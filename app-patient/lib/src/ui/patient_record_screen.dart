@@ -19,11 +19,17 @@ class PatientRecordScreen extends StatelessWidget {
     required this.record,
     required this.account,
     required this.onShowQr,
+    this.onTreatmentStatusChanged,
   });
 
   final MedicalRecord record;
   final PatientAccount account;
   final VoidCallback onShowQr;
+
+  /// Called when the patient closes a treatment.
+  /// Args: (id, 'completed' | 'discontinued', endedAt ISO date).
+  final void Function(String id, String status, String endedAt)?
+      onTreatmentStatusChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +72,10 @@ class PatientRecordScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.treatments.isNotEmpty) ...[
-                  _TreatmentsSection(treatments: record.treatments),
+                  _TreatmentsSection(
+                    record: record,
+                    onTreatmentStatusChanged: onTreatmentStatusChanged,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.consultations.isNotEmpty)
@@ -770,22 +779,69 @@ class _ConsultationSheet extends StatelessWidget {
   }
 }
 
-// ── Traitements actifs (#121) ─────────────────────────────────────────────────
+// ── Traitements (#121) ───────────────────────────────────────────────────────
+
+typedef _TreatmentStatusCallback = void Function(
+    String id, String status, String endedAt);
 
 class _TreatmentsSection extends StatelessWidget {
-  const _TreatmentsSection({required this.treatments});
-  final List<Treatment> treatments;
+  const _TreatmentsSection({
+    required this.record,
+    this.onTreatmentStatusChanged,
+  });
 
-  static String _statusLabel(String status) {
-    switch (status) {
-      case 'completed':
-        return 'Terminé';
-      case 'discontinued':
-        return 'Arrêté';
-      default:
-        return 'En cours';
-    }
+  final MedicalRecord record;
+  final _TreatmentStatusCallback? onTreatmentStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Symbols.medical_services_rounded,
+            title: 'Traitements',
+            badge: '${record.treatments.length}',
+          ),
+          ...record.treatments.map((t) {
+            final linked = record.consultations
+                .expand(
+                  (c) => c.ordonnances
+                      .where((o) => o.treatmentId == t.id)
+                      .map((o) => (consultation: c, ordonnance: o)),
+                )
+                .toList()
+              ..sort(
+                  (a, b) => a.consultation.date.compareTo(b.consultation.date));
+            return _TreatmentCard(
+              treatment: t,
+              linked: linked,
+              onClose: t.status == 'active' && onTreatmentStatusChanged != null
+                  ? (status) {
+                      final endedAt =
+                          DateTime.now().toIso8601String().substring(0, 10);
+                      onTreatmentStatusChanged!(t.id, status, endedAt);
+                    }
+                  : null,
+            );
+          }),
+        ],
+      ),
+    );
   }
+}
+
+class _TreatmentCard extends StatelessWidget {
+  const _TreatmentCard({
+    required this.treatment,
+    required this.linked,
+    this.onClose,
+  });
+
+  final Treatment treatment;
+  final List<({Consultation consultation, Ordonnance ordonnance})> linked;
+  final void Function(String status)? onClose;
 
   static Color _statusColor(String status) {
     switch (status) {
@@ -798,62 +854,318 @@ class _TreatmentsSection extends StatelessWidget {
     }
   }
 
+  static String _statusLabel(String status) {
+    switch (status) {
+      case 'completed':
+        return 'Terminé';
+      case 'discontinued':
+        return 'Arrêté';
+      default:
+        return 'En cours';
+    }
+  }
+
+  static String _fmtDate(String isoDate) {
+    try {
+      final d = DateTime.parse(isoDate);
+      const months = [
+        '',
+        'jan.',
+        'fév.',
+        'mars',
+        'avr.',
+        'mai',
+        'juin',
+        'juil.',
+        'août',
+        'sep.',
+        'oct.',
+        'nov.',
+        'déc.',
+      ];
+      return '${d.day} ${months[d.month]} ${d.year}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  Future<void> _showCloseSheet(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (_) => _CloseTreatmentSheet(diagnosis: treatment.diagnosis),
+    );
+    if (result != null) onClose!(result);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
-    return _sectionCard(
+    final color = _statusColor(treatment.status);
+    final isActive = treatment.status == 'active';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primary50 : AppColors.neutral100,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border(
+          left: BorderSide(
+            color: isActive ? AppColors.primary500 : AppColors.neutral200,
+            width: 3,
+          ),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(
-            icon: Symbols.medical_services_rounded,
-            title: 'Traitements',
-            badge: '${treatments.length}',
-          ),
-          ...treatments.map((t) {
-            final color = _statusColor(t.status);
-            return Container(
-              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-              padding: const EdgeInsets.all(AppSpacing.sm + 2),
-              decoration: BoxDecoration(
-                color: AppColors.primary50,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-                border: const Border(
-                  left: BorderSide(color: AppColors.primary500, width: 3),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2,
+                AppSpacing.sm + 2, AppSpacing.xs, AppSpacing.sm + 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        treatment.diagnosis,
+                        style:
+                            tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (treatment.doctorRef != null) treatment.doctorRef!,
+                          'depuis le ${_fmtDate(treatment.startedAt)}',
+                          if (treatment.endedAt != null)
+                            "jusqu'au ${_fmtDate(treatment.endedAt!)}",
+                        ].join(' · '),
+                        style: tt.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: AppSpacing.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(20),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Text(
+                        _statusLabel(treatment.status),
+                        style: tt.bodySmall?.copyWith(
+                            color: color, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (isActive && onClose != null) ...[
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () => _showCloseSheet(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.neutral200,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Symbols.check_circle_outline_rounded,
+                                  size: 12, color: AppColors.neutral500),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Clore',
+                                style: tt.bodySmall?.copyWith(
+                                    color: AppColors.neutral500,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (linked.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.xs),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(t.diagnosis,
-                            style: tt.bodyLarge
-                                ?.copyWith(fontWeight: FontWeight.w500)),
-                        const SizedBox(height: 2),
-                        Text('Depuis le ${t.startedAt}', style: tt.bodySmall),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withAlpha(20),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: Text(
-                      _statusLabel(t.status),
-                      style: tt.bodySmall
-                          ?.copyWith(color: color, fontWeight: FontWeight.w600),
-                    ),
+                  const Icon(Symbols.receipt_long_rounded,
+                      size: 12, color: AppColors.neutral500),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Ordonnances liées (${linked.length})',
+                    style: tt.bodySmall?.copyWith(
+                        color: AppColors.neutral500,
+                        fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
-            );
-          }),
+            ),
+            ...linked.map(
+              (pair) => Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.sm),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    border: Border.all(color: AppColors.neutral200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.sm, AppSpacing.xs, AppSpacing.sm, 0),
+                        child: Text(
+                          _fmtDate(pair.consultation.date),
+                          style: tt.labelMedium?.copyWith(
+                              color: AppColors.primary700,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      ...pair.ordonnance.lines
+                          .map((l) => _OrdonnanceLineCard(line: l)),
+                      if (pair.ordonnance.lines.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          child: Text('Ordonnance vide',
+                              style: tt.bodySmall
+                                  ?.copyWith(color: AppColors.neutral500)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _CloseTreatmentSheet extends StatelessWidget {
+  const _CloseTreatmentSheet({required this.diagnosis});
+  final String diagnosis;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text('Clore ce traitement', style: tt.titleSmall),
+            const SizedBox(height: 2),
+            Text(diagnosis,
+                style: tt.bodyMedium?.copyWith(color: AppColors.neutral500)),
+            const SizedBox(height: AppSpacing.md),
+            _CloseOption(
+              icon: Symbols.check_circle_rounded,
+              label: 'Traitement terminé',
+              subtitle: 'Guérison ou fin normale du traitement',
+              color: AppColors.primary700,
+              onTap: () => Navigator.of(context).pop('completed'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _CloseOption(
+              icon: Symbols.cancel_rounded,
+              label: 'Traitement arrêté',
+              subtitle: "Arrêt sur décision médicale ou personnelle",
+              color: AppColors.allergy,
+              onTap: () => Navigator.of(context).pop('discontinued'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Annuler'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CloseOption extends StatelessWidget {
+  const _CloseOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Material(
+      color: AppColors.neutral100,
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Icon(icon, size: 24, color: color),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: tt.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(subtitle, style: tt.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

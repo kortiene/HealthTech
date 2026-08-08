@@ -36,6 +36,8 @@ export interface NewConsultation {
   ordonnances: OrdonnanceJson[];
   /** Non-null only when the doctor starts a new global treatment at this visit. */
   newTreatment?: TreatmentJson;
+  /** Id of an existing active treatment to mark as completed at this consultation. */
+  closedTreatmentId?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,6 +94,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
     "none",
   );
   const [newDiagnosis, setNewDiagnosis] = useState("");
+  const [closeTreatment, setCloseTreatment] = useState(false);
 
   const [ordonnances, setOrdonnances] = useState<LocalOrdonnance[]>([
     newOrdonnance(),
@@ -209,6 +212,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
         id: newId,
         diagnosis: newDiagnosis.trim(),
         started_at: new Date().toISOString().slice(0, 10),
+        ...(doctorName.trim() ? { doctor_ref: doctorName.trim() } : {}),
         status: "active",
       };
       resolvedTreatmentId = newId;
@@ -217,6 +221,11 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
     }
 
     const builtOrdonnances = buildOrdonnances(ordonnances, resolvedTreatmentId);
+
+    const closedTreatmentId =
+      treatmentMode !== "none" && treatmentMode !== "new" && closeTreatment
+        ? treatmentMode
+        : undefined;
 
     setIsSaving(true);
     setError(null);
@@ -227,6 +236,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
         newAllergies: finalAllergies,
         ordonnances: builtOrdonnances,
         newTreatment,
+        closedTreatmentId,
       });
     } catch (e) {
       setIsSaving(false);
@@ -426,7 +436,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
           >
             <button
               type="button"
-              onClick={() => setTreatmentMode("none")}
+              onClick={() => { setTreatmentMode("none"); setCloseTreatment(false); }}
               className={treatmentMode === "none" ? "btn btn-filled" : "btn btn-outline"}
               style={{ fontSize: 13 }}
             >
@@ -434,7 +444,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             </button>
             <button
               type="button"
-              onClick={() => setTreatmentMode("new")}
+              onClick={() => { setTreatmentMode("new"); setCloseTreatment(false); }}
               className={treatmentMode === "new" ? "btn btn-filled" : "btn btn-outline"}
               style={{ fontSize: 13 }}
             >
@@ -445,11 +455,16 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTreatmentMode(t.id)}
+                onClick={() => { setTreatmentMode(t.id); setCloseTreatment(false); }}
                 className={treatmentMode === t.id ? "btn btn-filled" : "btn btn-outline"}
                 style={{ fontSize: 13 }}
               >
                 {t.diagnosis}
+                {t.doctor_ref && (
+                  <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6 }}>
+                    · {t.doctor_ref}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -472,6 +487,35 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                 }
               />
             </div>
+          )}
+
+          {/* Clore un traitement existant */}
+          {treatmentMode !== "none" && treatmentMode !== "new" && (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-sm)",
+                cursor: "pointer",
+                padding: "var(--space-sm) var(--space-md)",
+                background: closeTreatment
+                  ? "rgba(220,38,38,0.06)"
+                  : "var(--color-neutral-50)",
+                border: `1px solid ${closeTreatment ? "rgba(220,38,38,0.3)" : "var(--color-neutral-200)"}`,
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={closeTreatment}
+                onChange={(e) =>
+                  setCloseTreatment((e.target as HTMLInputElement).checked)
+                }
+              />
+              <span className="text-body">
+                Clore ce traitement à cette consultation
+              </span>
+            </label>
           )}
         </div>
 

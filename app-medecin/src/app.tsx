@@ -28,9 +28,10 @@ export function App() {
   async function handleConsultationSaved(consultation: NewConsultation): Promise<void> {
     if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
 
+    const today = new Date().toISOString().slice(0, 10);
     const newEntry = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().slice(0, 10),
+      date: today,
       practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
       ...(consultation.ordonnances.length > 0
@@ -48,7 +49,12 @@ export function App() {
       ...rawFlutter,
       consultations: [...(rawFlutter.consultations ?? []), newEntry],
       treatments: [
-        ...(rawFlutter.treatments ?? []),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(rawFlutter.treatments ?? []).map((t: any) =>
+          t.id === consultation.closedTreatmentId
+            ? { ...t, status: "completed", ended_at: today }
+            : t,
+        ),
         ...(consultation.newTreatment ? [consultation.newTreatment] : []),
       ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
@@ -93,7 +99,11 @@ export function App() {
               },
             ],
             treatments: [
-              ...prev.treatments,
+              ...prev.treatments.map((t) =>
+                t.id === consultation.closedTreatmentId
+                  ? { ...t, status: "completed", ended_at: today }
+                  : t,
+              ),
               ...(consultation.newTreatment ? [consultation.newTreatment] : []),
             ],
             allergies: [

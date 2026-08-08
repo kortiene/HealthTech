@@ -440,6 +440,7 @@ class Treatment {
     required this.id,
     required this.diagnosis,
     required this.startedAt,
+    this.doctorRef,
     this.endedAt,
     this.status = 'active',
   });
@@ -449,6 +450,7 @@ class Treatment {
       id: (json['id'] ?? '') as String,
       diagnosis: (json['diagnosis'] ?? '') as String,
       startedAt: (json['started_at'] ?? json['startedAt'] ?? '') as String,
+      doctorRef: (json['doctor_ref'] ?? json['doctorRef']) as String?,
       endedAt: (json['ended_at'] ?? json['endedAt']) as String?,
       status: (json['status'] ?? 'active') as String,
     );
@@ -459,15 +461,30 @@ class Treatment {
 
   /// ISO-8601 date the treatment was initiated.
   final String startedAt;
+
+  /// Display name of the practitioner who initiated this treatment.
+  final String? doctorRef;
   final String? endedAt;
 
   /// `active` | `completed` | `discontinued`
   final String status;
 
+  Treatment copyWith({String? status, String? endedAt}) {
+    return Treatment(
+      id: id,
+      diagnosis: diagnosis,
+      startedAt: startedAt,
+      doctorRef: doctorRef,
+      endedAt: endedAt ?? this.endedAt,
+      status: status ?? this.status,
+    );
+  }
+
   Map<String, Object?> toJson() => {
         'id': id,
         'diagnosis': diagnosis,
         'started_at': startedAt,
+        if (doctorRef != null) 'doctor_ref': doctorRef,
         if (endedAt != null) 'ended_at': endedAt,
         'status': status,
       };
@@ -478,11 +495,13 @@ class Treatment {
       other.id == id &&
       other.diagnosis == diagnosis &&
       other.startedAt == startedAt &&
+      other.doctorRef == doctorRef &&
       other.endedAt == endedAt &&
       other.status == status;
 
   @override
-  int get hashCode => Object.hash(id, diagnosis, startedAt, endedAt, status);
+  int get hashCode =>
+      Object.hash(id, diagnosis, startedAt, doctorRef, endedAt, status);
 }
 
 /// A single consultation record. Binary images are NEVER stored here — heavy media

@@ -56,6 +56,8 @@ export interface TreatmentJson {
   id: string;
   diagnosis: string;
   started_at: string;
+  /** Display name of the practitioner who initiated this treatment. */
+  doctor_ref?: string;
   ended_at?: string;
   /** "active" | "completed" | "discontinued" */
   status: string;
@@ -115,6 +117,7 @@ export const previewRecord: MedicalRecord = {
       id: "trt-asthme-001",
       diagnosis: "Asthme bronchique",
       started_at: "2025-11-18",
+      doctor_ref: "Dr. Diallo",
       status: "active",
     },
   ],
@@ -213,6 +216,7 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       id: t.id ?? "",
       diagnosis: t.diagnosis ?? "",
       started_at: t.started_at ?? t.startedAt ?? "",
+      doctor_ref: t.doctor_ref ?? t.doctorRef,
       ended_at: t.ended_at ?? t.endedAt,
       status: t.status ?? "active",
     })),
