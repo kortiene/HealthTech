@@ -949,9 +949,8 @@ class _TreatmentCardState extends State<_TreatmentCard> {
         children: [
           // Header — tappable pour replier/déplier si des ordonnances sont liées
           InkWell(
-            onTap: hasLinked
-                ? () => setState(() => _expanded = !_expanded)
-                : null,
+            onTap:
+                hasLinked ? () => setState(() => _expanded = !_expanded) : null,
             borderRadius: BorderRadius.circular(AppRadii.sm),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2,
@@ -1032,10 +1031,8 @@ class _TreatmentCardState extends State<_TreatmentCard> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                    Symbols.check_circle_outline_rounded,
-                                    size: 12,
-                                    color: AppColors.neutral500),
+                                const Icon(Symbols.check_circle_outline_rounded,
+                                    size: 12, color: AppColors.neutral500),
                                 const SizedBox(width: 4),
                                 Text(
                                   'Clore',
@@ -1060,8 +1057,8 @@ class _TreatmentCardState extends State<_TreatmentCard> {
             curve: Curves.easeInOut,
             child: (_expanded && hasLinked)
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2, 0,
-                        AppSpacing.sm + 2, AppSpacing.sm),
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.sm),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
