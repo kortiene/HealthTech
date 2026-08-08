@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -747,10 +747,10 @@ class _ConsultationSheet extends StatelessWidget {
 
 // ── Voice note player tile ────────────────────────────────────────────────────
 //
-// Dev: fetches ciphertext from MediaDescriptor.url, XOR 0x5A decrypts in Dart
-// (stub only — NOT a cipher), writes to a temp file, plays via just_audio.
-// Prod: TODO(#17) — ephemeral URL minted via MediaClient.requestAccess; decryption
-// delegated to WASM crypto-core. The XOR path must be removed before prod deploy.
+// Dev: fetches ciphertext via MediaClient.requestAccess → fetchCiphertext,
+// XOR 0x5A decrypts in Dart (stub only — NOT a cipher), plays via audioplayers
+// (Android MediaPlayer — no ExoPlayer, no guava, builds offline).
+// Prod: TODO(#17) — decryption delegated to WASM crypto-core.
 
 enum _PlayerStatus { idle, loading, ready, error }
 
@@ -771,6 +771,22 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
   final _player = AudioPlayer();
   _PlayerStatus _status = _PlayerStatus.idle;
   String? _errorMessage;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPlayerStateChanged.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -785,7 +801,7 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     return url;
   }
 
-  String _formatDuration(Duration d) {
+  String _fmt(Duration d) {
     final min = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final sec = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$min:$sec';
@@ -802,17 +818,15 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     }
     setState(() => _status = _PlayerStatus.loading);
     try {
-      // Extract baseUrl from the stored media URL and apply Android fix.
       final uri = Uri.parse(_resolveUrl(rawUrl));
       final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
       final client = MediaClient(baseUrl);
 
-      // Proper access flow: POST /media/{uuid}/access → ephemeral URL → GET bytes.
-      // Direct GET /media/{uuid} is 403 — the backend requires a signed access grant.
+      // POST /media/{uuid}/access → ephemeral URL → ciphertext bytes
       final grant = await client.requestAccess(widget.media.uuid);
       final ciphertext = await client.fetchCiphertext(grant.url);
 
-      // XOR 0x5A dev stub decrypt — NOT a cipher; replaced by WASM decrypt in prod (#17).
+      // XOR 0x5A dev stub decrypt — NOT a cipher; replaced by WASM in prod (#17).
       final plain = Uint8List(ciphertext.length);
       for (var i = 0; i < ciphertext.length; i++) {
         plain[i] = ciphertext[i] ^ 0x5A;
@@ -820,7 +834,7 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${widget.media.uuid}.webm');
       await file.writeAsBytes(plain, flush: true);
-      await _player.setFilePath(file.path);
+      await _player.setSourceDeviceFile(file.path);
       if (mounted) setState(() => _status = _PlayerStatus.ready);
     } catch (e) {
       if (mounted) {
@@ -835,25 +849,42 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
   Future<void> _togglePlay() async {
     if (_status == _PlayerStatus.idle || _status == _PlayerStatus.error) {
       await _prepare();
-      if (_status == _PlayerStatus.ready) await _player.play();
+      if (_status == _PlayerStatus.ready) await _player.resume();
       return;
     }
-    if (_player.playing) {
+    if (_player.state == PlayerState.playing) {
       await _player.pause();
     } else {
-      if (_player.processingState == ProcessingState.completed) {
+      if (_player.state == PlayerState.completed) {
         await _player.seek(Duration.zero);
       }
-      await _player.play();
+      await _player.resume();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final isPlaying = _player.state == PlayerState.playing;
+    final isCompleted = _player.state == PlayerState.completed;
     final knownDuration = widget.media.durationMs != null
         ? Duration(milliseconds: widget.media.durationMs!)
         : null;
+    final duration = _duration > Duration.zero ? _duration : (knownDuration ?? Duration.zero);
+    final progress = duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    IconData icon;
+    if (_status == _PlayerStatus.loading) {
+      icon = Icons.hourglass_empty_rounded;
+    } else if (isCompleted) {
+      icon = Icons.replay_rounded;
+    } else if (isPlaying) {
+      icon = Icons.pause_rounded;
+    } else {
+      icon = Icons.play_arrow_rounded;
+    }
 
     return Container(
       width: double.infinity,
@@ -874,80 +905,38 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              StreamBuilder<PlayerState>(
-                stream: _player.playerStateStream,
-                builder: (context, snapshot) {
-                  final isPlaying = snapshot.data?.playing ?? false;
-                  final isCompleted = snapshot.data?.processingState ==
-                      ProcessingState.completed;
-                  IconData icon;
-                  if (_status == _PlayerStatus.loading) {
-                    icon = Icons.hourglass_empty_rounded;
-                  } else if (isCompleted) {
-                    icon = Icons.replay_rounded;
-                  } else if (isPlaying) {
-                    icon = Icons.pause_rounded;
-                  } else {
-                    icon = Icons.play_arrow_rounded;
-                  }
-                  return IconButton(
-                    onPressed:
-                        _status == _PlayerStatus.loading ? null : _togglePlay,
-                    icon: Icon(icon, size: 32, color: AppColors.primary700),
-                    tooltip: isPlaying ? 'Pause' : 'Lecture',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  );
-                },
+              IconButton(
+                onPressed: _status == _PlayerStatus.loading ? null : _togglePlay,
+                icon: Icon(icon, size: 32, color: AppColors.primary700),
+                tooltip: isPlaying ? 'Pause' : 'Lecture',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: StreamBuilder<Duration?>(
-                  stream: _player.durationStream,
-                  builder: (context, durSnap) {
-                    final duration =
-                        durSnap.data ?? knownDuration ?? Duration.zero;
-                    return StreamBuilder<Duration>(
-                      stream: _player.positionStream,
-                      builder: (context, posSnap) {
-                        final position = posSnap.data ?? Duration.zero;
-                        final progress = duration.inMilliseconds > 0
-                            ? (position.inMilliseconds /
-                                    duration.inMilliseconds)
-                                .clamp(0.0, 1.0)
-                            : 0.0;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value: _status == _PlayerStatus.loading
-                                    ? null
-                                    : progress,
-                                minHeight: 4,
-                                backgroundColor: AppColors.neutral200,
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                    AppColors.primary700),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _status == _PlayerStatus.loading
-                                  ? 'Chargement…'
-                                  : duration > Duration.zero
-                                      ? '${_formatDuration(position)} / ${_formatDuration(duration)}'
-                                      : knownDuration != null
-                                          ? _formatDuration(knownDuration)
-                                          : '',
-                              style: tt.labelSmall
-                                  ?.copyWith(color: AppColors.neutral500),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: _status == _PlayerStatus.loading ? null : progress,
+                        minHeight: 4,
+                        backgroundColor: AppColors.neutral200,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.primary700),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _status == _PlayerStatus.loading
+                          ? 'Chargement…'
+                          : duration > Duration.zero
+                              ? '${_fmt(_position)} / ${_fmt(duration)}'
+                              : '',
+                      style: tt.labelSmall?.copyWith(color: AppColors.neutral500),
+                    ),
+                  ],
                 ),
               ),
             ],
