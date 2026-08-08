@@ -86,6 +86,21 @@ class _MainShellState extends State<MainShell> {
         record: widget.record,
         account: widget.account,
         onShowQr: _showQr,
+        onTreatmentStatusChanged: widget.onUpdateRecord != null
+            ? (id, status, endedAt) {
+                final updated = widget.record.copyWith(
+                  treatments: widget.record.treatments
+                      .map(
+                        (t) => t.id == id
+                            ? t.copyWith(status: status, endedAt: endedAt)
+                            : t,
+                      )
+                      .toList(),
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                widget.onUpdateRecord!(updated);
+              }
+            : null,
       ),
       SettingsScreen(
         record: widget.record,
