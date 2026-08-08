@@ -28,12 +28,15 @@ export function App() {
   async function handleConsultationSaved(consultation: NewConsultation): Promise<void> {
     if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
 
+    const today = new Date().toISOString().slice(0, 10);
     const newEntry = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().slice(0, 10),
+      date: today,
       practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
-      ...(consultation.prescription ? { prescription: consultation.prescription } : {}),
+      ...(consultation.ordonnances.length > 0
+        ? { ordonnances: consultation.ordonnances }
+        : {}),
     };
 
     const newAllergiesFlutter = consultation.newAllergies.map((a) => ({
@@ -45,6 +48,15 @@ export function App() {
     const updatedRaw = {
       ...rawFlutter,
       consultations: [...(rawFlutter.consultations ?? []), newEntry],
+      treatments: [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(rawFlutter.treatments ?? []).map((t: any) =>
+          t.id === consultation.closedTreatmentId
+            ? { ...t, status: "completed", ended_at: today }
+            : t,
+        ),
+        ...(consultation.newTreatment ? [consultation.newTreatment] : []),
+      ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
       updated_at: new Date().toISOString(),
     };
@@ -81,8 +93,18 @@ export function App() {
                 date: newEntry.date,
                 doctorName: consultation.doctorName || undefined,
                 summary: consultation.summary,
-                prescription: consultation.prescription,
+                ...(consultation.ordonnances.length > 0
+                  ? { ordonnances: consultation.ordonnances }
+                  : {}),
               },
+            ],
+            treatments: [
+              ...prev.treatments.map((t) =>
+                t.id === consultation.closedTreatmentId
+                  ? { ...t, status: "completed", ended_at: today }
+                  : t,
+              ),
+              ...(consultation.newTreatment ? [consultation.newTreatment] : []),
             ],
             allergies: [
               ...prev.allergies,

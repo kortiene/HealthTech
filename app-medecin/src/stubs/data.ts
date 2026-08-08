@@ -31,11 +31,45 @@ export interface MediaDescriptor {
   contentHash: string;
 }
 
+/** One medication line inside an ordonnance (#121). */
+export interface OrdonnanceLineJson {
+  medication: string;
+  dose?: string;
+  frequency?: string;
+  /** Duration in days. */
+  duration_days?: number;
+  notes?: string;
+}
+
+/** A prescription document written at one consultation (#121). */
+export interface OrdonnanceJson {
+  id: string;
+  /** Links this ordonnance to a Treatment.id. */
+  treatment_id?: string;
+  /** Optional label, e.g. "Médicaments", "Examens biologiques". */
+  label?: string;
+  lines: OrdonnanceLineJson[];
+}
+
+/** A global treatment record spanning one or more consultations (#121). */
+export interface TreatmentJson {
+  id: string;
+  diagnosis: string;
+  started_at: string;
+  /** Display name of the practitioner who initiated this treatment. */
+  doctor_ref?: string;
+  ended_at?: string;
+  /** "active" | "completed" | "discontinued" */
+  status: string;
+}
+
 export interface Consultation {
   date: string; // ISO
   doctorName?: string;
   summary: string;
+  /** @deprecated Pre-#121 records only. Use `ordonnances` for new records. */
   prescription?: string;
+  ordonnances?: OrdonnanceJson[];
   media?: MediaDescriptor[];
 }
 
@@ -51,6 +85,7 @@ export interface MedicalRecord {
   allergies: Allergy[];
   chronicConditions: ChronicCondition[];
   medications: Medication[];
+  treatments: TreatmentJson[];
   consultations: Consultation[];
 }
 
@@ -77,12 +112,29 @@ export const previewRecord: MedicalRecord = {
     { name: "Salbutamol", dose: "100 µg", frequency: "2×/jour si besoin" },
     { name: "Prednisolone", dose: "5 mg", frequency: "1×/jour le matin" },
   ],
+  treatments: [
+    {
+      id: "trt-asthme-001",
+      diagnosis: "Asthme bronchique",
+      started_at: "2025-11-18",
+      doctor_ref: "Dr. Diallo",
+      status: "active",
+    },
+  ],
   consultations: [
     {
       date: "2026-06-12",
       doctorName: "Dr. Koné",
       summary: "Contrôle de routine. Tension artérielle 120/80. Bonne tolérance au traitement.",
-      prescription: "Paracétamol 500 mg — 3×/jour, 5 jours",
+      ordonnances: [
+        {
+          id: "ord-2026-06-12-01",
+          treatment_id: "trt-asthme-001",
+          lines: [
+            { medication: "Paracétamol", dose: "500 mg", frequency: "3×/jour", duration_days: 5 },
+          ],
+        },
+      ],
     },
     {
       date: "2026-03-02",
@@ -93,7 +145,17 @@ export const previewRecord: MedicalRecord = {
       date: "2025-11-18",
       doctorName: "Dr. Diallo",
       summary: "Premier bilan de santé. Diagnostic asthme bronchique posé.",
-      prescription: "Salbutamol 100 µg — 2×/jour · Prednisolone 5 mg — 1×/jour",
+      ordonnances: [
+        {
+          id: "ord-2025-11-18-01",
+          treatment_id: "trt-asthme-001",
+          label: "Traitement de fond",
+          lines: [
+            { medication: "Salbutamol", dose: "100 µg", frequency: "2×/jour" },
+            { medication: "Prednisolone", dose: "5 mg", frequency: "1×/jour" },
+          ],
+        },
+      ],
     },
   ],
 };
@@ -150,11 +212,34 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       frequency: m.frequency ?? "",
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    treatments: (raw.treatments ?? []).map((t: any) => ({
+      id: t.id ?? "",
+      diagnosis: t.diagnosis ?? "",
+      started_at: t.started_at ?? t.startedAt ?? "",
+      doctor_ref: t.doctor_ref ?? t.doctorRef,
+      ended_at: t.ended_at ?? t.endedAt,
+      status: t.status ?? "active",
+    })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     consultations: (raw.consultations ?? []).map((c: any) => ({
       date: c.date,
       doctorName: c.practitioner_ref ?? c.practitionerRef ?? c.doctor_name ?? c.doctorName,
       summary: c.summary,
-      prescription: c.prescription,
+      prescription: c.prescription, // legacy — pre-#121 records only
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ordonnances: c.ordonnances ? (c.ordonnances as any[]).map((o: any) => ({
+        id: o.id ?? "",
+        treatment_id: o.treatment_id ?? o.treatmentId,
+        label: o.label,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        lines: (o.lines ?? []).map((l: any) => ({
+          medication: l.medication ?? "",
+          dose: l.dose,
+          frequency: l.frequency,
+          duration_days: l.duration_days ?? l.durationDays,
+          notes: l.notes,
+        })),
+      })) : undefined,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       media: (c.media ?? []).map((m: any) => ({
         mediaId: m.uuid ?? m.media_id ?? m.mediaId ?? "",

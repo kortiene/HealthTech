@@ -19,11 +19,17 @@ class PatientRecordScreen extends StatelessWidget {
     required this.record,
     required this.account,
     required this.onShowQr,
+    this.onTreatmentStatusChanged,
   });
 
   final MedicalRecord record;
   final PatientAccount account;
   final VoidCallback onShowQr;
+
+  /// Called when the patient closes a treatment.
+  /// Args: (id, 'completed' | 'discontinued', endedAt ISO date).
+  final void Function(String id, String status, String endedAt)?
+      onTreatmentStatusChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +69,13 @@ class PatientRecordScreen extends StatelessWidget {
                 ],
                 if (record.medications.isNotEmpty) ...[
                   _MedicationsSection(medications: record.medications),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (record.treatments.isNotEmpty) ...[
+                  _TreatmentsSection(
+                    record: record,
+                    onTreatmentStatusChanged: onTreatmentStatusChanged,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.consultations.isNotEmpty)
@@ -556,7 +569,8 @@ class _TimelineEntry extends StatelessWidget {
                             style: tt.bodyMedium,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
-                        if (consultation.prescription != null) ...[
+                        if (consultation.prescription != null ||
+                            consultation.ordonnances.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -695,7 +709,26 @@ class _ConsultationSheet extends StatelessWidget {
             ),
             child: Text(consultation.summary, style: tt.bodyLarge),
           ),
-          if (consultation.prescription != null) ...[
+          if (consultation.ordonnances.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                const Icon(Symbols.receipt_long_rounded,
+                    size: 16, color: AppColors.primary700),
+                const SizedBox(width: 6),
+                Text(
+                  consultation.ordonnances.length == 1
+                      ? 'Ordonnance'
+                      : 'Ordonnances (${consultation.ordonnances.length})',
+                  style: tt.labelLarge?.copyWith(
+                      color: AppColors.neutral500, letterSpacing: 0.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...consultation.ordonnances
+                .map((o) => _OrdonnanceBlock(ordonnance: o)),
+          ] else if (consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -740,6 +773,558 @@ class _ConsultationSheet extends StatelessWidget {
                 practitionerRef: consultation.practitionerRef,
               ),
             ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Traitements (#121) ───────────────────────────────────────────────────────
+
+typedef _TreatmentStatusCallback = void Function(
+    String id, String status, String endedAt);
+
+class _TreatmentsSection extends StatelessWidget {
+  const _TreatmentsSection({
+    required this.record,
+    this.onTreatmentStatusChanged,
+  });
+
+  final MedicalRecord record;
+  final _TreatmentStatusCallback? onTreatmentStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final indexed = record.treatments.asMap().entries.toList()
+      ..sort((a, b) {
+        final da = DateTime.tryParse(a.value.startedAt) ?? DateTime(0);
+        final db = DateTime.tryParse(b.value.startedAt) ?? DateTime(0);
+        final cmp = db.compareTo(da);
+        return cmp != 0 ? cmp : b.key.compareTo(a.key);
+      });
+    final sorted = indexed.map((e) => e.value).toList();
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Symbols.medical_services_rounded,
+            title: 'Traitements',
+            badge: '${record.treatments.length}',
+          ),
+          ...sorted.map((t) {
+            final linked = record.consultations
+                .expand(
+                  (c) => c.ordonnances
+                      .where((o) => o.treatmentId == t.id)
+                      .map((o) => (consultation: c, ordonnance: o)),
+                )
+                .toList()
+              ..sort(
+                  (a, b) => a.consultation.date.compareTo(b.consultation.date));
+            return _TreatmentCard(
+              treatment: t,
+              linked: linked,
+              defaultExpanded: sorted.length == 1,
+              onClose: t.status == 'active' && onTreatmentStatusChanged != null
+                  ? (status) {
+                      final endedAt =
+                          DateTime.now().toIso8601String().substring(0, 10);
+                      onTreatmentStatusChanged!(t.id, status, endedAt);
+                    }
+                  : null,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreatmentCard extends StatefulWidget {
+  const _TreatmentCard({
+    required this.treatment,
+    required this.linked,
+    required this.defaultExpanded,
+    this.onClose,
+  });
+
+  final Treatment treatment;
+  final List<({Consultation consultation, Ordonnance ordonnance})> linked;
+  final bool defaultExpanded;
+  final void Function(String status)? onClose;
+
+  @override
+  State<_TreatmentCard> createState() => _TreatmentCardState();
+}
+
+class _TreatmentCardState extends State<_TreatmentCard> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.defaultExpanded;
+  }
+
+  static Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.neutral500;
+      case 'discontinued':
+        return AppColors.allergy;
+      default:
+        return AppColors.primary700;
+    }
+  }
+
+  static String _statusLabel(String status) {
+    switch (status) {
+      case 'completed':
+        return 'Terminé';
+      case 'discontinued':
+        return 'Arrêté';
+      default:
+        return 'En cours';
+    }
+  }
+
+  static String _fmtDate(String isoDate) {
+    try {
+      final d = DateTime.parse(isoDate);
+      const months = [
+        '',
+        'jan.',
+        'fév.',
+        'mars',
+        'avr.',
+        'mai',
+        'juin',
+        'juil.',
+        'août',
+        'sep.',
+        'oct.',
+        'nov.',
+        'déc.',
+      ];
+      return '${d.day} ${months[d.month]} ${d.year}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  Future<void> _showCloseSheet(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (_) =>
+          _CloseTreatmentSheet(diagnosis: widget.treatment.diagnosis),
+    );
+    if (result != null) widget.onClose!(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final color = _statusColor(widget.treatment.status);
+    final isActive = widget.treatment.status == 'active';
+    final hasLinked = widget.linked.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primary50 : AppColors.neutral100,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border(
+          left: BorderSide(
+            color: isActive ? AppColors.primary500 : AppColors.neutral200,
+            width: 3,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header — tappable pour replier/déplier si des ordonnances sont liées
+          InkWell(
+            onTap:
+                hasLinked ? () => setState(() => _expanded = !_expanded) : null,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2,
+                  AppSpacing.sm + 2, AppSpacing.xs, AppSpacing.sm + 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.treatment.diagnosis,
+                          style: tt.bodyLarge
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            if (widget.treatment.doctorRef != null)
+                              widget.treatment.doctorRef!,
+                            'depuis le ${_fmtDate(widget.treatment.startedAt)}',
+                            if (widget.treatment.endedAt != null)
+                              "jusqu'au ${_fmtDate(widget.treatment.endedAt!)}",
+                          ].join(' · '),
+                          style: tt.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withAlpha(20),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Text(
+                              _statusLabel(widget.treatment.status),
+                              style: tt.bodySmall?.copyWith(
+                                  color: color, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          if (hasLinked) ...[
+                            const SizedBox(width: 4),
+                            AnimatedRotation(
+                              turns: _expanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 200),
+                              child: const Icon(
+                                Symbols.keyboard_arrow_down_rounded,
+                                size: 18,
+                                color: AppColors.neutral500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (isActive && widget.onClose != null) ...[
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => _showCloseSheet(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.neutral200,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Symbols.check_circle_outline_rounded,
+                                    size: 12, color: AppColors.neutral500),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Clore',
+                                  style: tt.bodySmall?.copyWith(
+                                      color: AppColors.neutral500,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Ordonnances liées — expand/collapse animé
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: (_expanded && hasLinked)
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Symbols.receipt_long_rounded,
+                                size: 12, color: AppColors.neutral500),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Ordonnances liées (${widget.linked.length})',
+                              style: tt.bodySmall?.copyWith(
+                                  color: AppColors.neutral500,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        ...widget.linked.map(
+                          (pair) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.sm),
+                                border: Border.all(color: AppColors.neutral200),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        AppSpacing.sm,
+                                        AppSpacing.xs,
+                                        AppSpacing.sm,
+                                        0),
+                                    child: Text(
+                                      _fmtDate(pair.consultation.date),
+                                      style: tt.labelMedium?.copyWith(
+                                          color: AppColors.primary700,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  ...pair.ordonnance.lines
+                                      .map((l) => _OrdonnanceLineCard(line: l)),
+                                  if (pair.ordonnance.lines.isEmpty)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.all(AppSpacing.sm),
+                                      child: Text(
+                                        'Ordonnance vide',
+                                        style: tt.bodySmall?.copyWith(
+                                            color: AppColors.neutral500),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CloseTreatmentSheet extends StatelessWidget {
+  const _CloseTreatmentSheet({required this.diagnosis});
+  final String diagnosis;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text('Clore ce traitement', style: tt.titleSmall),
+            const SizedBox(height: 2),
+            Text(diagnosis,
+                style: tt.bodyMedium?.copyWith(color: AppColors.neutral500)),
+            const SizedBox(height: AppSpacing.md),
+            _CloseOption(
+              icon: Symbols.check_circle_rounded,
+              label: 'Traitement terminé',
+              subtitle: 'Guérison ou fin normale du traitement',
+              color: AppColors.primary700,
+              onTap: () => Navigator.of(context).pop('completed'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _CloseOption(
+              icon: Symbols.cancel_rounded,
+              label: 'Traitement arrêté',
+              subtitle: "Arrêt sur décision médicale ou personnelle",
+              color: AppColors.allergy,
+              onTap: () => Navigator.of(context).pop('discontinued'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Annuler'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CloseOption extends StatelessWidget {
+  const _CloseOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Material(
+      color: AppColors.neutral100,
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Icon(icon, size: 24, color: color),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: tt.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(subtitle, style: tt.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Ordonnance block (#121) ───────────────────────────────────────────────────
+
+class _OrdonnanceBlock extends StatelessWidget {
+  const _OrdonnanceBlock({required this.ordonnance});
+  final Ordonnance ordonnance;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.primary50,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.primary100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (ordonnance.label != null && ordonnance.label!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, 0),
+              child: Text(
+                ordonnance.label!,
+                style: tt.labelLarge?.copyWith(
+                    color: AppColors.primary700, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ...ordonnance.lines.map(
+            (l) => _OrdonnanceLineCard(line: l),
+          ),
+          if (ordonnance.lines.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Text('Ordonnance vide',
+                  style: tt.bodySmall?.copyWith(color: AppColors.neutral500)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrdonnanceLineCard extends StatelessWidget {
+  const _OrdonnanceLineCard({required this.line});
+  final OrdonnanceLine line;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final details = [
+      if (line.dose != null) line.dose!,
+      if (line.frequency != null) line.frequency!,
+      if (line.durationDays != null) '${line.durationDays} j',
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          const Icon(Symbols.medication_rounded,
+              size: 18, color: AppColors.primary700),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(line.medication,
+                    style: tt.titleSmall?.copyWith(fontSize: 14)),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(details, style: tt.bodySmall),
+                ],
+                if (line.notes != null) ...[
+                  const SizedBox(height: 1),
+                  Text(line.notes!,
+                      style:
+                          tt.bodySmall?.copyWith(color: AppColors.neutral500)),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
