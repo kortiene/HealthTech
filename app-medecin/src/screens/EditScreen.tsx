@@ -1,14 +1,26 @@
 import { useState } from "preact/hooks";
 import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
-import type { MedicalRecord, TreatmentJson } from "../stubs/data";
+import type {
+  MedicalRecord,
+  OrdonnanceJson,
+  TreatmentJson,
+} from "../stubs/data";
 
-interface PrescriptionLine {
+// ── Local types (UI-only, not serialised) ────────────────────────────────────
+
+interface MedLine {
   id: string;
   medication: string;
   dose: string;
   frequency: string;
   durationDays: string;
+}
+
+interface LocalOrdonnance {
+  id: string;
+  label: string;
+  lines: MedLine[];
 }
 
 export interface NewAllergy {
@@ -18,42 +30,50 @@ export interface NewAllergy {
 
 export interface NewConsultation {
   summary: string;
-  treatment?: TreatmentJson;
   doctorName: string;
   newAllergies: NewAllergy[];
+  /** Ordonnances written at this consultation. */
+  ordonnances: OrdonnanceJson[];
+  /** Non-null only when the doctor starts a new global treatment at this visit. */
+  newTreatment?: TreatmentJson;
 }
 
-function newLine(): PrescriptionLine {
-  return {
-    id: crypto.randomUUID(),
-    medication: "",
-    dose: "",
-    frequency: "",
-    durationDays: "",
-  };
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function newLine(): MedLine {
+  return { id: crypto.randomUUID(), medication: "", dose: "", frequency: "", durationDays: "" };
 }
 
-function buildTreatment(
-  lines: PrescriptionLine[],
-  diagnosis: string,
-  instructions: string,
-): TreatmentJson | undefined {
-  const filled = lines.filter((l) => l.medication.trim());
-  if (!filled.length && !diagnosis.trim() && !instructions.trim())
-    return undefined;
-  return {
-    ...(diagnosis.trim() ? { diagnosis: diagnosis.trim() } : {}),
-    prescriptions: filled.map((l) => ({
-      medication: l.medication.trim(),
-      ...(l.dose.trim() ? { dose: l.dose.trim() } : {}),
-      ...(l.frequency.trim() ? { frequency: l.frequency.trim() } : {}),
-      ...(l.durationDays.trim()
-        ? { duration_days: parseInt(l.durationDays, 10) }
-        : {}),
-    })),
-    ...(instructions.trim() ? { instructions: instructions.trim() } : {}),
-  };
+function newOrdonnance(): LocalOrdonnance {
+  return { id: crypto.randomUUID(), label: "", lines: [newLine()] };
 }
+
+function buildOrdonnances(
+  local: LocalOrdonnance[],
+  treatmentId: string | undefined,
+): OrdonnanceJson[] {
+  return local
+    .map((o) => {
+      const filled = o.lines.filter((l) => l.medication.trim());
+      if (!filled.length) return null;
+      return {
+        id: o.id,
+        ...(treatmentId ? { treatment_id: treatmentId } : {}),
+        ...(o.label.trim() ? { label: o.label.trim() } : {}),
+        lines: filled.map((l) => ({
+          medication: l.medication.trim(),
+          ...(l.dose.trim() ? { dose: l.dose.trim() } : {}),
+          ...(l.frequency.trim() ? { frequency: l.frequency.trim() } : {}),
+          ...(l.durationDays.trim()
+            ? { duration_days: parseInt(l.durationDays, 10) }
+            : {}),
+        })),
+      } satisfies OrdonnanceJson;
+    })
+    .filter((o): o is OrdonnanceJson => o !== null);
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export interface EditScreenProps {
   record: MedicalRecord;
@@ -66,15 +86,29 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   const [doctorName, setDoctorName] = useState("");
   const [hospital, setHospital] = useState("");
   const [contact, setContact] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [lines, setLines] = useState<PrescriptionLine[]>([newLine()]);
-  const [instructions, setInstructions] = useState("");
+
+  // "none" = no treatment / "new" = start a new treatment / existing id = link to it
+  const [treatmentMode, setTreatmentMode] = useState<"none" | "new" | string>(
+    "none",
+  );
+  const [newDiagnosis, setNewDiagnosis] = useState("");
+
+  const [ordonnances, setOrdonnances] = useState<LocalOrdonnance[]>([
+    newOrdonnance(),
+  ]);
+
   const [allergySubstance, setAllergySubstance] = useState("");
   const [allergySeverity, setAllergySeverity] =
     useState<NewAllergy["severity"]>("mild");
   const [newAllergies, setNewAllergies] = useState<NewAllergy[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const activeExistingTreatments = record.treatments.filter(
+    (t) => t.status === "active",
+  );
+
+  // ── Allergy helpers ──────────────────────────────────────────────────────
 
   function addAllergy() {
     const s = allergySubstance.trim();
@@ -91,54 +125,109 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
     setNewAllergies((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  // ── Ordonnance helpers ───────────────────────────────────────────────────
+
   function updateLine(
-    id: string,
-    field: keyof PrescriptionLine,
+    ordId: string,
+    lineId: string,
+    field: keyof MedLine,
     value: string,
   ) {
-    setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
+    setOrdonnances((prev) =>
+      prev.map((o) =>
+        o.id === ordId
+          ? {
+              ...o,
+              lines: o.lines.map((l) =>
+                l.id === lineId ? { ...l, [field]: value } : l,
+              ),
+            }
+          : o,
+      ),
     );
   }
 
-  function removeLine(id: string) {
-    setLines((prev) =>
-      prev.length > 1 ? prev.filter((l) => l.id !== id) : prev,
+  function removeLine(ordId: string, lineId: string) {
+    setOrdonnances((prev) =>
+      prev.map((o) =>
+        o.id === ordId
+          ? {
+              ...o,
+              lines: o.lines.length > 1 ? o.lines.filter((l) => l.id !== lineId) : o.lines,
+            }
+          : o,
+      ),
     );
   }
+
+  function addLine(ordId: string) {
+    setOrdonnances((prev) =>
+      prev.map((o) =>
+        o.id === ordId ? { ...o, lines: [...o.lines, newLine()] } : o,
+      ),
+    );
+  }
+
+  function updateLabel(ordId: string, label: string) {
+    setOrdonnances((prev) =>
+      prev.map((o) => (o.id === ordId ? { ...o, label } : o)),
+    );
+  }
+
+  function removeOrdonnance(ordId: string) {
+    setOrdonnances((prev) =>
+      prev.length > 1 ? prev.filter((o) => o.id !== ordId) : prev,
+    );
+  }
+
+  // ── Save ─────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     if (!note.trim()) {
       setError("La note de consultation est requise.");
       return;
     }
-    // Auto-confirm any substance still in the input field — the doctor may have
-    // typed an allergy without pressing "Ajouter" before hitting "Enregistrer".
+
     const pendingSubstance = allergySubstance.trim();
     const finalAllergies: typeof newAllergies = pendingSubstance
-      ? [
-          ...newAllergies,
-          { substance: pendingSubstance, severity: allergySeverity },
-        ]
+      ? [...newAllergies, { substance: pendingSubstance, severity: allergySeverity }]
       : newAllergies;
-    // Prepend hospital / contact header to the note when provided.
+
     const headerParts: string[] = [];
-    if (hospital.trim())
-      headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
+    if (hospital.trim()) headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
     if (contact.trim()) headerParts.push(`Contact : ${contact.trim()}`);
     const summary = headerParts.length
       ? `${headerParts.join("\n")}\n\n${note.trim()}`
       : note.trim();
+
+    let newTreatment: TreatmentJson | undefined;
+    let resolvedTreatmentId: string | undefined;
+
+    if (treatmentMode === "new" && newDiagnosis.trim()) {
+      const newId = crypto.randomUUID();
+      newTreatment = {
+        id: newId,
+        diagnosis: newDiagnosis.trim(),
+        started_at: new Date().toISOString().slice(0, 10),
+        status: "active",
+      };
+      resolvedTreatmentId = newId;
+    } else if (treatmentMode !== "none" && treatmentMode !== "new") {
+      resolvedTreatmentId = treatmentMode; // existing treatment id
+    }
+
+    const builtOrdonnances = buildOrdonnances(ordonnances, resolvedTreatmentId);
+
     setIsSaving(true);
     setError(null);
     try {
       await onSaved({
         summary,
-        treatment: buildTreatment(lines, diagnosis, instructions),
         doctorName: doctorName.trim(),
         newAllergies: finalAllergies,
+        ordonnances: builtOrdonnances,
+        newTreatment,
       });
-      // app.tsx navigates away on success — no need to reset state
     } catch (e) {
       setIsSaving(false);
       setError(
@@ -148,6 +237,8 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
       );
     }
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: "100%", paddingBottom: "var(--space-xl)" }}>
@@ -209,7 +300,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
           gap: "var(--space-lg)",
         }}
       >
-        {/* Médecin + Établissement sur la même ligne */}
+        {/* Médecin + Établissement + Contact */}
         <div style={{ display: "flex", gap: "var(--space-md)" }}>
           <div style={{ flex: 1 }}>
             <label
@@ -229,16 +320,13 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               }
             />
           </div>
-
           <div style={{ flex: 1 }}>
             <label
               className="text-title-sm field-label"
               style={{ display: "block", marginBottom: "var(--space-sm)" }}
             >
               Établissement{" "}
-              <span
-                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
-              >
+              <span style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}>
                 (optionnel)
               </span>
             </label>
@@ -249,7 +337,6 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               onInput={(e) => setHospital((e.target as HTMLInputElement).value)}
             />
           </div>
-
           <div style={{ flex: 1 }}>
             <label
               className="text-title-sm field-label"
@@ -284,11 +371,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                 height: 32,
               }}
             >
-              <Icon
-                name="edit_note"
-                size={16}
-                color="var(--color-primary-700)"
-              />
+              <Icon name="edit_note" size={16} color="var(--color-primary-700)" />
             </span>
             <label
               className="text-title-sm field-label"
@@ -325,138 +408,273 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                 height: 32,
               }}
             >
-              <Icon
-                name="medication"
-                size={16}
-                color="var(--color-primary-700)"
-              />
+              <Icon name="medical_services" size={16} color="var(--color-primary-700)" />
             </span>
             <h2 className="text-title-sm" style={{ margin: 0 }}>
               Traitement
             </h2>
           </div>
 
-          {/* Diagnostic (optional) */}
-          <div style={{ marginBottom: "var(--space-sm)" }}>
-            <label
-              className="text-title-sm field-label"
-              style={{ display: "block", marginBottom: "var(--space-xs)" }}
+          {/* Treatment mode tabs */}
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-xs)",
+              marginBottom: "var(--space-sm)",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setTreatmentMode("none")}
+              className={treatmentMode === "none" ? "btn btn-filled" : "btn btn-outline"}
+              style={{ fontSize: 13 }}
             >
-              Diagnostic{" "}
-              <span
-                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
+              Aucun traitement
+            </button>
+            <button
+              type="button"
+              onClick={() => setTreatmentMode("new")}
+              className={treatmentMode === "new" ? "btn btn-filled" : "btn btn-outline"}
+              style={{ fontSize: 13 }}
+            >
+              <Icon name="add" size={16} color={treatmentMode === "new" ? "var(--color-white)" : "var(--color-primary-700)"} />
+              Nouveau traitement
+            </button>
+            {activeExistingTreatments.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTreatmentMode(t.id)}
+                className={treatmentMode === t.id ? "btn btn-filled" : "btn btn-outline"}
+                style={{ fontSize: 13 }}
               >
-                (optionnel)
-              </span>
-            </label>
-            <input
-              className="field-input"
-              placeholder="Ex. Asthme bronchique, Paludisme simple…"
-              value={diagnosis}
-              onInput={(e) =>
-                setDiagnosis((e.target as HTMLInputElement).value)
-              }
-            />
+                {t.diagnosis}
+              </button>
+            ))}
           </div>
 
-          {/* Prescription lines */}
+          {/* Diagnosis input for new treatment */}
+          {treatmentMode === "new" && (
+            <div style={{ marginBottom: "var(--space-sm)" }}>
+              <label
+                className="text-title-sm field-label"
+                style={{ display: "block", marginBottom: "var(--space-xs)" }}
+              >
+                Diagnostic *
+              </label>
+              <input
+                className="field-input"
+                placeholder="Ex. Paludisme simple, Asthme bronchique…"
+                value={newDiagnosis}
+                onInput={(e) =>
+                  setNewDiagnosis((e.target as HTMLInputElement).value)
+                }
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Ordonnances */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-sm)",
+              marginBottom: "var(--space-sm)",
+            }}
+          >
+            <span
+              className="icon-badge"
+              style={{
+                background: "var(--color-primary-100)",
+                width: 32,
+                height: 32,
+              }}
+            >
+              <Icon name="medication" size={16} color="var(--color-primary-700)" />
+            </span>
+            <h2 className="text-title-sm" style={{ margin: 0 }}>
+              Ordonnance{ordonnances.length > 1 ? "s" : ""}
+            </h2>
+          </div>
+
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "var(--space-xs)",
+              gap: "var(--space-md)",
             }}
           >
-            {lines.map((line) => (
+            {ordonnances.map((ord, ordIdx) => (
               <div
-                key={line.id}
+                key={ord.id}
                 style={{
                   background: "var(--color-white)",
                   border: "1px solid var(--color-neutral-200)",
-                  borderRadius: "var(--radius-sm)",
+                  borderRadius: "var(--radius-md)",
                   padding: "var(--space-sm)",
                 }}
               >
+                {/* Ordonnance header */}
                 <div
                   style={{
                     display: "flex",
-                    gap: "var(--space-sm)",
                     alignItems: "center",
+                    gap: "var(--space-sm)",
                     marginBottom: "var(--space-sm)",
                   }}
                 >
+                  {ordonnances.length > 1 && (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--color-primary-700)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      #{ordIdx + 1}
+                    </span>
+                  )}
                   <input
                     className="field-input"
-                    placeholder="Médicament"
-                    value={line.medication}
+                    placeholder="Libellé (optionnel) — ex. Médicaments, Examens bio…"
+                    value={ord.label}
                     onInput={(e) =>
-                      updateLine(
-                        line.id,
-                        "medication",
-                        (e.target as HTMLInputElement).value,
-                      )
+                      updateLabel(ord.id, (e.target as HTMLInputElement).value)
                     }
+                    style={{ flex: 1, fontSize: 13 }}
                   />
-                  {lines.length > 1 && (
+                  {ordonnances.length > 1 && (
                     <button
                       type="button"
                       className="btn-icon"
-                      onClick={() => removeLine(line.id)}
-                      aria-label="Retirer ce médicament"
-                      style={{
-                        flexShrink: 0,
-                        color: "var(--color-neutral-500)",
-                      }}
+                      onClick={() => removeOrdonnance(ord.id)}
+                      aria-label="Supprimer cette ordonnance"
+                      style={{ color: "var(--color-neutral-500)", flexShrink: 0 }}
                     >
-                      <Icon name="close" size={18} />
+                      <Icon name="delete" size={18} />
                     </button>
                   )}
                 </div>
+
+                {/* Medication lines */}
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 72px",
-                    gap: "var(--space-sm)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--space-xs)",
                   }}
                 >
-                  <input
-                    className="field-input"
-                    placeholder="Dose"
-                    value={line.dose}
-                    onInput={(e) =>
-                      updateLine(
-                        line.id,
-                        "dose",
-                        (e.target as HTMLInputElement).value,
-                      )
-                    }
-                  />
-                  <input
-                    className="field-input"
-                    placeholder="Fréquence"
-                    value={line.frequency}
-                    onInput={(e) =>
-                      updateLine(
-                        line.id,
-                        "frequency",
-                        (e.target as HTMLInputElement).value,
-                      )
-                    }
-                  />
-                  <input
-                    className="field-input"
-                    type="number"
-                    placeholder="Jours"
-                    value={line.durationDays}
-                    onInput={(e) =>
-                      updateLine(
-                        line.id,
-                        "durationDays",
-                        (e.target as HTMLInputElement).value,
-                      )
-                    }
-                  />
+                  {ord.lines.map((line) => (
+                    <div
+                      key={line.id}
+                      style={{
+                        background: "var(--color-neutral-50)",
+                        border: "1px solid var(--color-neutral-200)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "var(--space-sm)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "var(--space-sm)",
+                          alignItems: "center",
+                          marginBottom: "var(--space-sm)",
+                        }}
+                      >
+                        <input
+                          className="field-input"
+                          placeholder="Médicament"
+                          value={line.medication}
+                          onInput={(e) =>
+                            updateLine(
+                              ord.id,
+                              line.id,
+                              "medication",
+                              (e.target as HTMLInputElement).value,
+                            )
+                          }
+                        />
+                        {ord.lines.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            onClick={() => removeLine(ord.id, line.id)}
+                            aria-label="Retirer ce médicament"
+                            style={{
+                              flexShrink: 0,
+                              color: "var(--color-neutral-500)",
+                            }}
+                          >
+                            <Icon name="close" size={18} />
+                          </button>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 72px",
+                          gap: "var(--space-sm)",
+                        }}
+                      >
+                        <input
+                          className="field-input"
+                          placeholder="Dose"
+                          value={line.dose}
+                          onInput={(e) =>
+                            updateLine(
+                              ord.id,
+                              line.id,
+                              "dose",
+                              (e.target as HTMLInputElement).value,
+                            )
+                          }
+                        />
+                        <input
+                          className="field-input"
+                          placeholder="Fréquence"
+                          value={line.frequency}
+                          onInput={(e) =>
+                            updateLine(
+                              ord.id,
+                              line.id,
+                              "frequency",
+                              (e.target as HTMLInputElement).value,
+                            )
+                          }
+                        />
+                        <input
+                          className="field-input"
+                          type="number"
+                          placeholder="Jours"
+                          value={line.durationDays}
+                          onInput={(e) =>
+                            updateLine(
+                              ord.id,
+                              line.id,
+                              "durationDays",
+                              (e.target as HTMLInputElement).value,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ marginTop: "var(--space-sm)", gap: "var(--space-xs)", fontSize: 13 }}
+                  onClick={() => addLine(ord.id)}
+                >
+                  <Icon name="add" size={16} color="var(--color-primary-700)" />
+                  Ajouter un médicament
+                </button>
               </div>
             ))}
           </div>
@@ -465,34 +683,13 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             type="button"
             className="btn btn-outline"
             style={{ marginTop: "var(--space-sm)", gap: "var(--space-xs)" }}
-            onClick={() => setLines((prev) => [...prev, newLine()])}
+            onClick={() =>
+              setOrdonnances((prev) => [...prev, newOrdonnance()])
+            }
           >
             <Icon name="add" size={18} color="var(--color-primary-700)" />
-            Ajouter un médicament
+            Ajouter une ordonnance
           </button>
-
-          {/* Instructions / Consignes (optional) */}
-          <div style={{ marginTop: "var(--space-sm)" }}>
-            <label
-              className="text-title-sm field-label"
-              style={{ display: "block", marginBottom: "var(--space-xs)" }}
-            >
-              Consignes{" "}
-              <span
-                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
-              >
-                (optionnel)
-              </span>
-            </label>
-            <textarea
-              className="field-textarea"
-              placeholder="À jeun, éviter le soleil, revenir si fièvre…"
-              value={instructions}
-              onInput={(e) =>
-                setInstructions((e.target as HTMLTextAreaElement).value)
-              }
-            />
-          </div>
         </div>
 
         {/* Allergies */}
@@ -545,10 +742,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                   <div>
                     <span
                       className="text-body"
-                      style={{
-                        fontWeight: 600,
-                        color: "var(--color-neutral-900)",
-                      }}
+                      style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}
                     >
                       {a.substance}
                     </span>
@@ -610,13 +804,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                 }
               }}
             />
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-sm)",
-                alignItems: "center",
-              }}
-            >
+            <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
               <select
                 className="field-input"
                 value={allergySeverity}

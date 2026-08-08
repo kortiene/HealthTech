@@ -65,6 +65,10 @@ class PatientRecordScreen extends StatelessWidget {
                   _MedicationsSection(medications: record.medications),
                   const SizedBox(height: AppSpacing.md),
                 ],
+                if (record.treatments.isNotEmpty) ...[
+                  _TreatmentsSection(treatments: record.treatments),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 if (record.consultations.isNotEmpty)
                   _ConsultationsSection(consultations: record.consultations),
                 const SizedBox(height: 100),
@@ -557,8 +561,7 @@ class _TimelineEntry extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
                         if (consultation.prescription != null ||
-                            consultation.treatment?.prescriptions.isNotEmpty ==
-                                true) ...[
+                            consultation.ordonnances.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -697,20 +700,25 @@ class _ConsultationSheet extends StatelessWidget {
             ),
             child: Text(consultation.summary, style: tt.bodyLarge),
           ),
-          if (consultation.treatment != null) ...[
+          if (consultation.ordonnances.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
                 const Icon(Symbols.receipt_long_rounded,
                     size: 16, color: AppColors.primary700),
                 const SizedBox(width: 6),
-                Text('Traitement',
-                    style: tt.labelLarge?.copyWith(
-                        color: AppColors.neutral500, letterSpacing: 0.5)),
+                Text(
+                  consultation.ordonnances.length == 1
+                      ? 'Ordonnance'
+                      : 'Ordonnances (${consultation.ordonnances.length})',
+                  style: tt.labelLarge?.copyWith(
+                      color: AppColors.neutral500, letterSpacing: 0.5),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            _TreatmentBlock(treatment: consultation.treatment!),
+            ...consultation.ordonnances
+                .map((o) => _OrdonnanceBlock(ordonnance: o)),
           ] else if (consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -762,77 +770,142 @@ class _ConsultationSheet extends StatelessWidget {
   }
 }
 
-// ── Structured treatment (#121) ───────────────────────────────────────────────
+// ── Traitements actifs (#121) ─────────────────────────────────────────────────
 
-class _TreatmentBlock extends StatelessWidget {
-  const _TreatmentBlock({required this.treatment});
-  final Treatment treatment;
+class _TreatmentsSection extends StatelessWidget {
+  const _TreatmentsSection({required this.treatments});
+  final List<Treatment> treatments;
+
+  static String _statusLabel(String status) {
+    switch (status) {
+      case 'completed':
+        return 'Terminé';
+      case 'discontinued':
+        return 'Arrêté';
+      default:
+        return 'En cours';
+    }
+  }
+
+  static Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.neutral500;
+      case 'discontinued':
+        return AppColors.allergy;
+      default:
+        return AppColors.primary700;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (treatment.diagnosis != null) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.sm + 2),
-            decoration: BoxDecoration(
-              color: AppColors.primary50,
-              borderRadius: BorderRadius.circular(AppRadii.sm),
-              border: const Border(
-                left: BorderSide(color: AppColors.primary500, width: 3),
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Symbols.medical_services_rounded,
+            title: 'Traitements',
+            badge: '${treatments.length}',
+          ),
+          ...treatments.map((t) {
+            final color = _statusColor(t.status);
+            return Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              padding: const EdgeInsets.all(AppSpacing.sm + 2),
+              decoration: BoxDecoration(
+                color: AppColors.primary50,
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                border: const Border(
+                  left: BorderSide(color: AppColors.primary500, width: 3),
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Diagnostic',
-                  style: tt.bodySmall?.copyWith(
-                      color: AppColors.neutral500, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 2),
-                Text(treatment.diagnosis!,
-                    style: tt.bodyLarge?.copyWith(color: AppColors.primary900)),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t.diagnosis,
+                            style: tt.bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 2),
+                        Text('Depuis le ${t.startedAt}', style: tt.bodySmall),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: color.withAlpha(20),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      _statusLabel(t.status),
+                      style: tt.bodySmall
+                          ?.copyWith(color: color, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
-        ...treatment.prescriptions.map((p) => _TreatmentLineCard(line: p)),
-        if (treatment.instructions != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.sm + 2),
-            decoration: BoxDecoration(
-              color: AppColors.neutral100,
-              borderRadius: BorderRadius.circular(AppRadii.sm),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Consignes',
-                  style: tt.bodySmall?.copyWith(
-                      color: AppColors.neutral500, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 2),
-                Text(treatment.instructions!, style: tt.bodyMedium),
-              ],
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
 
-class _TreatmentLineCard extends StatelessWidget {
-  const _TreatmentLineCard({required this.line});
-  final TreatmentLine line;
+// ── Ordonnance block (#121) ───────────────────────────────────────────────────
+
+class _OrdonnanceBlock extends StatelessWidget {
+  const _OrdonnanceBlock({required this.ordonnance});
+  final Ordonnance ordonnance;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.primary50,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.primary100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (ordonnance.label != null && ordonnance.label!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, 0),
+              child: Text(
+                ordonnance.label!,
+                style: tt.labelLarge?.copyWith(
+                    color: AppColors.primary700, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ...ordonnance.lines.map(
+            (l) => _OrdonnanceLineCard(line: l),
+          ),
+          if (ordonnance.lines.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Text('Ordonnance vide',
+                  style: tt.bodySmall?.copyWith(color: AppColors.neutral500)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrdonnanceLineCard extends StatelessWidget {
+  const _OrdonnanceLineCard({required this.line});
+  final OrdonnanceLine line;
 
   @override
   Widget build(BuildContext context) {
@@ -843,18 +916,13 @@ class _TreatmentLineCard extends StatelessWidget {
       if (line.durationDays != null) '${line.durationDays} j',
     ].join(' · ');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.primary50,
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-        border: Border.all(color: AppColors.primary100),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       child: Row(
         children: [
           const Icon(Symbols.medication_rounded,
-              size: 20, color: AppColors.primary700),
+              size: 18, color: AppColors.primary700),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -863,11 +931,11 @@ class _TreatmentLineCard extends StatelessWidget {
                 Text(line.medication,
                     style: tt.titleSmall?.copyWith(fontSize: 14)),
                 if (details.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(details, style: tt.bodySmall),
                 ],
                 if (line.notes != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(line.notes!,
                       style:
                           tt.bodySmall?.copyWith(color: AppColors.neutral500)),

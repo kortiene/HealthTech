@@ -33,7 +33,9 @@ export function App() {
       date: new Date().toISOString().slice(0, 10),
       practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
-      ...(consultation.treatment ? { treatment: consultation.treatment } : {}),
+      ...(consultation.ordonnances.length > 0
+        ? { ordonnances: consultation.ordonnances }
+        : {}),
     };
 
     const newAllergiesFlutter = consultation.newAllergies.map((a) => ({
@@ -45,6 +47,10 @@ export function App() {
     const updatedRaw = {
       ...rawFlutter,
       consultations: [...(rawFlutter.consultations ?? []), newEntry],
+      treatments: [
+        ...(rawFlutter.treatments ?? []),
+        ...(consultation.newTreatment ? [consultation.newTreatment] : []),
+      ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
       updated_at: new Date().toISOString(),
     };
@@ -81,8 +87,14 @@ export function App() {
                 date: newEntry.date,
                 doctorName: consultation.doctorName || undefined,
                 summary: consultation.summary,
-                treatment: consultation.treatment,
+                ...(consultation.ordonnances.length > 0
+                  ? { ordonnances: consultation.ordonnances }
+                  : {}),
               },
+            ],
+            treatments: [
+              ...prev.treatments,
+              ...(consultation.newTreatment ? [consultation.newTreatment] : []),
             ],
             allergies: [
               ...prev.allergies,

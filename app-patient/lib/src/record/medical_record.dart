@@ -326,9 +326,9 @@ class MediaDescriptor {
       );
 }
 
-/// One medication line in a structured treatment plan (#121).
-class TreatmentLine {
-  const TreatmentLine({
+/// A single medication line inside an [Ordonnance] (#121).
+class OrdonnanceLine {
+  const OrdonnanceLine({
     required this.medication,
     this.dose,
     this.frequency,
@@ -336,8 +336,8 @@ class TreatmentLine {
     this.notes,
   });
 
-  factory TreatmentLine.fromJson(Map<String, Object?> json) {
-    return TreatmentLine(
+  factory OrdonnanceLine.fromJson(Map<String, Object?> json) {
+    return OrdonnanceLine(
       medication: (json['medication'] ?? '') as String,
       dose: json['dose'] as String?,
       frequency: json['frequency'] as String?,
@@ -362,7 +362,7 @@ class TreatmentLine {
 
   @override
   bool operator ==(Object other) =>
-      other is TreatmentLine &&
+      other is OrdonnanceLine &&
       other.medication == medication &&
       other.dose == dose &&
       other.frequency == frequency &&
@@ -374,50 +374,115 @@ class TreatmentLine {
       Object.hash(medication, dose, frequency, durationDays, notes);
 }
 
-/// Structured treatment plan attached to a [Consultation] (#121).
-/// Supersedes the legacy free-text [Consultation.prescription] field.
-class Treatment {
-  const Treatment({
-    this.diagnosis,
-    this.prescriptions = const <TreatmentLine>[],
-    this.instructions,
+/// A prescription document written at one consultation (#121).
+/// May be linked to a global [Treatment] (same or future consultation) via
+/// [treatmentId].
+class Ordonnance {
+  const Ordonnance({
+    required this.id,
+    this.treatmentId,
+    this.label,
+    this.lines = const <OrdonnanceLine>[],
   });
 
-  factory Treatment.fromJson(Map<String, Object?> json) {
-    final rawPrescriptions = json['prescriptions'] as List<Object?>?;
-    return Treatment(
-      diagnosis: json['diagnosis'] as String?,
-      prescriptions: rawPrescriptions
-              ?.map((e) => TreatmentLine.fromJson(e as Map<String, Object?>))
+  factory Ordonnance.fromJson(Map<String, Object?> json) {
+    final rawLines = json['lines'] as List<Object?>?;
+    return Ordonnance(
+      id: (json['id'] ?? '') as String,
+      treatmentId: (json['treatment_id'] ?? json['treatmentId']) as String?,
+      label: json['label'] as String?,
+      lines: rawLines
+              ?.map((e) => OrdonnanceLine.fromJson(e as Map<String, Object?>))
               .toList() ??
           const [],
-      instructions: json['instructions'] as String?,
     );
   }
 
-  final String? diagnosis;
-  final List<TreatmentLine> prescriptions;
-  final String? instructions;
+  /// Opaque UUID for this ordonnance document.
+  final String id;
+
+  /// Links this ordonnance to a [Treatment] in [MedicalRecord.treatments].
+  final String? treatmentId;
+
+  /// Optional label for the doctor's context, e.g. `"Médicaments"`,
+  /// `"Examens biologiques"`.
+  final String? label;
+
+  final List<OrdonnanceLine> lines;
 
   Map<String, Object?> toJson() => {
-        if (diagnosis != null) 'diagnosis': diagnosis,
-        'prescriptions': prescriptions.map((p) => p.toJson()).toList(),
-        if (instructions != null) 'instructions': instructions,
+        'id': id,
+        if (treatmentId != null) 'treatment_id': treatmentId,
+        if (label != null) 'label': label,
+        'lines': lines.map((l) => l.toJson()).toList(),
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is Ordonnance &&
+      other.id == id &&
+      other.treatmentId == treatmentId &&
+      other.label == label &&
+      _listEq(other.lines, lines);
+
+  @override
+  int get hashCode =>
+      Object.hash(id, treatmentId, label, Object.hashAll(lines));
+}
+
+/// A global treatment record that may span multiple consultations (#121).
+///
+/// Ordonnances written across visits are linked back here via
+/// [Ordonnance.treatmentId]. Stored at the [MedicalRecord] level so the full
+/// history is visible regardless of which consultation produced each ordonnance.
+class Treatment {
+  const Treatment({
+    required this.id,
+    required this.diagnosis,
+    required this.startedAt,
+    this.endedAt,
+    this.status = 'active',
+  });
+
+  factory Treatment.fromJson(Map<String, Object?> json) {
+    return Treatment(
+      id: (json['id'] ?? '') as String,
+      diagnosis: (json['diagnosis'] ?? '') as String,
+      startedAt: (json['started_at'] ?? json['startedAt'] ?? '') as String,
+      endedAt: (json['ended_at'] ?? json['endedAt']) as String?,
+      status: (json['status'] ?? 'active') as String,
+    );
+  }
+
+  final String id;
+  final String diagnosis;
+
+  /// ISO-8601 date the treatment was initiated.
+  final String startedAt;
+  final String? endedAt;
+
+  /// `active` | `completed` | `discontinued`
+  final String status;
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'diagnosis': diagnosis,
+        'started_at': startedAt,
+        if (endedAt != null) 'ended_at': endedAt,
+        'status': status,
       };
 
   @override
   bool operator ==(Object other) =>
       other is Treatment &&
+      other.id == id &&
       other.diagnosis == diagnosis &&
-      _listEq(other.prescriptions, prescriptions) &&
-      other.instructions == instructions;
+      other.startedAt == startedAt &&
+      other.endedAt == endedAt &&
+      other.status == status;
 
   @override
-  int get hashCode => Object.hash(
-        diagnosis,
-        Object.hashAll(prescriptions),
-        instructions,
-      );
+  int get hashCode => Object.hash(id, diagnosis, startedAt, endedAt, status);
 }
 
 /// A single consultation record. Binary images are NEVER stored here — heavy media
@@ -429,7 +494,7 @@ class Consultation {
     required this.practitionerRef,
     required this.summary,
     this.prescription,
-    this.treatment,
+    this.ordonnances = const <Ordonnance>[],
     this.imageUrls = const [],
     this.media = const [],
   });
@@ -442,14 +507,35 @@ class Consultation {
             ?.map((e) => MediaDescriptor.fromJson(e as Map<String, Object?>))
             .toList() ??
         const <MediaDescriptor>[];
+
+    final rawOrdonnances = json['ordonnances'] as List<Object?>?;
+    // Migration: early #121 records stored a 'treatment' inline object.
     final rawTreatment = json['treatment'] as Map<String, Object?>?;
+    List<Ordonnance> ordonnances;
+    if (rawOrdonnances != null) {
+      ordonnances = rawOrdonnances
+          .map((e) => Ordonnance.fromJson(e as Map<String, Object?>))
+          .toList();
+    } else if (rawTreatment != null) {
+      final rawLines = rawTreatment['prescriptions'] as List<Object?>?;
+      final lines = rawLines
+              ?.map((e) => OrdonnanceLine.fromJson(e as Map<String, Object?>))
+              .toList() ??
+          const <OrdonnanceLine>[];
+      ordonnances = [
+        Ordonnance(id: 'migrated-${json['id']}', lines: lines),
+      ];
+    } else {
+      ordonnances = const [];
+    }
+
     return Consultation(
       id: json['id'] as String,
       date: json['date'] as String,
       practitionerRef: json['practitioner_ref'] as String,
       summary: json['summary'] as String,
       prescription: json['prescription'] as String?,
-      treatment: rawTreatment != null ? Treatment.fromJson(rawTreatment) : null,
+      ordonnances: ordonnances,
       imageUrls: urls,
       media: media,
     );
@@ -465,13 +551,13 @@ class Consultation {
   final String practitionerRef;
   final String summary;
 
-  /// Legacy free-text prescription — retained for back-compat with records
-  /// written before #121. Never written for new consultations; use [treatment].
+  /// Legacy free-text prescription — pre-#121 records only. Display as
+  /// fallback when [ordonnances] is empty.
   final String? prescription;
 
-  /// Structured treatment plan (#121). Null on pre-#121 records — fall back to
-  /// [prescription] for display.
-  final Treatment? treatment;
+  /// Ordonnances written at this consultation (#121). Each may be linked to a
+  /// global [Treatment] in [MedicalRecord.treatments].
+  final List<Ordonnance> ordonnances;
 
   /// Legacy ephemeral CDN URLs — deprecated, superseded by [media] (#23). Retained
   /// for back-compat with records written before the descriptor existed.
@@ -486,8 +572,8 @@ class Consultation {
         'date': date,
         'practitioner_ref': practitionerRef,
         'summary': summary,
-        if (treatment != null)
-          'treatment': treatment!.toJson()
+        if (ordonnances.isNotEmpty)
+          'ordonnances': ordonnances.map((o) => o.toJson()).toList()
         else if (prescription != null)
           'prescription': prescription,
         'image_urls': imageUrls,
@@ -502,7 +588,7 @@ class Consultation {
       other.practitionerRef == practitionerRef &&
       other.summary == summary &&
       other.prescription == prescription &&
-      other.treatment == treatment &&
+      _listEq(other.ordonnances, ordonnances) &&
       _listEq(other.imageUrls, imageUrls) &&
       _listEq(other.media, media);
 
@@ -513,7 +599,7 @@ class Consultation {
         practitionerRef,
         summary,
         prescription,
-        treatment,
+        Object.hashAll(ordonnances),
         Object.hashAll(imageUrls),
         Object.hashAll(media),
       );
@@ -569,6 +655,7 @@ class MedicalRecord {
     this.allergies = const [],
     this.chronicConditions = const [],
     this.medications = const [],
+    this.treatments = const [],
     this.consultations = const [],
     this.immunizations = const [],
     required this.createdAt,
@@ -590,6 +677,7 @@ class MedicalRecord {
     final rawConditions =
         json['chronic_conditions'] as List<Object?>? ?? const [];
     final rawMeds = json['medications'] as List<Object?>? ?? const [];
+    final rawTreatments = json['treatments'] as List<Object?>? ?? const [];
     final rawConsults = json['consultations'] as List<Object?>? ?? const [];
     final rawImm = json['immunizations'] as List<Object?>? ?? const [];
 
@@ -608,6 +696,10 @@ class MedicalRecord {
       ],
       medications: [
         for (final e in rawMeds) Medication.fromJson(e as Map<String, Object?>),
+      ],
+      treatments: [
+        for (final e in rawTreatments)
+          Treatment.fromJson(e as Map<String, Object?>),
       ],
       consultations: [
         for (final e in rawConsults)
@@ -632,6 +724,10 @@ class MedicalRecord {
   final List<ChronicCondition> chronicConditions;
   final List<Medication> medications;
 
+  /// Global treatment records (#121). An ordonnance in any [Consultation]
+  /// may reference a treatment here via [Ordonnance.treatmentId].
+  final List<Treatment> treatments;
+
   /// Sorted oldest-first; [RecordSizeGuard] truncates from index 0.
   final List<Consultation> consultations;
   final List<Immunization> immunizations;
@@ -649,6 +745,8 @@ class MedicalRecord {
         'allergies': allergies.map((e) => e.toJson()).toList(),
         'chronic_conditions': chronicConditions.map((e) => e.toJson()).toList(),
         'medications': medications.map((e) => e.toJson()).toList(),
+        if (treatments.isNotEmpty)
+          'treatments': treatments.map((e) => e.toJson()).toList(),
         'consultations': consultations.map((e) => e.toJson()).toList(),
         'immunizations': immunizations.map((e) => e.toJson()).toList(),
         'created_at': createdAt,
@@ -658,9 +756,10 @@ class MedicalRecord {
   /// UTF-8 encoded JSON bytes — the plaintext payload for encryption.
   List<int> toUtf8Bytes() => utf8.encode(jsonEncode(toJson()));
 
-  /// Returns a copy with an updated [consultations] list and [updatedAt].
+  /// Returns a copy with updated fields and [updatedAt].
   MedicalRecord copyWith({
     List<Consultation>? consultations,
+    List<Treatment>? treatments,
     String? updatedAt,
     Demographics? demographics,
     List<Allergy>? allergies,
@@ -674,6 +773,7 @@ class MedicalRecord {
       allergies: allergies ?? this.allergies,
       chronicConditions: chronicConditions ?? this.chronicConditions,
       medications: medications ?? this.medications,
+      treatments: treatments ?? this.treatments,
       consultations: consultations ?? this.consultations,
       immunizations: immunizations ?? this.immunizations,
       createdAt: createdAt,
@@ -690,6 +790,7 @@ class MedicalRecord {
       _listEq(other.allergies, allergies) &&
       _listEq(other.chronicConditions, chronicConditions) &&
       _listEq(other.medications, medications) &&
+      _listEq(other.treatments, treatments) &&
       _listEq(other.consultations, consultations) &&
       _listEq(other.immunizations, immunizations) &&
       other.createdAt == createdAt &&
@@ -703,6 +804,7 @@ class MedicalRecord {
         Object.hashAll(allergies),
         Object.hashAll(chronicConditions),
         Object.hashAll(medications),
+        Object.hashAll(treatments),
         Object.hashAll(consultations),
         Object.hashAll(immunizations),
         createdAt,
