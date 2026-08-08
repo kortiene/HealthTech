@@ -57,6 +57,11 @@ dependencies:
   path_provider: ^2.1.4
   path: ^1.9.0
 
+  # Audio playback for voice notes (#120). Uses Android's built-in MediaPlayer —
+  # no ExoPlayer, no guava, builds offline. XOR 0x5A decrypt in Dart (stub only,
+  # not a cipher — prod decrypt stays in WASM crypto-core, TODO #17).
+  audioplayers: ^6.1.0
+
   # UI: typography (Inter) and Material Symbols icons.
   google_fonts: ^6.2.0
   material_symbols_icons: ^4.2843.0

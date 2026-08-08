@@ -14,11 +14,29 @@ export interface Medication {
   frequency: string;
 }
 
+/**
+ * Reference to an uploaded media file (audio or image, #23/#120).
+ * Dev: XOR 0x5A stub encryption. Prod: AES-256-GCM via WASM crypto-core (TODO #17).
+ */
+export interface MediaDescriptor {
+  mediaId: string;
+  url: string;
+  mime: string;
+  durationMs?: number;
+  /** plaintext byte size — used for UI budget display */
+  sizeBytes?: number;
+  /** base64 — 32 zero bytes in dev (TODO #17: real per-media key) */
+  contentKey: string;
+  /** SHA-256 base64 of the plaintext, computed via crypto.subtle */
+  contentHash: string;
+}
+
 export interface Consultation {
   date: string; // ISO
   doctorName?: string;
   summary: string;
   prescription?: string;
+  media?: MediaDescriptor[];
 }
 
 export interface MedicalRecord {
@@ -137,6 +155,16 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       doctorName: c.practitioner_ref ?? c.practitionerRef ?? c.doctor_name ?? c.doctorName,
       summary: c.summary,
       prescription: c.prescription,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      media: (c.media ?? []).map((m: any) => ({
+        mediaId: m.uuid ?? m.media_id ?? m.mediaId ?? "",
+        url: m.url ?? "",
+        mime: m.mime ?? "audio/webm",
+        durationMs: m.duration_ms ?? m.durationMs,
+        sizeBytes: m.size_bytes ?? m.sizeBytes,
+        contentKey: m.content_key ?? m.contentKey ?? "",
+        contentHash: m.content_hash ?? m.contentHash ?? "",
+      })),
     })),
   };
 }

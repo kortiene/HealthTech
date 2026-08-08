@@ -398,6 +398,27 @@ function ConsultationTimeline({
                 </p>
               </div>
             )}
+            {c.media?.some((m) => m.mime.startsWith("audio/")) && (
+              <div
+                style={{
+                  marginTop: "var(--space-xs)",
+                  padding: "6px 10px",
+                  background: "var(--color-neutral-100)",
+                  borderRadius: "var(--radius-sm)",
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "center",
+                }}
+              >
+                <Icon name="mic" size={13} color="var(--color-neutral-600)" />
+                <p
+                  className="text-caption"
+                  style={{ color: "var(--color-neutral-600)", margin: 0 }}
+                >
+                  Note vocale jointe
+                </p>
+              </div>
+            )}
           </div>
         </div>
       ))}

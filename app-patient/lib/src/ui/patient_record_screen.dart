@@ -1,6 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../cloud/media_client.dart';
 import '../design/app_theme.dart';
 import '../record/medical_record.dart';
 import '../secure/patient_account.dart';
@@ -41,11 +48,11 @@ class PatientRecordScreen extends StatelessWidget {
                 AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                if (record.demographics.heightCm != null ||
-                    record.demographics.weightKg != null) ...[
-                  _DemographicsSection(demographics: record.demographics),
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                // if (record.demographics.heightCm != null ||
+                //     record.demographics.weightKg != null) ...[
+                //   _DemographicsSection(demographics: record.demographics),
+                //   const SizedBox(height: AppSpacing.md),
+                // ],
                 if (record.allergies.isNotEmpty) ...[
                   _AllergySection(allergies: record.allergies),
                   const SizedBox(height: AppSpacing.md),
@@ -169,81 +176,6 @@ Widget _sectionCard({required Widget child}) {
     ),
     child: child,
   );
-}
-
-// ─── Helper — BMI label ───────────────────────────────────────────────────────
-
-String _bmiLabel(double bmi) {
-  if (bmi < 18.5) return 'Insuffisance pondérale';
-  if (bmi < 25.0) return 'Poids normal';
-  if (bmi < 30.0) return 'Surpoids';
-  return 'Obésité';
-}
-
-// ─── Demographics (height / weight / BMI) ─────────────────────────────────────
-
-class _DemographicsSection extends StatelessWidget {
-  const _DemographicsSection({required this.demographics});
-  final Demographics demographics;
-
-  @override
-  Widget build(BuildContext context) {
-    final bmi = demographics.bmi;
-    return _sectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeader(
-            icon: Symbols.monitor_heart_rounded,
-            title: 'Mesures',
-          ),
-          if (demographics.heightCm != null)
-            _InfoRow(
-              label: 'Taille',
-              value: '${demographics.heightCm} cm',
-            ),
-          if (demographics.weightKg != null)
-            _InfoRow(
-              label: 'Poids',
-              value: '${demographics.weightKg} kg',
-            ),
-          if (bmi != null)
-            _InfoRow(
-              label: 'IMC',
-              value: '${bmi.toStringAsFixed(1)} — ${_bmiLabel(bmi)}',
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: tt.bodyMedium?.copyWith(color: AppColors.neutral500),
-            ),
-          ),
-          Text(
-            value,
-            style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─── Allergies ────────────────────────────────────────────────────────────────
@@ -786,6 +718,267 @@ class _ConsultationSheet extends StatelessWidget {
               ),
               child: Text(consultation.prescription!,
                   style: tt.bodyLarge?.copyWith(color: AppColors.primary900)),
+            ),
+          ],
+          // ── Voice notes (#120) ──────────────────────────────────────────────
+          for (final m in consultation.media)
+            if (m.mime.startsWith('audio/')) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  const Icon(Icons.mic_rounded,
+                      size: 16, color: AppColors.neutral500),
+                  const SizedBox(width: 6),
+                  Text('Note vocale',
+                      style: tt.labelLarge?.copyWith(
+                          color: AppColors.neutral500, letterSpacing: 0.5)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _VoiceNoteTile(
+                media: m,
+                practitionerRef: consultation.practitionerRef,
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Voice note player tile ────────────────────────────────────────────────────
+//
+// Dev: fetches ciphertext via MediaClient.requestAccess → fetchCiphertext,
+// XOR 0x5A decrypts in Dart (stub only — NOT a cipher), plays via audioplayers
+// (Android MediaPlayer — no ExoPlayer, no guava, builds offline).
+// Prod: TODO(#17) — decryption delegated to WASM crypto-core.
+
+enum _PlayerStatus { idle, loading, ready, error }
+
+class _VoiceNoteTile extends StatefulWidget {
+  const _VoiceNoteTile({
+    required this.media,
+    required this.practitionerRef,
+  });
+
+  final MediaDescriptor media;
+  final String practitionerRef;
+
+  @override
+  State<_VoiceNoteTile> createState() => _VoiceNoteTileState();
+}
+
+class _VoiceNoteTileState extends State<_VoiceNoteTile> {
+  final _player = AudioPlayer();
+  _PlayerStatus _status = _PlayerStatus.idle;
+  String? _errorMessage;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  // Stored after first download so replay never re-fetches from the network.
+  String? _localPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPlayerStateChanged.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  // On Android the QR URL uses localhost (host machine) but the emulator
+  // reaches the host via 10.0.2.2.
+  String _resolveUrl(String url) {
+    if (Platform.isAndroid) return url.replaceFirst('localhost', '10.0.2.2');
+    return url;
+  }
+
+  String _fmt(Duration d) {
+    final min = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final sec = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$min:$sec';
+  }
+
+  Future<void> _prepare() async {
+    final rawUrl = widget.media.url ?? '';
+    if (rawUrl.isEmpty) {
+      setState(() {
+        _status = _PlayerStatus.error;
+        _errorMessage = 'URL manquante — re-scannez le QR.';
+      });
+      return;
+    }
+    setState(() => _status = _PlayerStatus.loading);
+    try {
+      final uri = Uri.parse(_resolveUrl(rawUrl));
+      final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+      final client = MediaClient(baseUrl);
+
+      // POST /media/{uuid}/access → ephemeral URL → ciphertext bytes
+      final grant = await client.requestAccess(widget.media.uuid);
+      final ciphertext = await client.fetchCiphertext(grant.url);
+
+      // XOR 0x5A dev stub decrypt — NOT a cipher; replaced by WASM in prod (#17).
+      final plain = Uint8List(ciphertext.length);
+      for (var i = 0; i < ciphertext.length; i++) {
+        plain[i] = ciphertext[i] ^ 0x5A;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${widget.media.uuid}.webm');
+      await file.writeAsBytes(plain, flush: true);
+      _localPath = file.path;
+      await _player.setSourceDeviceFile(file.path);
+      if (mounted) setState(() => _status = _PlayerStatus.ready);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _status = _PlayerStatus.error;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _togglePlay() async {
+    try {
+      if (_status == _PlayerStatus.idle || _status == _PlayerStatus.error) {
+        await _prepare();
+        if (_status == _PlayerStatus.ready) await _player.resume();
+        return;
+      }
+      if (_player.state == PlayerState.playing) {
+        await _player.pause();
+        return;
+      }
+      // After completion: seek(zero) + resume() hangs on audioplayers —
+      // re-play the source directly to avoid the 30 s TimeoutException.
+      if (_player.state == PlayerState.completed && _localPath != null) {
+        setState(() => _position = Duration.zero);
+        await _player.play(DeviceFileSource(_localPath!));
+        return;
+      }
+      await _player.resume();
+    } on TimeoutException {
+      // audioplayers platform-channel timeout: reset so the user can retry.
+      if (mounted) {
+        setState(() {
+          _status = _PlayerStatus.idle;
+          _localPath = null;
+          _position = Duration.zero;
+          _duration = Duration.zero;
+          _errorMessage = 'Délai expiré — appuyez à nouveau pour recharger.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _status = _PlayerStatus.error;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final isPlaying = _player.state == PlayerState.playing;
+    final isCompleted = _player.state == PlayerState.completed;
+    final knownDuration = widget.media.durationMs != null
+        ? Duration(milliseconds: widget.media.durationMs!)
+        : null;
+    final duration = _duration > Duration.zero
+        ? _duration
+        : (knownDuration ?? Duration.zero);
+    final progress = duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    IconData icon;
+    if (_status == _PlayerStatus.loading) {
+      icon = Icons.hourglass_empty_rounded;
+    } else if (isCompleted) {
+      icon = Icons.replay_rounded;
+    } else if (isPlaying) {
+      icon = Icons.pause_rounded;
+    } else {
+      icon = Icons.play_arrow_rounded;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.neutral100,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Dr. ${widget.practitionerRef}',
+            style: tt.labelMedium?.copyWith(color: AppColors.neutral500),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              IconButton(
+                onPressed:
+                    _status == _PlayerStatus.loading ? null : _togglePlay,
+                icon: Icon(icon, size: 32, color: AppColors.primary700),
+                tooltip: isPlaying ? 'Pause' : 'Lecture',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value:
+                            _status == _PlayerStatus.loading ? null : progress,
+                        minHeight: 4,
+                        backgroundColor: AppColors.neutral200,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.primary700),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _status == _PlayerStatus.loading
+                          ? 'Chargement…'
+                          : duration > Duration.zero
+                              ? '${_fmt(_position)} / ${_fmt(duration)}'
+                              : '',
+                      style:
+                          tt.labelSmall?.copyWith(color: AppColors.neutral500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_status == _PlayerStatus.error && _errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              _errorMessage!,
+              style: tt.labelSmall?.copyWith(color: AppColors.accent700),
             ),
           ],
         ],
