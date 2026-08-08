@@ -795,6 +795,11 @@ class _TreatmentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sorted = [...record.treatments]..sort((a, b) {
+        final da = DateTime.tryParse(a.startedAt) ?? DateTime(0);
+        final db = DateTime.tryParse(b.startedAt) ?? DateTime(0);
+        return db.compareTo(da);
+      });
     return _sectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -804,9 +809,7 @@ class _TreatmentsSection extends StatelessWidget {
             title: 'Traitements',
             badge: '${record.treatments.length}',
           ),
-          ...([...record.treatments]
-                ..sort((a, b) => b.startedAt.compareTo(a.startedAt)))
-              .map((t) {
+          ...sorted.map((t) {
             final linked = record.consultations
                 .expand(
                   (c) => c.ordonnances
