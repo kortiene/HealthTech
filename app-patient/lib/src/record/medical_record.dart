@@ -326,6 +326,100 @@ class MediaDescriptor {
       );
 }
 
+/// One medication line in a structured treatment plan (#121).
+class Prescription {
+  const Prescription({
+    required this.medication,
+    this.dose,
+    this.frequency,
+    this.durationDays,
+    this.notes,
+  });
+
+  factory Prescription.fromJson(Map<String, Object?> json) {
+    return Prescription(
+      medication: (json['medication'] ?? '') as String,
+      dose: json['dose'] as String?,
+      frequency: json['frequency'] as String?,
+      durationDays: (json['duration_days'] ?? json['durationDays']) as int?,
+      notes: json['notes'] as String?,
+    );
+  }
+
+  final String medication;
+  final String? dose;
+  final String? frequency;
+  final int? durationDays;
+  final String? notes;
+
+  Map<String, Object?> toJson() => {
+        'medication': medication,
+        if (dose != null) 'dose': dose,
+        if (frequency != null) 'frequency': frequency,
+        if (durationDays != null) 'duration_days': durationDays,
+        if (notes != null) 'notes': notes,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is Prescription &&
+      other.medication == medication &&
+      other.dose == dose &&
+      other.frequency == frequency &&
+      other.durationDays == durationDays &&
+      other.notes == notes;
+
+  @override
+  int get hashCode =>
+      Object.hash(medication, dose, frequency, durationDays, notes);
+}
+
+/// Structured treatment plan attached to a [Consultation] (#121).
+/// Supersedes the legacy free-text [Consultation.prescription] field.
+class Treatment {
+  const Treatment({
+    this.diagnosis,
+    this.prescriptions = const [],
+    this.instructions,
+  });
+
+  factory Treatment.fromJson(Map<String, Object?> json) {
+    final rawPrescriptions = json['prescriptions'] as List<Object?>?;
+    return Treatment(
+      diagnosis: json['diagnosis'] as String?,
+      prescriptions: rawPrescriptions
+              ?.map((e) => Prescription.fromJson(e as Map<String, Object?>))
+              .toList() ??
+          const [],
+      instructions: json['instructions'] as String?,
+    );
+  }
+
+  final String? diagnosis;
+  final List<Prescription> prescriptions;
+  final String? instructions;
+
+  Map<String, Object?> toJson() => {
+        if (diagnosis != null) 'diagnosis': diagnosis,
+        'prescriptions': prescriptions.map((p) => p.toJson()).toList(),
+        if (instructions != null) 'instructions': instructions,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is Treatment &&
+      other.diagnosis == diagnosis &&
+      _listEq(other.prescriptions, prescriptions) &&
+      other.instructions == instructions;
+
+  @override
+  int get hashCode => Object.hash(
+        diagnosis,
+        Object.hashAll(prescriptions),
+        instructions,
+      );
+}
+
 /// A single consultation record. Binary images are NEVER stored here — heavy media
 /// is offloaded to the server (#23) and referenced by a [MediaDescriptor] in [media].
 class Consultation {
@@ -335,6 +429,7 @@ class Consultation {
     required this.practitionerRef,
     required this.summary,
     this.prescription,
+    this.treatment,
     this.imageUrls = const [],
     this.media = const [],
   });
@@ -347,12 +442,14 @@ class Consultation {
             ?.map((e) => MediaDescriptor.fromJson(e as Map<String, Object?>))
             .toList() ??
         const <MediaDescriptor>[];
+    final rawTreatment = json['treatment'] as Map<String, Object?>?;
     return Consultation(
       id: json['id'] as String,
       date: json['date'] as String,
       practitionerRef: json['practitioner_ref'] as String,
       summary: json['summary'] as String,
       prescription: json['prescription'] as String?,
+      treatment: rawTreatment != null ? Treatment.fromJson(rawTreatment) : null,
       imageUrls: urls,
       media: media,
     );
@@ -367,7 +464,14 @@ class Consultation {
   /// Opaque practitioner reference UUID.
   final String practitionerRef;
   final String summary;
+
+  /// Legacy free-text prescription — retained for back-compat with records
+  /// written before #121. Never written for new consultations; use [treatment].
   final String? prescription;
+
+  /// Structured treatment plan (#121). Null on pre-#121 records — fall back to
+  /// [prescription] for display.
+  final Treatment? treatment;
 
   /// Legacy ephemeral CDN URLs — deprecated, superseded by [media] (#23). Retained
   /// for back-compat with records written before the descriptor existed.
@@ -382,7 +486,10 @@ class Consultation {
         'date': date,
         'practitioner_ref': practitionerRef,
         'summary': summary,
-        if (prescription != null) 'prescription': prescription,
+        if (treatment != null)
+          'treatment': treatment!.toJson()
+        else if (prescription != null)
+          'prescription': prescription,
         'image_urls': imageUrls,
         if (media.isNotEmpty) 'media': media.map((e) => e.toJson()).toList(),
       };
@@ -395,6 +502,7 @@ class Consultation {
       other.practitionerRef == practitionerRef &&
       other.summary == summary &&
       other.prescription == prescription &&
+      other.treatment == treatment &&
       _listEq(other.imageUrls, imageUrls) &&
       _listEq(other.media, media);
 
@@ -405,6 +513,7 @@ class Consultation {
         practitionerRef,
         summary,
         prescription,
+        treatment,
         Object.hashAll(imageUrls),
         Object.hashAll(media),
       );

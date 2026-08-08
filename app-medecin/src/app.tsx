@@ -33,7 +33,7 @@ export function App() {
       date: new Date().toISOString().slice(0, 10),
       practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
-      ...(consultation.prescription ? { prescription: consultation.prescription } : {}),
+      ...(consultation.treatment ? { treatment: consultation.treatment } : {}),
     };
 
     const newAllergiesFlutter = consultation.newAllergies.map((a) => ({
@@ -81,7 +81,7 @@ export function App() {
                 date: newEntry.date,
                 doctorName: consultation.doctorName || undefined,
                 summary: consultation.summary,
-                prescription: consultation.prescription,
+                treatment: consultation.treatment,
               },
             ],
             allergies: [

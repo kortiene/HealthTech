@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
-import type { MedicalRecord } from "../stubs/data";
+import type { MedicalRecord, TreatmentJson } from "../stubs/data";
 
 interface PrescriptionLine {
   id: string;
@@ -18,7 +18,7 @@ export interface NewAllergy {
 
 export interface NewConsultation {
   summary: string;
-  prescription?: string;
+  treatment?: TreatmentJson;
   doctorName: string;
   newAllergies: NewAllergy[];
 }
@@ -33,18 +33,26 @@ function newLine(): PrescriptionLine {
   };
 }
 
-function buildPrescriptionText(lines: PrescriptionLine[]): string | undefined {
+function buildTreatment(
+  lines: PrescriptionLine[],
+  diagnosis: string,
+  instructions: string,
+): TreatmentJson | undefined {
   const filled = lines.filter((l) => l.medication.trim());
-  if (!filled.length) return undefined;
-  return filled
-    .map((l) => {
-      let s = l.medication.trim();
-      if (l.dose) s += ` ${l.dose.trim()}`;
-      if (l.frequency) s += ` — ${l.frequency.trim()}`;
-      if (l.durationDays) s += ` (${l.durationDays}j)`;
-      return s;
-    })
-    .join("\n");
+  if (!filled.length && !diagnosis.trim() && !instructions.trim())
+    return undefined;
+  return {
+    ...(diagnosis.trim() ? { diagnosis: diagnosis.trim() } : {}),
+    prescriptions: filled.map((l) => ({
+      medication: l.medication.trim(),
+      ...(l.dose.trim() ? { dose: l.dose.trim() } : {}),
+      ...(l.frequency.trim() ? { frequency: l.frequency.trim() } : {}),
+      ...(l.durationDays.trim()
+        ? { duration_days: parseInt(l.durationDays, 10) }
+        : {}),
+    })),
+    ...(instructions.trim() ? { instructions: instructions.trim() } : {}),
+  };
 }
 
 export interface EditScreenProps {
@@ -58,7 +66,9 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   const [doctorName, setDoctorName] = useState("");
   const [hospital, setHospital] = useState("");
   const [contact, setContact] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
   const [lines, setLines] = useState<PrescriptionLine[]>([newLine()]);
+  const [instructions, setInstructions] = useState("");
   const [allergySubstance, setAllergySubstance] = useState("");
   const [allergySeverity, setAllergySeverity] =
     useState<NewAllergy["severity"]>("mild");
@@ -124,7 +134,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
     try {
       await onSaved({
         summary,
-        prescription: buildPrescriptionText(lines),
+        treatment: buildTreatment(lines, diagnosis, instructions),
         doctorName: doctorName.trim(),
         newAllergies: finalAllergies,
       });
@@ -297,7 +307,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
           />
         </div>
 
-        {/* Ordonnance */}
+        {/* Traitement */}
         <div>
           <div
             style={{
@@ -322,10 +332,34 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               />
             </span>
             <h2 className="text-title-sm" style={{ margin: 0 }}>
-              Ordonnance
+              Traitement
             </h2>
           </div>
 
+          {/* Diagnostic (optional) */}
+          <div style={{ marginBottom: "var(--space-sm)" }}>
+            <label
+              className="text-title-sm field-label"
+              style={{ display: "block", marginBottom: "var(--space-xs)" }}
+            >
+              Diagnostic{" "}
+              <span
+                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
+              >
+                (optionnel)
+              </span>
+            </label>
+            <input
+              className="field-input"
+              placeholder="Ex. Asthme bronchique, Paludisme simple…"
+              value={diagnosis}
+              onInput={(e) =>
+                setDiagnosis((e.target as HTMLInputElement).value)
+              }
+            />
+          </div>
+
+          {/* Prescription lines */}
           <div
             style={{
               display: "flex",
@@ -436,6 +470,29 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             <Icon name="add" size={18} color="var(--color-primary-700)" />
             Ajouter un médicament
           </button>
+
+          {/* Instructions / Consignes (optional) */}
+          <div style={{ marginTop: "var(--space-sm)" }}>
+            <label
+              className="text-title-sm field-label"
+              style={{ display: "block", marginBottom: "var(--space-xs)" }}
+            >
+              Consignes{" "}
+              <span
+                style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
+              >
+                (optionnel)
+              </span>
+            </label>
+            <textarea
+              className="field-textarea"
+              placeholder="À jeun, éviter le soleil, revenir si fièvre…"
+              value={instructions}
+              onInput={(e) =>
+                setInstructions((e.target as HTMLTextAreaElement).value)
+              }
+            />
+          </div>
         </div>
 
         {/* Allergies */}

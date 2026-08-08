@@ -31,11 +31,28 @@ export interface MediaDescriptor {
   contentHash: string;
 }
 
+export interface PrescriptionJson {
+  medication: string;
+  dose?: string;
+  frequency?: string;
+  /** Duration in days. */
+  duration_days?: number;
+  notes?: string;
+}
+
+export interface TreatmentJson {
+  diagnosis?: string;
+  prescriptions: PrescriptionJson[];
+  instructions?: string;
+}
+
 export interface Consultation {
   date: string; // ISO
   doctorName?: string;
   summary: string;
+  /** @deprecated Written before #121. Use `treatment` for new records. */
   prescription?: string;
+  treatment?: TreatmentJson;
   media?: MediaDescriptor[];
 }
 
@@ -82,7 +99,11 @@ export const previewRecord: MedicalRecord = {
       date: "2026-06-12",
       doctorName: "Dr. Koné",
       summary: "Contrôle de routine. Tension artérielle 120/80. Bonne tolérance au traitement.",
-      prescription: "Paracétamol 500 mg — 3×/jour, 5 jours",
+      treatment: {
+        prescriptions: [
+          { medication: "Paracétamol", dose: "500 mg", frequency: "3×/jour", duration_days: 5 },
+        ],
+      },
     },
     {
       date: "2026-03-02",
@@ -93,7 +114,13 @@ export const previewRecord: MedicalRecord = {
       date: "2025-11-18",
       doctorName: "Dr. Diallo",
       summary: "Premier bilan de santé. Diagnostic asthme bronchique posé.",
-      prescription: "Salbutamol 100 µg — 2×/jour · Prednisolone 5 mg — 1×/jour",
+      treatment: {
+        diagnosis: "Asthme bronchique",
+        prescriptions: [
+          { medication: "Salbutamol", dose: "100 µg", frequency: "2×/jour" },
+          { medication: "Prednisolone", dose: "5 mg", frequency: "1×/jour" },
+        ],
+      },
     },
   ],
 };
@@ -154,7 +181,20 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       date: c.date,
       doctorName: c.practitioner_ref ?? c.practitionerRef ?? c.doctor_name ?? c.doctorName,
       summary: c.summary,
-      prescription: c.prescription,
+      prescription: c.prescription, // legacy fallback — pre-#121 records only
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      treatment: c.treatment ? {
+        diagnosis: c.treatment.diagnosis,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        prescriptions: (c.treatment.prescriptions ?? []).map((p: any) => ({
+          medication: p.medication,
+          dose: p.dose,
+          frequency: p.frequency,
+          duration_days: p.duration_days ?? p.durationDays,
+          notes: p.notes,
+        })),
+        instructions: c.treatment.instructions,
+      } : undefined,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       media: (c.media ?? []).map((m: any) => ({
         mediaId: m.uuid ?? m.media_id ?? m.mediaId ?? "",

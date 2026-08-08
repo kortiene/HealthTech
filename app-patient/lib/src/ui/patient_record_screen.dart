@@ -556,7 +556,9 @@ class _TimelineEntry extends StatelessWidget {
                             style: tt.bodyMedium,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
-                        if (consultation.prescription != null) ...[
+                        if (consultation.prescription != null ||
+                            consultation.treatment?.prescriptions.isNotEmpty ==
+                                true) ...[
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -695,7 +697,21 @@ class _ConsultationSheet extends StatelessWidget {
             ),
             child: Text(consultation.summary, style: tt.bodyLarge),
           ),
-          if (consultation.prescription != null) ...[
+          if (consultation.treatment != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                const Icon(Symbols.receipt_long_rounded,
+                    size: 16, color: AppColors.primary700),
+                const SizedBox(width: 6),
+                Text('Traitement',
+                    style: tt.labelLarge?.copyWith(
+                        color: AppColors.neutral500, letterSpacing: 0.5)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _TreatmentBlock(treatment: consultation.treatment!),
+          ] else if (consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -740,6 +756,126 @@ class _ConsultationSheet extends StatelessWidget {
                 practitionerRef: consultation.practitionerRef,
               ),
             ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Structured treatment (#121) ───────────────────────────────────────────────
+
+class _TreatmentBlock extends StatelessWidget {
+  const _TreatmentBlock({required this.treatment});
+  final Treatment treatment;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (treatment.diagnosis != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.sm + 2),
+            decoration: BoxDecoration(
+              color: AppColors.primary50,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              border: const Border(
+                left: BorderSide(color: AppColors.primary500, width: 3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Diagnostic',
+                  style: tt.bodySmall?.copyWith(
+                      color: AppColors.neutral500, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 2),
+                Text(treatment.diagnosis!,
+                    style: tt.bodyLarge?.copyWith(color: AppColors.primary900)),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        ...treatment.prescriptions
+            .map((p) => _PrescriptionCard(prescription: p)),
+        if (treatment.instructions != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.sm + 2),
+            decoration: BoxDecoration(
+              color: AppColors.neutral100,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Consignes',
+                  style: tt.bodySmall?.copyWith(
+                      color: AppColors.neutral500, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 2),
+                Text(treatment.instructions!, style: tt.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PrescriptionCard extends StatelessWidget {
+  const _PrescriptionCard({required this.prescription});
+  final Prescription prescription;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final details = [
+      if (prescription.dose != null) prescription.dose!,
+      if (prescription.frequency != null) prescription.frequency!,
+      if (prescription.durationDays != null) '${prescription.durationDays} j',
+    ].join(' · ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.primary50,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.primary100),
+      ),
+      child: Row(
+        children: [
+          const Icon(Symbols.medication_rounded,
+              size: 20, color: AppColors.primary700),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(prescription.medication,
+                    style: tt.titleSmall?.copyWith(fontSize: 14)),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(details, style: tt.bodySmall),
+                ],
+                if (prescription.notes != null) ...[
+                  const SizedBox(height: 2),
+                  Text(prescription.notes!,
+                      style:
+                          tt.bodySmall?.copyWith(color: AppColors.neutral500)),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
