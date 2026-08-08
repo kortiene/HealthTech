@@ -599,6 +599,17 @@ class Consultation {
         if (media.isNotEmpty) 'media': media.map((e) => e.toJson()).toList(),
       };
 
+  Consultation copyWithMedia(MediaDescriptor descriptor) => Consultation(
+        id: id,
+        date: date,
+        practitionerRef: practitionerRef,
+        summary: summary,
+        prescription: prescription,
+        ordonnances: ordonnances,
+        imageUrls: imageUrls,
+        media: [...media, descriptor],
+      );
+
   @override
   bool operator ==(Object other) =>
       other is Consultation &&

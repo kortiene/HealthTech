@@ -394,6 +394,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           qrController: _buildQrController(),
           scanService: _buildScanService(),
           onLock: _onLock,
+          backendUrl: _kBackendBaseUrl,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,
           storedPin: _storedPin,

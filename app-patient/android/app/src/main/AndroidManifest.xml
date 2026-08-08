@@ -2,14 +2,21 @@
     <!-- Biometric unlock (local_auth). -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
-    <!-- Camera: required by mobile_scanner for QR code reading. -->
+    <!-- Camera: QR scan (mobile_scanner) + patient photo capture (image_picker). -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Internet: backend sync (BackendClient PUT/GET /blob). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Photo library: patient-attached documents via image_picker (#117). -->
+    <!-- Android 13+: granular media permission. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- Android < 13: legacy storage read (maxSdkVersion prevents on API 33+). -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <application
         android:label="app_patient"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
