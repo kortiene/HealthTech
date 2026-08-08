@@ -247,10 +247,12 @@ class MediaDescriptor {
   factory MediaDescriptor.fromJson(Map<String, Object?> json) {
     // Accept both snake_case (canonical) and camelCase (PWA legacy — fixed in #120 hotfix)
     return MediaDescriptor(
-      uuid: (json['uuid'] ?? json['mediaId'] ?? json['media_id']) as String? ?? '',
+      uuid: (json['uuid'] ?? json['mediaId'] ?? json['media_id']) as String? ??
+          '',
       contentKey: (json['content_key'] ?? json['contentKey']) as String? ?? '',
       alg: json['alg'] as String? ?? 'A256GCM',
-      contentHash: (json['content_hash'] ?? json['contentHash']) as String? ?? '',
+      contentHash:
+          (json['content_hash'] ?? json['contentHash']) as String? ?? '',
       mime: json['mime'] as String? ?? 'application/octet-stream',
       sizeBytes: (json['size_bytes'] ?? json['sizeBytes']) as int? ?? 0,
       addedAt: (json['added_at'] ?? json['addedAt']) as String? ?? '',
