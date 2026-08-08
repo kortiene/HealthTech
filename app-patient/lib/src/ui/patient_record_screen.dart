@@ -804,7 +804,9 @@ class _TreatmentsSection extends StatelessWidget {
             title: 'Traitements',
             badge: '${record.treatments.length}',
           ),
-          ...record.treatments.map((t) {
+          ...([...record.treatments]
+                ..sort((a, b) => b.startedAt.compareTo(a.startedAt)))
+              .map((t) {
             final linked = record.consultations
                 .expand(
                   (c) => c.ordonnances
