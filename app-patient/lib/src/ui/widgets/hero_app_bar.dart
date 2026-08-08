@@ -15,7 +15,7 @@ class PatientHeroAppBar extends StatelessWidget {
     this.account,
     this.showGreeting = false,
     this.actions,
-    this.expandedHeight = 220,
+    this.expandedHeight = 200,
     this.showAllergie = true,
   });
 

@@ -825,6 +825,7 @@ class _TreatmentsSection extends StatelessWidget {
             return _TreatmentCard(
               treatment: t,
               linked: linked,
+              defaultExpanded: sorted.length == 1,
               onClose: t.status == 'active' && onTreatmentStatusChanged != null
                   ? (status) {
                       final endedAt =
@@ -840,16 +841,31 @@ class _TreatmentsSection extends StatelessWidget {
   }
 }
 
-class _TreatmentCard extends StatelessWidget {
+class _TreatmentCard extends StatefulWidget {
   const _TreatmentCard({
     required this.treatment,
     required this.linked,
+    required this.defaultExpanded,
     this.onClose,
   });
 
   final Treatment treatment;
   final List<({Consultation consultation, Ordonnance ordonnance})> linked;
+  final bool defaultExpanded;
   final void Function(String status)? onClose;
+
+  @override
+  State<_TreatmentCard> createState() => _TreatmentCardState();
+}
+
+class _TreatmentCardState extends State<_TreatmentCard> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.defaultExpanded;
+  }
 
   static Color _statusColor(String status) {
     switch (status) {
@@ -903,16 +919,18 @@ class _TreatmentCard extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
-      builder: (_) => _CloseTreatmentSheet(diagnosis: treatment.diagnosis),
+      builder: (_) =>
+          _CloseTreatmentSheet(diagnosis: widget.treatment.diagnosis),
     );
-    if (result != null) onClose!(result);
+    if (result != null) widget.onClose!(result);
   }
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
-    final color = _statusColor(treatment.status);
-    final isActive = treatment.status == 'active';
+    final color = _statusColor(widget.treatment.status);
+    final isActive = widget.treatment.status == 'active';
+    final hasLinked = widget.linked.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -929,140 +947,187 @@ class _TreatmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2,
-                AppSpacing.sm + 2, AppSpacing.xs, AppSpacing.sm + 2),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        treatment.diagnosis,
-                        style:
-                            tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        [
-                          if (treatment.doctorRef != null) treatment.doctorRef!,
-                          'depuis le ${_fmtDate(treatment.startedAt)}',
-                          if (treatment.endedAt != null)
-                            "jusqu'au ${_fmtDate(treatment.endedAt!)}",
-                        ].join(' · '),
-                        style: tt.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color.withAlpha(20),
-                        borderRadius: BorderRadius.circular(AppRadii.pill),
-                      ),
-                      child: Text(
-                        _statusLabel(treatment.status),
-                        style: tt.bodySmall?.copyWith(
-                            color: color, fontWeight: FontWeight.w600),
-                      ),
+          // Header — tappable pour replier/déplier si des ordonnances sont liées
+          InkWell(
+            onTap: hasLinked
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2,
+                  AppSpacing.sm + 2, AppSpacing.xs, AppSpacing.sm + 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.treatment.diagnosis,
+                          style: tt.bodyLarge
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            if (widget.treatment.doctorRef != null)
+                              widget.treatment.doctorRef!,
+                            'depuis le ${_fmtDate(widget.treatment.startedAt)}',
+                            if (widget.treatment.endedAt != null)
+                              "jusqu'au ${_fmtDate(widget.treatment.endedAt!)}",
+                          ].join(' · '),
+                          style: tt.bodySmall,
+                        ),
+                      ],
                     ),
-                    if (isActive && onClose != null) ...[
-                      const SizedBox(height: 6),
-                      GestureDetector(
-                        onTap: () => _showCloseSheet(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.neutral200,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withAlpha(20),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Text(
+                              _statusLabel(widget.treatment.status),
+                              style: tt.bodySmall?.copyWith(
+                                  color: color, fontWeight: FontWeight.w600),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Symbols.check_circle_outline_rounded,
-                                  size: 12, color: AppColors.neutral500),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Clore',
-                                style: tt.bodySmall?.copyWith(
-                                    color: AppColors.neutral500,
-                                    fontWeight: FontWeight.w600),
+                          if (hasLinked) ...[
+                            const SizedBox(width: 4),
+                            AnimatedRotation(
+                              turns: _expanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 200),
+                              child: const Icon(
+                                Symbols.keyboard_arrow_down_rounded,
+                                size: 18,
+                                color: AppColors.neutral500,
                               ),
-                            ],
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (isActive && widget.onClose != null) ...[
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => _showCloseSheet(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.neutral200,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                    Symbols.check_circle_outline_rounded,
+                                    size: 12,
+                                    color: AppColors.neutral500),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Clore',
+                                  style: tt.bodySmall?.copyWith(
+                                      color: AppColors.neutral500,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (linked.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.xs),
-              child: Row(
-                children: [
-                  const Icon(Symbols.receipt_long_rounded,
-                      size: 12, color: AppColors.neutral500),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Ordonnances liées (${linked.length})',
-                    style: tt.bodySmall?.copyWith(
-                        color: AppColors.neutral500,
-                        fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
             ),
-            ...linked.map(
-              (pair) => Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm + 2, 0, AppSpacing.sm + 2, AppSpacing.sm),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                    border: Border.all(color: AppColors.neutral200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.sm, AppSpacing.xs, AppSpacing.sm, 0),
-                        child: Text(
-                          _fmtDate(pair.consultation.date),
-                          style: tt.labelMedium?.copyWith(
-                              color: AppColors.primary700,
-                              fontWeight: FontWeight.w600),
+          ),
+          // Ordonnances liées — expand/collapse animé
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: (_expanded && hasLinked)
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.sm + 2, 0,
+                        AppSpacing.sm + 2, AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Symbols.receipt_long_rounded,
+                                size: 12, color: AppColors.neutral500),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Ordonnances liées (${widget.linked.length})',
+                              style: tt.bodySmall?.copyWith(
+                                  color: AppColors.neutral500,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                          ],
                         ),
-                      ),
-                      ...pair.ordonnance.lines
-                          .map((l) => _OrdonnanceLineCard(line: l)),
-                      if (pair.ordonnance.lines.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          child: Text('Ordonnance vide',
-                              style: tt.bodySmall
-                                  ?.copyWith(color: AppColors.neutral500)),
+                        const SizedBox(height: AppSpacing.xs),
+                        ...widget.linked.map(
+                          (pair) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.sm),
+                                border: Border.all(color: AppColors.neutral200),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        AppSpacing.sm,
+                                        AppSpacing.xs,
+                                        AppSpacing.sm,
+                                        0),
+                                    child: Text(
+                                      _fmtDate(pair.consultation.date),
+                                      style: tt.labelMedium?.copyWith(
+                                          color: AppColors.primary700,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  ...pair.ordonnance.lines
+                                      .map((l) => _OrdonnanceLineCard(line: l)),
+                                  if (pair.ordonnance.lines.isEmpty)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.all(AppSpacing.sm),
+                                      child: Text(
+                                        'Ordonnance vide',
+                                        style: tt.bodySmall?.copyWith(
+                                            color: AppColors.neutral500),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
