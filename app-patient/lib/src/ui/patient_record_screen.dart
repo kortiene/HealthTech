@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -773,6 +774,8 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
   String? _errorMessage;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  // Stored after first download so replay never re-fetches from the network.
+  String? _localPath;
 
   @override
   void initState() {
@@ -834,6 +837,7 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${widget.media.uuid}.webm');
       await file.writeAsBytes(plain, flush: true);
+      _localPath = file.path;
       await _player.setSourceDeviceFile(file.path);
       if (mounted) setState(() => _status = _PlayerStatus.ready);
     } catch (e) {
@@ -847,18 +851,42 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
   }
 
   Future<void> _togglePlay() async {
-    if (_status == _PlayerStatus.idle || _status == _PlayerStatus.error) {
-      await _prepare();
-      if (_status == _PlayerStatus.ready) await _player.resume();
-      return;
-    }
-    if (_player.state == PlayerState.playing) {
-      await _player.pause();
-    } else {
-      if (_player.state == PlayerState.completed) {
-        await _player.seek(Duration.zero);
+    try {
+      if (_status == _PlayerStatus.idle || _status == _PlayerStatus.error) {
+        await _prepare();
+        if (_status == _PlayerStatus.ready) await _player.resume();
+        return;
+      }
+      if (_player.state == PlayerState.playing) {
+        await _player.pause();
+        return;
+      }
+      // After completion: seek(zero) + resume() hangs on audioplayers —
+      // re-play the source directly to avoid the 30 s TimeoutException.
+      if (_player.state == PlayerState.completed && _localPath != null) {
+        setState(() => _position = Duration.zero);
+        await _player.play(DeviceFileSource(_localPath!));
+        return;
       }
       await _player.resume();
+    } on TimeoutException {
+      // audioplayers platform-channel timeout: reset so the user can retry.
+      if (mounted) {
+        setState(() {
+          _status = _PlayerStatus.idle;
+          _localPath = null;
+          _position = Duration.zero;
+          _duration = Duration.zero;
+          _errorMessage = 'Délai expiré — appuyez à nouveau pour recharger.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _status = _PlayerStatus.error;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
@@ -870,7 +898,9 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     final knownDuration = widget.media.durationMs != null
         ? Duration(milliseconds: widget.media.durationMs!)
         : null;
-    final duration = _duration > Duration.zero ? _duration : (knownDuration ?? Duration.zero);
+    final duration = _duration > Duration.zero
+        ? _duration
+        : (knownDuration ?? Duration.zero);
     final progress = duration.inMilliseconds > 0
         ? (_position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
@@ -906,7 +936,8 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
           Row(
             children: [
               IconButton(
-                onPressed: _status == _PlayerStatus.loading ? null : _togglePlay,
+                onPressed:
+                    _status == _PlayerStatus.loading ? null : _togglePlay,
                 icon: Icon(icon, size: 32, color: AppColors.primary700),
                 tooltip: isPlaying ? 'Pause' : 'Lecture',
                 padding: EdgeInsets.zero,
@@ -920,7 +951,8 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
                       child: LinearProgressIndicator(
-                        value: _status == _PlayerStatus.loading ? null : progress,
+                        value:
+                            _status == _PlayerStatus.loading ? null : progress,
                         minHeight: 4,
                         backgroundColor: AppColors.neutral200,
                         valueColor: const AlwaysStoppedAnimation<Color>(
@@ -934,7 +966,8 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
                           : duration > Duration.zero
                               ? '${_fmt(_position)} / ${_fmt(duration)}'
                               : '',
-                      style: tt.labelSmall?.copyWith(color: AppColors.neutral500),
+                      style:
+                          tt.labelSmall?.copyWith(color: AppColors.neutral500),
                     ),
                   ],
                 ),
