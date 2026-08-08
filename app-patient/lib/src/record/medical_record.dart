@@ -327,8 +327,8 @@ class MediaDescriptor {
 }
 
 /// One medication line in a structured treatment plan (#121).
-class Prescription {
-  const Prescription({
+class TreatmentLine {
+  const TreatmentLine({
     required this.medication,
     this.dose,
     this.frequency,
@@ -336,8 +336,8 @@ class Prescription {
     this.notes,
   });
 
-  factory Prescription.fromJson(Map<String, Object?> json) {
-    return Prescription(
+  factory TreatmentLine.fromJson(Map<String, Object?> json) {
+    return TreatmentLine(
       medication: (json['medication'] ?? '') as String,
       dose: json['dose'] as String?,
       frequency: json['frequency'] as String?,
@@ -362,7 +362,7 @@ class Prescription {
 
   @override
   bool operator ==(Object other) =>
-      other is Prescription &&
+      other is TreatmentLine &&
       other.medication == medication &&
       other.dose == dose &&
       other.frequency == frequency &&
@@ -379,7 +379,7 @@ class Prescription {
 class Treatment {
   const Treatment({
     this.diagnosis,
-    this.prescriptions = const [],
+    this.prescriptions = const <TreatmentLine>[],
     this.instructions,
   });
 
@@ -388,7 +388,7 @@ class Treatment {
     return Treatment(
       diagnosis: json['diagnosis'] as String?,
       prescriptions: rawPrescriptions
-              ?.map((e) => Prescription.fromJson(e as Map<String, Object?>))
+              ?.map((e) => TreatmentLine.fromJson(e as Map<String, Object?>))
               .toList() ??
           const [],
       instructions: json['instructions'] as String?,
@@ -396,7 +396,7 @@ class Treatment {
   }
 
   final String? diagnosis;
-  final List<Prescription> prescriptions;
+  final List<TreatmentLine> prescriptions;
   final String? instructions;
 
   Map<String, Object?> toJson() => {

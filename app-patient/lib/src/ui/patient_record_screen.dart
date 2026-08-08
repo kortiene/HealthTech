@@ -801,8 +801,7 @@ class _TreatmentBlock extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-        ...treatment.prescriptions
-            .map((p) => _PrescriptionCard(prescription: p)),
+        ...treatment.prescriptions.map((p) => _TreatmentLineCard(line: p)),
         if (treatment.instructions != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Container(
@@ -831,17 +830,17 @@ class _TreatmentBlock extends StatelessWidget {
   }
 }
 
-class _PrescriptionCard extends StatelessWidget {
-  const _PrescriptionCard({required this.prescription});
-  final Prescription prescription;
+class _TreatmentLineCard extends StatelessWidget {
+  const _TreatmentLineCard({required this.line});
+  final TreatmentLine line;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final details = [
-      if (prescription.dose != null) prescription.dose!,
-      if (prescription.frequency != null) prescription.frequency!,
-      if (prescription.durationDays != null) '${prescription.durationDays} j',
+      if (line.dose != null) line.dose!,
+      if (line.frequency != null) line.frequency!,
+      if (line.durationDays != null) '${line.durationDays} j',
     ].join(' · ');
 
     return Container(
@@ -861,15 +860,15 @@ class _PrescriptionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(prescription.medication,
+                Text(line.medication,
                     style: tt.titleSmall?.copyWith(fontSize: 14)),
                 if (details.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(details, style: tt.bodySmall),
                 ],
-                if (prescription.notes != null) ...[
+                if (line.notes != null) ...[
                   const SizedBox(height: 2),
-                  Text(prescription.notes!,
+                  Text(line.notes!,
                       style:
                           tt.bodySmall?.copyWith(color: AppColors.neutral500)),
                 ],
