@@ -795,11 +795,14 @@ class _TreatmentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...record.treatments]..sort((a, b) {
-        final da = DateTime.tryParse(a.startedAt) ?? DateTime(0);
-        final db = DateTime.tryParse(b.startedAt) ?? DateTime(0);
-        return db.compareTo(da);
+    final indexed = record.treatments.asMap().entries.toList()
+      ..sort((a, b) {
+        final da = DateTime.tryParse(a.value.startedAt) ?? DateTime(0);
+        final db = DateTime.tryParse(b.value.startedAt) ?? DateTime(0);
+        final cmp = db.compareTo(da);
+        return cmp != 0 ? cmp : b.key.compareTo(a.key);
       });
+    final sorted = indexed.map((e) => e.value).toList();
     return _sectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
