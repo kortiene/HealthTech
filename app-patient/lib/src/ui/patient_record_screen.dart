@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -19,17 +23,33 @@ class PatientRecordScreen extends StatelessWidget {
     required this.record,
     required this.account,
     required this.onShowQr,
+    this.backendUrl,
+    this.onWillPauseForPicker,
     this.onTreatmentStatusChanged,
+    this.onMediaAttached,
   });
 
   final MedicalRecord record;
   final PatientAccount account;
   final VoidCallback onShowQr;
 
+  /// Backend base URL for media upload/download (#117). Null disables the
+  /// attach button (read-only mode or no connectivity config).
+  final String? backendUrl;
+
+  /// Called just before image_picker opens the camera/gallery so the root
+  /// lifecycle observer can suppress the automatic lock-on-resume (#117).
+  final VoidCallback? onWillPauseForPicker;
+
   /// Called when the patient closes a treatment.
   /// Args: (id, 'completed' | 'discontinued', endedAt ISO date).
   final void Function(String id, String status, String endedAt)?
       onTreatmentStatusChanged;
+
+  /// Called when the patient attaches a new image to a consultation (#117).
+  /// Args: (consultationId, descriptor). Caller persists the record update.
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onMediaAttached;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +99,12 @@ class PatientRecordScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.consultations.isNotEmpty)
-                  _ConsultationsSection(consultations: record.consultations),
+                  _ConsultationsSection(
+                    consultations: record.consultations,
+                    backendUrl: backendUrl,
+                    onWillPauseForPicker: onWillPauseForPicker,
+                    onMediaAttached: onMediaAttached,
+                  ),
                 const SizedBox(height: 100),
               ]),
             ),
@@ -434,8 +459,18 @@ class _MedicationCard extends StatelessWidget {
 // ─── Consultations (timeline) ─────────────────────────────────────────────────
 
 class _ConsultationsSection extends StatelessWidget {
-  const _ConsultationsSection({required this.consultations});
+  const _ConsultationsSection({
+    required this.consultations,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onMediaAttached,
+  });
+
   final List<Consultation> consultations;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onMediaAttached;
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +495,13 @@ class _ConsultationsSection extends StatelessWidget {
             (i) => _TimelineEntry(
               consultation: sorted[i],
               isLast: i == sorted.length - 1,
-              onTap: () => _showConsultationSheet(context, sorted[i]),
+              onTap: () => _showConsultationSheet(
+                context,
+                sorted[i],
+                backendUrl: backendUrl,
+                onWillPauseForPicker: onWillPauseForPicker,
+                onMediaAttached: onMediaAttached,
+              ),
             ),
           ),
         ],
@@ -599,7 +640,14 @@ class _TimelineEntry extends StatelessWidget {
 
 // ─── Consultation detail sheet ────────────────────────────────────────────────
 
-void _showConsultationSheet(BuildContext context, Consultation consultation) {
+void _showConsultationSheet(
+  BuildContext context,
+  Consultation consultation, {
+  String? backendUrl,
+  VoidCallback? onWillPauseForPicker,
+  Future<void> Function(String consultationId, MediaDescriptor)?
+      onMediaAttached,
+}) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -607,13 +655,186 @@ void _showConsultationSheet(BuildContext context, Consultation consultation) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
     ),
-    builder: (_) => _ConsultationSheet(consultation: consultation),
+    builder: (_) => _ConsultationSheet(
+      consultation: consultation,
+      backendUrl: backendUrl,
+      onWillPauseForPicker: onWillPauseForPicker,
+      onMediaAttached: onMediaAttached,
+    ),
   );
 }
 
-class _ConsultationSheet extends StatelessWidget {
-  const _ConsultationSheet({required this.consultation});
+class _ConsultationSheet extends StatefulWidget {
+  const _ConsultationSheet({
+    required this.consultation,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onMediaAttached,
+  });
+
   final Consultation consultation;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onMediaAttached;
+
+  @override
+  State<_ConsultationSheet> createState() => _ConsultationSheetState();
+}
+
+enum _UploadStatus { idle, picking, uploading, error }
+
+class _ConsultationSheetState extends State<_ConsultationSheet> {
+  _UploadStatus _uploadStatus = _UploadStatus.idle;
+  String? _uploadError;
+
+  // Optimistic: descriptors added this session, not yet in widget.consultation.media
+  final List<MediaDescriptor> _localMedia = [];
+
+  List<MediaDescriptor> get _allImages => [
+        ...widget.consultation.media.where((m) => m.mime.startsWith('image/')),
+        ..._localMedia,
+      ];
+
+  static String _resolveAndroid(String url) =>
+      Platform.isAndroid ? url.replaceFirst('localhost', '10.0.2.2') : url;
+
+  static String _genUuid() {
+    final rng = Random.secure();
+    final b = List.generate(16, (_) => rng.nextInt(256));
+    b[6] = (b[6] & 0x0F) | 0x40;
+    b[8] = (b[8] & 0x3F) | 0x80;
+    String h(int v) => v.toRadixString(16).padLeft(2, '0');
+    return '${h(b[0])}${h(b[1])}${h(b[2])}${h(b[3])}-'
+        '${h(b[4])}${h(b[5])}-${h(b[6])}${h(b[7])}-'
+        '${h(b[8])}${h(b[9])}-'
+        '${h(b[10])}${h(b[11])}${h(b[12])}${h(b[13])}${h(b[14])}${h(b[15])}';
+  }
+
+  Future<void> _pickAndAttach(ImageSource source) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      setState(() {
+        _uploadStatus = _UploadStatus.picking;
+        _uploadError = null;
+      });
+      // Notify root observer: the next pause/resume cycle is image_picker,
+      // not a user-initiated app switch — do NOT lock.
+      widget.onWillPauseForPicker?.call();
+      picked = await picker.pickImage(
+          source: source, imageQuality: 80, maxWidth: 1920);
+    } catch (e) {
+      // Surface picker errors (permission denied, camera unavailable, etc.)
+      if (mounted) {
+        setState(() {
+          _uploadStatus = _UploadStatus.error;
+          _uploadError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
+      return;
+    }
+    if (picked == null) {
+      // User cancelled — silent reset.
+      if (mounted) setState(() => _uploadStatus = _UploadStatus.idle);
+      return;
+    }
+    setState(() => _uploadStatus = _UploadStatus.uploading);
+    try {
+      final bytes = await picked.readAsBytes();
+
+      // Dev stub: XOR 0x5A "encrypt" — NOT a cipher.
+      // TODO(#102): replace with MediaCipher(FrbCryptoCore).encrypt(bytes)
+      final cipher = Uint8List(bytes.length);
+      for (var i = 0; i < bytes.length; i++) {
+        cipher[i] = bytes[i] ^ 0x5A;
+      }
+
+      final uuid = _genUuid();
+      final hash = sha256.convert(bytes).toString();
+
+      // Local-first: save encrypted bytes to app documents dir.
+      // The image stays on-device until the patient shares via QR (TODO #22:
+      // sync media bytes to backend as part of the QR/upload flow).
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
+
+      final descriptor = MediaDescriptor(
+        uuid: uuid,
+        // Stub: 32 zero bytes key — real key generated inside Rust (#102).
+        contentKey: base64Encode(Uint8List(32)),
+        contentHash: hash,
+        mime: 'image/jpeg',
+        sizeBytes: bytes.length,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+        // file:// URL → _DecryptedImageTile reads from disk, no network call.
+        url: 'file://${localFile.path}',
+      );
+
+      if (mounted) {
+        setState(() {
+          _localMedia.add(descriptor);
+          _uploadStatus = _UploadStatus.idle;
+        });
+      }
+
+      await widget.onMediaAttached?.call(widget.consultation.id, descriptor);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadStatus = _UploadStatus.error;
+          _uploadError = e.toString();
+        });
+      }
+    }
+  }
+
+  void _showSourcePicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAndAttach(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Depuis la galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAndAttach(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
 
   static String _formatDate(String isoDate) {
     try {
@@ -642,6 +863,10 @@ class _ConsultationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final images = _allImages;
+    final canAttach =
+        widget.onMediaAttached != null && widget.backendUrl != null;
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.55,
@@ -681,10 +906,11 @@ class _ConsultationSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_formatDate(consultation.date),
+                    Text(_formatDate(widget.consultation.date),
                         style: tt.titleSmall
                             ?.copyWith(color: AppColors.primary700)),
-                    Text(consultation.practitionerRef, style: tt.bodyMedium),
+                    Text(widget.consultation.practitionerRef,
+                        style: tt.bodyMedium),
                   ],
                 ),
               ),
@@ -707,9 +933,9 @@ class _ConsultationSheet extends StatelessWidget {
               color: AppColors.neutral100,
               borderRadius: BorderRadius.circular(AppRadii.sm),
             ),
-            child: Text(consultation.summary, style: tt.bodyLarge),
+            child: Text(widget.consultation.summary, style: tt.bodyLarge),
           ),
-          if (consultation.ordonnances.isNotEmpty) ...[
+          if (widget.consultation.ordonnances.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -717,18 +943,18 @@ class _ConsultationSheet extends StatelessWidget {
                     size: 16, color: AppColors.primary700),
                 const SizedBox(width: 6),
                 Text(
-                  consultation.ordonnances.length == 1
+                  widget.consultation.ordonnances.length == 1
                       ? 'Ordonnance'
-                      : 'Ordonnances (${consultation.ordonnances.length})',
+                      : 'Ordonnances (${widget.consultation.ordonnances.length})',
                   style: tt.labelLarge?.copyWith(
                       color: AppColors.neutral500, letterSpacing: 0.5),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            ...consultation.ordonnances
+            ...widget.consultation.ordonnances
                 .map((o) => _OrdonnanceBlock(ordonnance: o)),
-          ] else if (consultation.prescription != null) ...[
+          ] else if (widget.consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -749,12 +975,12 @@ class _ConsultationSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.sm),
                 border: Border.all(color: AppColors.primary100),
               ),
-              child: Text(consultation.prescription!,
+              child: Text(widget.consultation.prescription!,
                   style: tt.bodyLarge?.copyWith(color: AppColors.primary900)),
             ),
           ],
           // ── Voice notes (#120) ──────────────────────────────────────────────
-          for (final m in consultation.media)
+          for (final m in widget.consultation.media)
             if (m.mime.startsWith('audio/')) ...[
               const SizedBox(height: AppSpacing.lg),
               Row(
@@ -770,9 +996,74 @@ class _ConsultationSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               _VoiceNoteTile(
                 media: m,
-                practitionerRef: consultation.practitionerRef,
+                practitionerRef: widget.consultation.practitionerRef,
               ),
             ],
+          // ── Images / pièces jointes (#117) ─────────────────────────────────
+          if (images.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                const Icon(Symbols.attach_file_rounded,
+                    size: 16, color: AppColors.neutral500),
+                const SizedBox(width: 6),
+                Text(
+                  images.length == 1
+                      ? 'Pièce jointe'
+                      : 'Pièces jointes (${images.length})',
+                  style: tt.labelLarge?.copyWith(
+                      color: AppColors.neutral500, letterSpacing: 0.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _ImageStrip(
+              images: images,
+              backendUrl: _resolveAndroid(widget.backendUrl ?? ''),
+            ),
+          ],
+          // ── Attach button ───────────────────────────────────────────────────
+          if (canAttach) ...[
+            const SizedBox(height: AppSpacing.lg),
+            if (_uploadStatus == _UploadStatus.error &&
+                _uploadError != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  _uploadError!,
+                  style: tt.bodySmall?.copyWith(color: AppColors.allergy),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            OutlinedButton.icon(
+              onPressed: _uploadStatus == _UploadStatus.idle ||
+                      _uploadStatus == _UploadStatus.error
+                  ? () => _showSourcePicker(context)
+                  : null,
+              icon: _uploadStatus == _UploadStatus.uploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary700),
+                    )
+                  : const Icon(Icons.add_photo_alternate_rounded),
+              label: Text(
+                _uploadStatus == _UploadStatus.uploading
+                    ? 'Envoi en cours…'
+                    : _uploadStatus == _UploadStatus.picking
+                        ? 'Sélection…'
+                        : '+ Ajouter une pièce',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary700,
+                side: const BorderSide(color: AppColors.primary100),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1326,6 +1617,147 @@ class _OrdonnanceLineCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Image strip (#117) ────────────────────────────────────────────────────────
+
+class _ImageStrip extends StatelessWidget {
+  const _ImageStrip({required this.images, required this.backendUrl});
+
+  final List<MediaDescriptor> images;
+  final String backendUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 96,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: images.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (_, i) => _DecryptedImageTile(
+          media: images[i],
+          backendUrl: backendUrl,
+        ),
+      ),
+    );
+  }
+}
+
+// Fetches + XOR-0x5A decrypts one image and displays it as a tappable thumbnail.
+// Dev stub — TODO(#102): replace XOR with MediaCipher(FrbCryptoCore).decrypt().
+class _DecryptedImageTile extends StatefulWidget {
+  const _DecryptedImageTile({required this.media, required this.backendUrl});
+
+  final MediaDescriptor media;
+  final String backendUrl;
+
+  @override
+  State<_DecryptedImageTile> createState() => _DecryptedImageTileState();
+}
+
+class _DecryptedImageTileState extends State<_DecryptedImageTile> {
+  Uint8List? _bytes;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final Uint8List ciphertext;
+      final url = widget.media.url;
+      if (url != null && url.startsWith('file://')) {
+        // Local-first: read encrypted bytes from app documents dir.
+        ciphertext = await File(url.replaceFirst('file://', '')).readAsBytes();
+      } else if (url != null) {
+        // Backend direct URL (legacy dev path — no /access roundtrip).
+        ciphertext = await MediaClient('').fetchCiphertext(url);
+      } else {
+        // Prod path: mint an ephemeral access URL then fetch ciphertext.
+        final client = MediaClient(widget.backendUrl);
+        final grant = await client.requestAccess(widget.media.uuid);
+        ciphertext = await client.fetchCiphertext(grant.url);
+      }
+      // XOR 0x5A dev stub decrypt — NOT a cipher.
+      // TODO(#102): replace with MediaCipher(FrbCryptoCore).decrypt()
+      final plain = Uint8List(ciphertext.length);
+      for (var i = 0; i < ciphertext.length; i++) {
+        plain[i] = ciphertext[i] ^ 0x5A;
+      }
+      if (mounted) {
+        setState(() {
+          _bytes = plain;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        child: Material(
+          color: AppColors.neutral100,
+          child: InkWell(
+            onTap: _bytes != null
+                ? () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _ImageFullScreenPage(bytes: _bytes!),
+                      ),
+                    )
+                : null,
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.primary700),
+                  )
+                : _error != null
+                    ? const Center(
+                        child: Icon(Icons.broken_image_rounded,
+                            color: AppColors.neutral500),
+                      )
+                    : Image.memory(_bytes!, fit: BoxFit.cover),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageFullScreenPage extends StatelessWidget {
+  const _ImageFullScreenPage({required this.bytes});
+  final Uint8List bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: InteractiveViewer(
+        child: Center(child: Image.memory(bytes)),
       ),
     );
   }

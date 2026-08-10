@@ -21,6 +21,8 @@ class MainShell extends StatefulWidget {
     required this.qrController,
     required this.scanService,
     required this.onLock,
+    this.backendUrl,
+    this.onWillPauseForPicker,
     this.onUpdateRecord,
     this.onQrClosed,
     this.storedPin,
@@ -37,6 +39,8 @@ class MainShell extends StatefulWidget {
   final QrController qrController;
   final ScanService scanService;
   final VoidCallback onLock;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(MedicalRecord)? onUpdateRecord;
   final Future<void> Function()? onQrClosed;
   final String? storedPin;
@@ -86,6 +90,8 @@ class _MainShellState extends State<MainShell> {
         record: widget.record,
         account: widget.account,
         onShowQr: _showQr,
+        backendUrl: widget.backendUrl,
+        onWillPauseForPicker: widget.onWillPauseForPicker,
         onTreatmentStatusChanged: widget.onUpdateRecord != null
             ? (id, status, endedAt) {
                 final updated = widget.record.copyWith(
@@ -99,6 +105,21 @@ class _MainShellState extends State<MainShell> {
                   updatedAt: DateTime.now().toIso8601String(),
                 );
                 widget.onUpdateRecord!(updated);
+              }
+            : null,
+        onMediaAttached: widget.onUpdateRecord != null
+            ? (consultationId, descriptor) {
+                final updated = widget.record.copyWith(
+                  consultations: widget.record.consultations
+                      .map(
+                        (c) => c.id == consultationId
+                            ? c.copyWithMedia(descriptor)
+                            : c,
+                      )
+                      .toList(),
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
               }
             : null,
       ),

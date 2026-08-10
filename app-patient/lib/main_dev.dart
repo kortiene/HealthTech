@@ -174,6 +174,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   PatientAccount? _account;
   String? _storedPin;
   bool _didPause = false;
+  bool _suppressNextLock = false;
   String? _loadError;
   final _biometricService = BiometricService();
   bool _biometricEnabled = false;
@@ -217,9 +218,15 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         _didPause &&
         _phase == _Phase.home) {
       _didPause = false;
+      if (_suppressNextLock) {
+        _suppressNextLock = false;
+        return; // Paused by image_picker — don't lock.
+      }
       setState(() => _phase = _Phase.locked);
     }
   }
+
+  void _onWillPauseForPicker() => _suppressNextLock = true;
 
   // ── Transitions ─────────────────────────────────────────────────────────────
 
@@ -496,6 +503,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           qrController: _buildQrController(),
           scanService: _buildScanService(),
           onLock: _onLock,
+          backendUrl: _kBackendBaseUrl,
+          onWillPauseForPicker: _onWillPauseForPicker,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,
           storedPin: _storedPin,
