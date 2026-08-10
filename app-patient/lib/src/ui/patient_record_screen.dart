@@ -731,23 +731,21 @@ class _ConditionsSection extends StatelessWidget {
                 ],
                 const Spacer(),
                 if (onAddCondition != null)
-                  SizedBox(
-                    height: 30,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showAddConditionSheet(
-                        context,
-                        onAdd: onAddCondition!,
-                        onWillPauseForPicker: onWillPauseForPicker,
-                      ),
-                      icon: const Icon(Icons.add, size: 13),
-                      label: const Text('Ajouter'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary700,
-                        side: const BorderSide(color: AppColors.primary100),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        textStyle: const TextStyle(fontSize: 12),
-                        visualDensity: VisualDensity.compact,
-                      ),
+                  OutlinedButton.icon(
+                    onPressed: () => _showAddConditionSheet(
+                      context,
+                      onAdd: onAddCondition!,
+                      onWillPauseForPicker: onWillPauseForPicker,
+                    ),
+                    icon: const Icon(Icons.add, size: 13),
+                    label: const Text('Ajouter'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary700,
+                      side: const BorderSide(color: AppColors.primary100),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(fontSize: 12),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
               ],
