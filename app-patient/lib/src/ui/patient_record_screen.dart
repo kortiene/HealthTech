@@ -708,11 +708,18 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
       });
       picked = await picker.pickImage(
           source: source, imageQuality: 80, maxWidth: 1920);
-    } catch (_) {
-      if (mounted) setState(() => _uploadStatus = _UploadStatus.idle);
+    } catch (e) {
+      // Surface picker errors (permission denied, camera unavailable, etc.)
+      if (mounted) {
+        setState(() {
+          _uploadStatus = _UploadStatus.error;
+          _uploadError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
       return;
     }
     if (picked == null) {
+      // User cancelled — silent reset.
       if (mounted) setState(() => _uploadStatus = _UploadStatus.idle);
       return;
     }
@@ -730,18 +737,12 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
       final uuid = _genUuid();
       final hash = sha256.convert(bytes).toString();
 
-      String? storedUrl;
-      if (widget.backendUrl != null) {
-        try {
-          final base = _resolveAndroid(widget.backendUrl!);
-          await MediaClient(base).putMedia(uuid, cipher);
-          // Store the direct URL so the thumbnail can fetch without going
-          // through /media/{uuid}/access (dev only; prod uses requestAccess).
-          storedUrl = '${widget.backendUrl}/media/$uuid';
-        } catch (_) {
-          // Offline — descriptor created, upload queued (TODO #22).
-        }
-      }
+      // Local-first: save encrypted bytes to app documents dir.
+      // The image stays on-device until the patient shares via QR (TODO #22:
+      // sync media bytes to backend as part of the QR/upload flow).
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
 
       final descriptor = MediaDescriptor(
         uuid: uuid,
@@ -751,7 +752,8 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
         mime: 'image/jpeg',
         sizeBytes: bytes.length,
         addedAt: DateTime.now().toUtc().toIso8601String(),
-        url: storedUrl,
+        // file:// URL → _DecryptedImageTile reads from disk, no network call.
+        url: 'file://${localFile.path}',
       );
 
       if (mounted) {
@@ -1655,31 +1657,38 @@ class _DecryptedImageTileState extends State<_DecryptedImageTile> {
   Future<void> _load() async {
     try {
       final Uint8List ciphertext;
-      if (widget.media.url != null) {
-        // Direct URL stored at attach time (dev only).
-        final client = MediaClient('');
-        ciphertext = await client.fetchCiphertext(widget.media.url!);
+      final url = widget.media.url;
+      if (url != null && url.startsWith('file://')) {
+        // Local-first: read encrypted bytes from app documents dir.
+        ciphertext = await File(url.replaceFirst('file://', '')).readAsBytes();
+      } else if (url != null) {
+        // Backend direct URL (legacy dev path — no /access roundtrip).
+        ciphertext = await MediaClient('').fetchCiphertext(url);
       } else {
+        // Prod path: mint an ephemeral access URL then fetch ciphertext.
         final client = MediaClient(widget.backendUrl);
         final grant = await client.requestAccess(widget.media.uuid);
         ciphertext = await client.fetchCiphertext(grant.url);
       }
       // XOR 0x5A dev stub decrypt — NOT a cipher.
+      // TODO(#102): replace with MediaCipher(FrbCryptoCore).decrypt()
       final plain = Uint8List(ciphertext.length);
       for (var i = 0; i < ciphertext.length; i++) {
         plain[i] = ciphertext[i] ^ 0x5A;
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _bytes = plain;
           _loading = false;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
+      }
     }
   }
 
