@@ -200,23 +200,12 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          // Cloud-first on startup: picks up doctor's session changes from
-          // a prior QR scan without requiring another QR cycle.
-          MedicalRecord? cloudRecord;
-          try {
-            cloudRecord = await _recordStore.read(
-              handle,
-              _account!.anonymousUuid,
-              forceCloud: true,
-            );
-          } on BackendUnavailable {
-            // Offline — fall back to local cache below.
-          } catch (_) {
-            // Decrypt error (session-key blob in prod) — local is intact,
-            // fall back below.
-          }
-          _record = cloudRecord ??
-              await _recordStore.read(handle, _account!.anonymousUuid);
+          // Always read from local cache at startup — the cloud may have a
+          // session-key blob (from a QR session) which cannot be decrypted
+          // with the master key and would silently corrupt _record in dev.
+          // _onQrClosed restores the canonical master-key blob after each
+          // session, so the local cache is always consistent.
+          _record = await _recordStore.read(handle, _account!.anonymousUuid);
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(

@@ -261,8 +261,18 @@ function MediaImageTile({ media, backendUrl }: { media: MediaDescriptor; backend
 
   useEffect(() => {
     let active = true;
-    fetch(`${backendUrl}/media/${media.mediaId}`)
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+    // Two-step: POST /media/{uuid}/access → signed capability URL → GET bytes.
+    // Direct GET /media/{uuid} requires ?exp=…&sig=… (ADR 0005); the access
+    // endpoint mints a short-TTL signed URL without extra auth.
+    fetch(`${backendUrl}/media/${media.mediaId}/access`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`access:${r.status}`); return r.json(); })
+      .then((grant: { url: string }) => {
+        const capUrl = grant.url.startsWith("http")
+          ? grant.url
+          : `${backendUrl}${grant.url}`;
+        return fetch(capUrl);
+      })
+      .then((r) => { if (!r.ok) throw new Error(`fetch:${r.status}`); return r.arrayBuffer(); })
       .then((buf) => {
         if (!active) return;
         const bytes = new Uint8Array(buf);
