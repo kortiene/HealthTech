@@ -297,7 +297,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
       });
       widget.onWillPauseForPicker?.call();
       picked = await picker.pickImage(
-          source: source, imageQuality: 80, maxWidth: 1920);
+          source: source, imageQuality: 60, maxWidth: 1280);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -663,7 +663,7 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
       });
       widget.onWillPauseForPicker?.call();
       picked = await picker.pickImage(
-          source: source, imageQuality: 80, maxWidth: 1920);
+          source: source, imageQuality: 60, maxWidth: 1280);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1593,7 +1593,7 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
       // not a user-initiated app switch — do NOT lock.
       widget.onWillPauseForPicker?.call();
       picked = await picker.pickImage(
-          source: source, imageQuality: 80, maxWidth: 1920);
+          source: source, imageQuality: 60, maxWidth: 1280);
     } catch (e) {
       // Surface picker errors (permission denied, camera unavailable, etc.)
       if (mounted) {

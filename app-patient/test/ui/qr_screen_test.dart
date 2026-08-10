@@ -20,7 +20,10 @@ import 'package:app_patient/src/ui/qr_screen.dart';
 
 class _FakeQrController implements QrController {
   @override
-  Future<QrPayload> generate({QrMode mode = QrMode.readWrite}) async =>
+  Future<QrPayload> generate({
+    QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
+  }) async =>
       QrPayload(
         uuid: 'test-uuid',
         backendUrl: 'http://test',
@@ -32,7 +35,10 @@ class _FakeQrController implements QrController {
 
 class _ThrowingQrController implements QrController {
   @override
-  Future<QrPayload> generate({QrMode mode = QrMode.readWrite}) async =>
+  Future<QrPayload> generate({
+    QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
+  }) async =>
       throw Exception('test error');
 }
 

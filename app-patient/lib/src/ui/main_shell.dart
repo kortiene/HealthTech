@@ -61,7 +61,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _showQr() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => QrScreen(controller: widget.qrController),
+        builder: (_) => QrScreen(
+          controller: widget.qrController,
+          record: widget.record,
+        ),
       ),
     );
     // QR screen closed — doctor may have written a note; pull latest from cloud.

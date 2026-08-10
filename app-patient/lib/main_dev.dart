@@ -18,6 +18,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
+import 'src/cloud/media_client.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 // import 'src/legal/consent_model.dart' -- used transitively by OnboardingController;
@@ -448,6 +449,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           crypto: const _DevCryptoCore(),
           recordStore: _recordStore,
           client: BackendClient(_kBackendBaseUrl),
+          mediaClient: MediaClient(_kBackendBaseUrl),
         ),
         backendUrl: _kQrBackendUrl,
       );
@@ -545,11 +547,14 @@ class _DevQrController implements QrController {
   final MedicalRecordStore _recordStore;
 
   @override
-  Future<QrPayload> generate({QrMode mode = QrMode.readWrite}) async {
+  Future<QrPayload> generate({
+    QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
+  }) async {
     if (!await _recordStore.exists()) {
       await _seedEmptyRecord();
     }
-    return _inner.generate(mode: mode);
+    return _inner.generate(mode: mode, shareMedia: shareMedia);
   }
 
   Future<void> _seedEmptyRecord() async {

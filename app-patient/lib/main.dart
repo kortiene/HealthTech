@@ -17,6 +17,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
+import 'src/cloud/media_client.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
@@ -352,6 +353,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           crypto: const FrbCryptoCore(),
           recordStore: _recordStore,
           client: BackendClient(_kBackendBaseUrl),
+          mediaClient: MediaClient(_kBackendBaseUrl),
         ),
         backendUrl: _kBackendBaseUrl,
       );

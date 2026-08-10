@@ -18,10 +18,13 @@
 // image / QrPayload for the 120 s access window.
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import '../cloud/backend_client.dart';
+import '../cloud/media_client.dart';
+import '../record/medical_record.dart';
 import '../record/medical_record_store.dart';
 import '../rust/crypto_core_bindings.dart';
 import '../secure/master_key_service.dart';
@@ -105,7 +108,10 @@ class QrPayload {
 /// Abstract controller used by [QrScreen] — inject [DefaultQrController] in
 /// production and a fake in tests.
 abstract class QrController {
-  Future<QrPayload> generate({QrMode mode = QrMode.readWrite});
+  Future<QrPayload> generate({
+    QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
+  });
 }
 
 /// Production [QrController] that unseals the master key, reads the patient
@@ -127,7 +133,10 @@ class DefaultQrController implements QrController {
   final String backendUrl;
 
   @override
-  Future<QrPayload> generate({QrMode mode = QrMode.readWrite}) async {
+  Future<QrPayload> generate({
+    QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
+  }) async {
     final handle = await _masterKey.unsealForUse();
     try {
       final account = await _accountStore.read(handle);
@@ -136,6 +145,7 @@ class DefaultQrController implements QrController {
         handle,
         backendUrl,
         mode: mode,
+        shareMedia: shareMedia,
       );
     } finally {
       await _masterKey.wipeHandle(handle);
@@ -160,13 +170,16 @@ class AccessTokenService {
     required CryptoCore crypto,
     required MedicalRecordStore recordStore,
     required BackendClient client,
+    MediaClient? mediaClient,
   })  : _crypto = crypto,
         _recordStore = recordStore,
-        _client = client;
+        _client = client,
+        _mediaClient = mediaClient;
 
   final CryptoCore _crypto;
   final MedicalRecordStore _recordStore;
   final BackendClient _client;
+  final MediaClient? _mediaClient;
 
   static final _rng = Random.secure();
 
@@ -178,13 +191,22 @@ class AccessTokenService {
   /// [handle] is the master-key handle from [MasterKeyService.unsealForUse];
   /// the caller owns the handle lifecycle and must wipe it after this returns.
   ///
+  /// When [shareMedia] is true and a [MediaClient] was injected, all pending
+  /// local media (descriptors whose `url` starts with `file://`) are uploaded
+  /// to the backend before the session blob is generated. The QR payload then
+  /// carries `url: null` for those descriptors — the doctor fetches them via
+  /// [MediaClient.requestAccess]. When [shareMedia] is false, `file://` URLs
+  /// are stripped without uploading; the doctor gets no access to those bytes.
+  ///
   /// Throws [BlobNotFound] when no local or cloud record exists yet.
   /// Throws [BackendUnavailable] when the session blob cannot be uploaded.
+  /// Throws [MediaBackendUnavailable] when shareMedia=true and any upload fails.
   Future<QrPayload> generate(
     String anonymousUuid,
     MasterKeyHandle handle,
     String backendUrl, {
     QrMode mode = QrMode.readWrite,
+    bool shareMedia = false,
   }) async {
     // 1-2. Generate ephemeral session key + write token (OS CSPRNG, never on disk).
     final sessionKey = _randomBytes(_kKeyBytes);
@@ -192,12 +214,24 @@ class AccessTokenService {
 
     // 3. Read current record (decrypted in Rust using the master handle).
     final record = await _recordStore.read(handle, anonymousUuid);
-    final plaintext = Uint8List.fromList(record.toUtf8Bytes());
 
-    // 4. Re-encrypt with session key — doctor will decrypt with this key.
+    // 4. Flush local media to backend (if patient consented) then sanitise.
+    //    Local file:// paths are stripped in all cases — the doctor uses
+    //    requestAccess() to reach uploaded bytes; un-uploaded bytes stay inaccessible.
+    MedicalRecord qrRecord = record;
+    if (shareMedia && _mediaClient != null) {
+      final pending = _collectPendingMedia(record);
+      if (pending.isNotEmpty) {
+        await _flushPendingMedia(pending, _mediaClient);
+      }
+    }
+    qrRecord = _sanitiseFileUrls(record);
+
+    // 5. Re-encrypt sanitised record with session key — doctor will decrypt with this key.
+    final plaintext = Uint8List.fromList(qrRecord.toUtf8Bytes());
     final sessionBlob = await _encryptWithSession(sessionKey, plaintext);
 
-    // 5. Upload session blob and register the write token with the backend.
+    // 6. Upload session blob and register the write token with the backend.
     //    The backend stores the token for this UUID (TTL = 120 s).
     await _client.put(anonymousUuid, sessionBlob, writeToken: writeToken);
 
@@ -209,6 +243,91 @@ class AccessTokenService {
       // In read-only mode the write token is NOT embedded in the QR — the doctor
       // cannot write back because they never see it.
       writeToken: mode == QrMode.readWrite ? writeToken : null,
+    );
+  }
+
+  /// Collects all [MediaDescriptor]s with a local `file://` URL across the record.
+  List<MediaDescriptor> _collectPendingMedia(MedicalRecord record) {
+    final result = <MediaDescriptor>[];
+    for (final c in record.consultations) {
+      result
+          .addAll(c.media.where((d) => d.url?.startsWith('file://') ?? false));
+    }
+    for (final cc in record.chronicConditions) {
+      result.addAll(
+        cc.documents.where((d) => d.url?.startsWith('file://') ?? false),
+      );
+    }
+    return result;
+  }
+
+  /// Reads each descriptor's on-disk ciphertext and uploads it via [client].
+  ///
+  /// The bytes at `file://` are already the XOR-encrypted ciphertext written at
+  /// attach time — they are passed opaquely to the backend without re-encryption.
+  Future<void> _flushPendingMedia(
+    List<MediaDescriptor> pending,
+    MediaClient client,
+  ) async {
+    for (final d in pending) {
+      final path = d.url!.replaceFirst('file://', '');
+      final bytes = await File(path).readAsBytes();
+      await client.putMedia(d.uuid, bytes);
+    }
+  }
+
+  /// Returns a copy of [record] with all `file://` URLs stripped to null.
+  ///
+  /// Stripping is unconditional: whether or not bytes were uploaded, the QR
+  /// payload must never contain local device paths (they are meaningless outside
+  /// the patient's phone and could leak the internal file layout).
+  MedicalRecord _sanitiseFileUrls(MedicalRecord record) {
+    MediaDescriptor strip(MediaDescriptor d) {
+      if (!(d.url?.startsWith('file://') ?? false)) return d;
+      return MediaDescriptor(
+        uuid: d.uuid,
+        contentKey: d.contentKey,
+        contentHash: d.contentHash,
+        mime: d.mime,
+        sizeBytes: d.sizeBytes,
+        addedAt: d.addedAt,
+        alg: d.alg,
+        durationMs: d.durationMs,
+        // url intentionally omitted → null
+      );
+    }
+
+    final sanitisedConsultations = record.consultations.map((c) {
+      final hasDirty =
+          c.media.any((d) => d.url?.startsWith('file://') ?? false);
+      if (!hasDirty) return c;
+      return Consultation(
+        id: c.id,
+        date: c.date,
+        practitionerRef: c.practitionerRef,
+        summary: c.summary,
+        prescription: c.prescription,
+        ordonnances: c.ordonnances,
+        imageUrls: c.imageUrls,
+        media: c.media.map(strip).toList(),
+      );
+    }).toList();
+
+    final sanitisedConditions = record.chronicConditions.map((cc) {
+      final hasDirty =
+          cc.documents.any((d) => d.url?.startsWith('file://') ?? false);
+      if (!hasDirty) return cc;
+      return ChronicCondition(
+        name: cc.name,
+        icd10: cc.icd10,
+        since: cc.since,
+        documents: cc.documents.map(strip).toList(),
+      );
+    }).toList();
+
+    return record.copyWith(
+      consultations: sanitisedConsultations,
+      chronicConditions: sanitisedConditions,
     );
   }
 
