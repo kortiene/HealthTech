@@ -27,6 +27,7 @@ class PatientRecordScreen extends StatelessWidget {
     this.onWillPauseForPicker,
     this.onTreatmentStatusChanged,
     this.onMediaAttached,
+    this.onAddCondition,
   });
 
   final MedicalRecord record;
@@ -50,6 +51,10 @@ class PatientRecordScreen extends StatelessWidget {
   /// Args: (consultationId, descriptor). Caller persists the record update.
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+
+  /// Called when the patient adds a new chronic condition (#115).
+  /// Caller persists the record update.
+  final Future<void> Function(ChronicCondition)? onAddCondition;
 
   @override
   Widget build(BuildContext context) {
@@ -83,8 +88,13 @@ class PatientRecordScreen extends StatelessWidget {
                   _AllergySection(allergies: record.allergies),
                   const SizedBox(height: AppSpacing.md),
                 ],
-                if (record.chronicConditions.isNotEmpty) ...[
-                  _ConditionsSection(conditions: record.chronicConditions),
+                if (record.chronicConditions.isNotEmpty ||
+                    onAddCondition != null) ...[
+                  _ConditionsSection(
+                    conditions: record.chronicConditions,
+                    onAddCondition: onAddCondition,
+                    onWillPauseForPicker: onWillPauseForPicker,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.medications.isNotEmpty) ...[
@@ -216,6 +226,371 @@ Widget _sectionCard({required Widget child}) {
   );
 }
 
+// ─── Add condition sheet (#115) ───────────────────────────────────────────────
+
+void _showAddConditionSheet(
+  BuildContext context, {
+  required Future<void> Function(ChronicCondition) onAdd,
+  VoidCallback? onWillPauseForPicker,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    ),
+    builder: (ctx) => _AddConditionSheet(
+      onAdd: onAdd,
+      onWillPauseForPicker: onWillPauseForPicker,
+    ),
+  );
+}
+
+class _AddConditionSheet extends StatefulWidget {
+  const _AddConditionSheet({
+    required this.onAdd,
+    this.onWillPauseForPicker,
+  });
+
+  final Future<void> Function(ChronicCondition) onAdd;
+  final VoidCallback? onWillPauseForPicker;
+
+  @override
+  State<_AddConditionSheet> createState() => _AddConditionSheetState();
+}
+
+class _AddConditionSheetState extends State<_AddConditionSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _icdCtrl = TextEditingController();
+  final _sinceCtrl = TextEditingController();
+
+  MediaDescriptor? _photoDescriptor;
+  _UploadStatus _photoStatus = _UploadStatus.idle;
+  String? _photoError;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _icdCtrl.dispose();
+    _sinceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      setState(() {
+        _photoStatus = _UploadStatus.picking;
+        _photoError = null;
+      });
+      widget.onWillPauseForPicker?.call();
+      picked = await picker.pickImage(
+          source: source, imageQuality: 80, maxWidth: 1920);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
+      return;
+    }
+    if (picked == null) {
+      if (mounted) setState(() => _photoStatus = _UploadStatus.idle);
+      return;
+    }
+    setState(() => _photoStatus = _UploadStatus.uploading);
+    try {
+      final bytes = await picked.readAsBytes();
+      // Dev stub: XOR 0x5A — NOT a cipher. TODO(#102): replace with MediaCipher(FrbCryptoCore).encrypt().
+      final cipher = Uint8List(bytes.length);
+      for (var i = 0; i < bytes.length; i++) {
+        cipher[i] = bytes[i] ^ 0x5A;
+      }
+      final uuid = _genUuid();
+      final hash = sha256.convert(bytes).toString();
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
+      final descriptor = MediaDescriptor(
+        uuid: uuid,
+        contentKey: base64Encode(Uint8List(32)), // stub — TODO(#102)
+        contentHash: hash,
+        mime: 'image/jpeg',
+        sizeBytes: bytes.length,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+        url: 'file://${localFile.path}',
+      );
+      if (mounted) {
+        setState(() {
+          _photoDescriptor = descriptor;
+          _photoStatus = _UploadStatus.idle;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = e.toString();
+        });
+      }
+    }
+  }
+
+  void _showPhotoPicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Depuis la galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _saving = true);
+    try {
+      final condition = ChronicCondition(
+        name: _nameCtrl.text.trim(),
+        icd10: _icdCtrl.text.trim().isEmpty ? null : _icdCtrl.text.trim(),
+        since: _sinceCtrl.text.trim().isEmpty ? null : _sinceCtrl.text.trim(),
+        documents: [if (_photoDescriptor != null) _photoDescriptor!],
+      );
+      await widget.onAdd(condition);
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (_, scrollCtrl) => ListView(
+        controller: scrollCtrl,
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary100,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: const Icon(Symbols.history_rounded,
+                    color: AppColors.primary700, size: 22),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text('Ajouter une pathologie', style: tt.titleSmall),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.neutral500),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Fermer',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Nom *',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _nameCtrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. Diabète de type 2',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Requis' : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('Code ICD-10 (optionnel)',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _icdCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. E11',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('Depuis (année, optionnel)',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _sinceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. 2020',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                // ── Justificatif photo ──────────────────────────────────────
+                if (_photoDescriptor != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Symbols.attach_file_rounded,
+                          size: 14, color: AppColors.primary700),
+                      const SizedBox(width: 4),
+                      Text('Justificatif joint',
+                          style: tt.bodySmall
+                              ?.copyWith(color: AppColors.primary700)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _photoDescriptor = null;
+                          _photoStatus = _UploadStatus.idle;
+                          _photoError = null;
+                        }),
+                        child: const Text('Supprimer'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _DecryptedImageTile(
+                    media: _photoDescriptor!,
+                    backendUrl: '',
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ] else ...[
+                  if (_photoStatus == _UploadStatus.error &&
+                      _photoError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Text(_photoError!,
+                          style:
+                              tt.bodySmall?.copyWith(color: AppColors.allergy)),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: _photoStatus == _UploadStatus.idle ||
+                            _photoStatus == _UploadStatus.error
+                        ? () => _showPhotoPicker(context)
+                        : null,
+                    icon: _photoStatus == _UploadStatus.uploading ||
+                            _photoStatus == _UploadStatus.picking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.primary700),
+                          )
+                        : const Icon(Icons.add_photo_alternate_rounded),
+                    label: Text(
+                      _photoStatus == _UploadStatus.uploading
+                          ? 'Enregistrement…'
+                          : _photoStatus == _UploadStatus.picking
+                              ? 'Sélection…'
+                              : '+ Ajouter un justificatif (optionnel)',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary700,
+                      side: const BorderSide(color: AppColors.primary100),
+                      minimumSize: const Size(double.infinity, 44),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                // ── Enregistrer ─────────────────────────────────────────────
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 48),
+                    backgroundColor: AppColors.primary700,
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.white),
+                        )
+                      : const Text('Enregistrer'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Allergies ────────────────────────────────────────────────────────────────
 
 class _AllergySection extends StatelessWidget {
@@ -299,24 +674,95 @@ class _AllergyPill extends StatelessWidget {
   }
 }
 
-// ─── Pathologies ──────────────────────────────────────────────────────────────
+// ─── Antécédents (#115) ───────────────────────────────────────────────────────
 
 class _ConditionsSection extends StatelessWidget {
-  const _ConditionsSection({required this.conditions});
+  const _ConditionsSection({
+    required this.conditions,
+    this.onAddCondition,
+    this.onWillPauseForPicker,
+  });
+
   final List<ChronicCondition> conditions;
+  final Future<void> Function(ChronicCondition)? onAddCondition;
+  final VoidCallback? onWillPauseForPicker;
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     return _sectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(
-            icon: Symbols.history_rounded,
-            title: 'Pathologies chroniques',
-            badge: '${conditions.length}',
+          // Custom header row with optional "+ Ajouter" button
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary100,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: const Icon(Symbols.history_rounded,
+                      size: 20, color: AppColors.primary700),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text('Antécédents', style: tt.titleSmall),
+                if (conditions.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary100,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      '${conditions.length}',
+                      style: tt.bodySmall?.copyWith(
+                        color: AppColors.primary700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (onAddCondition != null)
+                  SizedBox(
+                    height: 30,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showAddConditionSheet(
+                        context,
+                        onAdd: onAddCondition!,
+                        onWillPauseForPicker: onWillPauseForPicker,
+                      ),
+                      icon: const Icon(Icons.add, size: 13),
+                      label: const Text('Ajouter'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary700,
+                        side: const BorderSide(color: AppColors.primary100),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        textStyle: const TextStyle(fontSize: 12),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          ...conditions.map((c) => _ConditionRow(condition: c)),
+          if (conditions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                'Aucune pathologie chronique renseignée.',
+                style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+              ),
+            )
+          else
+            ...conditions.map((c) => _ConditionRow(condition: c)),
         ],
       ),
     );
@@ -331,6 +777,7 @@ class _ConditionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final icd = condition.icd10;
+    final docCount = condition.documents.length;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm + 2),
@@ -344,9 +791,44 @@ class _ConditionRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(condition.name,
-                style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(condition.name,
+                    style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
+                if (condition.since != null && condition.since!.isNotEmpty)
+                  Text(
+                    'Depuis ${condition.since}',
+                    style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+                  ),
+              ],
+            ),
           ),
+          const SizedBox(width: AppSpacing.sm),
+          if (docCount > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Symbols.attach_file_rounded,
+                      size: 10, color: AppColors.neutral500),
+                  const SizedBox(width: 2),
+                  Text(
+                    '$docCount',
+                    style: tt.bodySmall?.copyWith(
+                        color: AppColors.neutral500,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+          ],
           if (icd != null && icd.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -638,6 +1120,20 @@ class _TimelineEntry extends StatelessWidget {
   }
 }
 
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+String _genUuid() {
+  final rng = Random.secure();
+  final b = List.generate(16, (_) => rng.nextInt(256));
+  b[6] = (b[6] & 0x0F) | 0x40;
+  b[8] = (b[8] & 0x3F) | 0x80;
+  String h(int v) => v.toRadixString(16).padLeft(2, '0');
+  return '${h(b[0])}${h(b[1])}${h(b[2])}${h(b[3])}-'
+      '${h(b[4])}${h(b[5])}-${h(b[6])}${h(b[7])}-'
+      '${h(b[8])}${h(b[9])}-'
+      '${h(b[10])}${h(b[11])}${h(b[12])}${h(b[13])}${h(b[14])}${h(b[15])}';
+}
+
 // ─── Consultation detail sheet ────────────────────────────────────────────────
 
 void _showConsultationSheet(
@@ -698,18 +1194,6 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
 
   static String _resolveAndroid(String url) =>
       Platform.isAndroid ? url.replaceFirst('localhost', '10.0.2.2') : url;
-
-  static String _genUuid() {
-    final rng = Random.secure();
-    final b = List.generate(16, (_) => rng.nextInt(256));
-    b[6] = (b[6] & 0x0F) | 0x40;
-    b[8] = (b[8] & 0x3F) | 0x80;
-    String h(int v) => v.toRadixString(16).padLeft(2, '0');
-    return '${h(b[0])}${h(b[1])}${h(b[2])}${h(b[3])}-'
-        '${h(b[4])}${h(b[5])}-${h(b[6])}${h(b[7])}-'
-        '${h(b[8])}${h(b[9])}-'
-        '${h(b[10])}${h(b[11])}${h(b[12])}${h(b[13])}${h(b[14])}${h(b[15])}';
-  }
 
   Future<void> _pickAndAttach(ImageSource source) async {
     final picker = ImagePicker();

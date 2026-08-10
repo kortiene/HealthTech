@@ -122,6 +122,18 @@ class _MainShellState extends State<MainShell> {
                 return widget.onUpdateRecord!(updated);
               }
             : null,
+        onAddCondition: widget.onUpdateRecord != null
+            ? (condition) {
+                final updated = widget.record.copyWith(
+                  chronicConditions: [
+                    ...widget.record.chronicConditions,
+                    condition,
+                  ],
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
       ),
       SettingsScreen(
         record: widget.record,

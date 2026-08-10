@@ -137,13 +137,19 @@ class ChronicCondition {
     required this.name,
     this.icd10,
     this.since,
+    this.documents = const [],
   });
 
   factory ChronicCondition.fromJson(Map<String, Object?> json) {
+    final rawDocs = json['documents'] as List<Object?>?;
     return ChronicCondition(
       name: json['name'] as String,
       icd10: json['icd10'] as String?,
       since: json['since'] as String?,
+      documents: rawDocs
+              ?.map((e) => MediaDescriptor.fromJson(e as Map<String, Object?>))
+              .toList() ??
+          const [],
     );
   }
 
@@ -153,10 +159,23 @@ class ChronicCondition {
   /// Year string (e.g. `"2020"`).
   final String? since;
 
+  /// Encrypted justificatifs (e.g. ordonnance scan). Same local-first pattern
+  /// as Consultation.media: bytes live at file:// on-device, synced on QR share.
+  final List<MediaDescriptor> documents;
+
+  ChronicCondition copyWithDocument(MediaDescriptor d) => ChronicCondition(
+        name: name,
+        icd10: icd10,
+        since: since,
+        documents: [...documents, d],
+      );
+
   Map<String, Object?> toJson() => {
         'name': name,
         if (icd10 != null) 'icd10': icd10,
         if (since != null) 'since': since,
+        if (documents.isNotEmpty)
+          'documents': documents.map((d) => d.toJson()).toList(),
       };
 
   @override
@@ -164,10 +183,12 @@ class ChronicCondition {
       other is ChronicCondition &&
       other.name == name &&
       other.icd10 == icd10 &&
-      other.since == since;
+      other.since == since &&
+      _listEq(other.documents, documents);
 
   @override
-  int get hashCode => Object.hash(name, icd10, since);
+  int get hashCode =>
+      Object.hash(name, icd10, since, Object.hashAll(documents));
 }
 
 class Medication {
