@@ -390,33 +390,27 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     }
   }
 
-  // Called when the patient closes the QR screen — re-fetches from the backend
-  // so any consultation the doctor just wrote is immediately visible, then
-  // re-encrypts with the master key to take back ownership from the session-key blob.
   Future<void> _onQrClosed() async {
+    final savedRecord = _record;
+    if (savedRecord == null || _account == null) return;
     final handle = await _masterKey.unsealForUse();
     try {
-      final updated = await _recordStore.read(
-        handle,
-        _account!.anonymousUuid,
-        forceCloud: true,
-      );
-      // Update UI immediately — don't let a write failure block the display.
-      if (mounted) setState(() => _record = updated);
-      // Re-encrypt with master key — takes back ownership from session-key blob.
+      // Re-encrypt with master key to restore the canonical blob on the backend.
+      // During QR generation AccessTokenService uploaded a session-key-encrypted
+      // blob; this write takes back ownership so subsequent reads and new-device
+      // restores always get the master-key version with file:// media intact.
+      // We do NOT attempt forceCloud: in production the session blob is
+      // AES-GCM-encrypted with the ephemeral session key (DecryptError with the
+      // master key); in dev the XOR-0x5A stub is symmetric and would silently
+      // return the sanitised record (url: null), permanently losing file:// URLs.
       try {
-        await _recordStore.write(updated, handle, _account!.anonymousUuid);
+        await _recordStore.write(savedRecord, handle, _account!.anonymousUuid);
         final now = DateTime.now().toUtc().toIso8601String();
         await _storage.write(key: _kLastSyncKey, value: now);
         if (mounted) setState(() => _lastSyncedAt = now);
       } on BackendUnavailable {
-        // Offline — local write already happened inside write(); cloud retry later.
+        // Offline — local record intact; cloud sync will restore on next connect.
       }
-    } on BackendUnavailable {
-      // offline — keep existing record
-    } catch (e, st) {
-      // ignore: avoid_print
-      print('[_onQrClosed] ERROR: $e\n$st');
     } finally {
       await _masterKey.wipeHandle(handle);
     }

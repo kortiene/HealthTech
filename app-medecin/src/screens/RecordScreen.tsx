@@ -4,6 +4,7 @@ import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
 import { SectionCard } from "../components/SectionCard";
 import { SnackBar, type SnackBarTone } from "../components/SnackBar";
+import { Spinner } from "../components/Spinner";
 import { SyncBadge } from "../components/SyncBadge";
 import { TerminateButton } from "../components/TerminateButton";
 import { IDLE_TIMEOUT_MS, WARN_BEFORE_MS, formatCountdown } from "../session";
@@ -13,6 +14,7 @@ import {
   type ChronicCondition,
   type Consultation,
   type MedicalRecord,
+  type MediaDescriptor,
   type Medication,
 } from "../stubs/data";
 import { TerminatingOverlay } from "./TerminatingOverlay";
@@ -25,6 +27,8 @@ interface RecordScreenProps {
   onSynced: () => void;
   onAddNote: () => void;
   onTerminated: () => void;
+  /** Backend origin used to fetch image media at /media/{uuid} (XOR-0x5A in dev). */
+  backendUrl?: string;
 }
 
 // ─── Patient hero banner ──────────────────────────────────────────────────────
@@ -248,12 +252,82 @@ function MedicationCard({ med }: { med: Medication }) {
   );
 }
 
+// ─── Media image strip (justificatifs) ───────────────────────────────────────
+
+function MediaImageTile({ media, backendUrl }: { media: MediaDescriptor; backendUrl: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const blobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${backendUrl}/media/${media.mediaId}`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+      .then((buf) => {
+        if (!active) return;
+        const bytes = new Uint8Array(buf);
+        const dec = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) dec[i] = bytes[i] ^ 0x5a;
+        const blob = new Blob([dec], { type: media.mime || "image/jpeg" });
+        const url = URL.createObjectURL(blob);
+        blobRef.current = url;
+        setObjectUrl(url);
+      })
+      .catch(() => { if (active) setFailed(true); });
+    return () => {
+      active = false;
+      if (blobRef.current) { URL.revokeObjectURL(blobRef.current); blobRef.current = null; }
+    };
+  }, [backendUrl, media.mediaId, media.mime]);
+
+  const tileStyle = {
+    width: 72,
+    height: 72,
+    borderRadius: "var(--radius-sm)",
+    flexShrink: 0,
+    overflow: "hidden" as const,
+    background: "var(--color-neutral-100)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  if (failed) {
+    return (
+      <div style={tileStyle}>
+        <Icon name="broken_image" size={24} color="var(--color-neutral-400)" />
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return (
+      <div style={tileStyle}>
+        <Spinner size={20} color="var(--color-neutral-400)" />
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{ ...tileStyle, cursor: "pointer" }}
+      onClick={() => window.open(objectUrl, "_blank")}
+    >
+      <img
+        src={objectUrl}
+        alt="justificatif"
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
+  );
+}
+
 // ─── Consultations timeline ───────────────────────────────────────────────────
 
 function ConsultationTimeline({
   consultations,
+  backendUrl,
 }: {
   consultations: Consultation[];
+  backendUrl?: string;
 }) {
   const sorted = [...consultations].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -419,6 +493,22 @@ function ConsultationTimeline({
                 </p>
               </div>
             )}
+            {backendUrl && c.media?.some((m) => m.mime.startsWith("image/")) && (
+              <div
+                style={{
+                  marginTop: "var(--space-xs)",
+                  display: "flex",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                {c.media
+                  .filter((m) => m.mime.startsWith("image/"))
+                  .map((m) => (
+                    <MediaImageTile key={m.mediaId} media={m} backendUrl={backendUrl} />
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -514,6 +604,7 @@ export function RecordScreen({
   onSynced,
   onAddNote,
   onTerminated,
+  backendUrl,
 }: RecordScreenProps) {
   const record = recordProp ?? previewRecord;
   const [isSyncing, setIsSyncing] = useState(false);
@@ -674,7 +765,7 @@ export function RecordScreen({
         )}
 
         {record.consultations.length > 0 && (
-          <ConsultationTimeline consultations={record.consultations} />
+          <ConsultationTimeline consultations={record.consultations} backendUrl={backendUrl} />
         )}
       </main>
 
