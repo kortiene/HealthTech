@@ -27,6 +27,7 @@ class PatientRecordScreen extends StatelessWidget {
     this.onWillPauseForPicker,
     this.onTreatmentStatusChanged,
     this.onMediaAttached,
+    this.onRemoveConsultationMedia,
     this.onAddCondition,
     this.onUpdateCondition,
   });
@@ -52,6 +53,11 @@ class PatientRecordScreen extends StatelessWidget {
   /// Args: (consultationId, descriptor). Caller persists the record update.
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+
+  /// Called when the patient removes a media item from a consultation.
+  /// Args: (consultationId, descriptor). Caller removes it from the record.
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveConsultationMedia;
 
   /// Called when the patient adds a new chronic condition (#115).
   /// Caller persists the record update.
@@ -122,6 +128,7 @@ class PatientRecordScreen extends StatelessWidget {
                     backendUrl: backendUrl,
                     onWillPauseForPicker: onWillPauseForPicker,
                     onMediaAttached: onMediaAttached,
+                    onRemoveMedia: onRemoveConsultationMedia,
                   ),
                 const SizedBox(height: 100),
               ]),
@@ -607,6 +614,7 @@ void _showConditionDetailSheet(
   String? backendUrl,
   VoidCallback? onWillPauseForPicker,
   Future<void> Function(MediaDescriptor)? onAddDocument,
+  Future<void> Function(MediaDescriptor)? onRemoveDocument,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -620,6 +628,7 @@ void _showConditionDetailSheet(
       backendUrl: backendUrl,
       onWillPauseForPicker: onWillPauseForPicker,
       onAddDocument: onAddDocument,
+      onRemoveDocument: onRemoveDocument,
     ),
   );
 }
@@ -630,6 +639,7 @@ class _ConditionDetailSheet extends StatefulWidget {
     this.backendUrl,
     this.onWillPauseForPicker,
     this.onAddDocument,
+    this.onRemoveDocument,
   });
 
   final ChronicCondition condition;
@@ -638,6 +648,10 @@ class _ConditionDetailSheet extends StatefulWidget {
 
   /// Called after saving a new document to disk. Caller persists the record.
   final Future<void> Function(MediaDescriptor)? onAddDocument;
+
+  /// Called when the patient deletes a persisted document. Caller removes it
+  /// from the record and persists. Null = delete button hidden.
+  final Future<void> Function(MediaDescriptor)? onRemoveDocument;
 
   @override
   State<_ConditionDetailSheet> createState() => _ConditionDetailSheetState();
@@ -649,9 +663,25 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
 
   // Optimistic: descriptors added this session, not yet in widget.condition.documents
   final List<MediaDescriptor> _localDocs = [];
+  // Optimistic: UUIDs removed this session, pending parent record update
+  final Set<String> _removedUuids = {};
 
-  List<MediaDescriptor> get _allDocs =>
-      [...widget.condition.documents, ..._localDocs];
+  List<MediaDescriptor> get _allDocs => [
+        ...widget.condition.documents
+            .where((d) => !_removedUuids.contains(d.uuid)),
+        ..._localDocs,
+      ];
+
+  Future<void> _handleDeleteDoc(MediaDescriptor desc) async {
+    // Local-only doc (added this session) — just remove from local list.
+    if (_localDocs.remove(desc)) {
+      setState(() {});
+      return;
+    }
+    // Persisted doc — optimistic UI removal + delegate to parent.
+    setState(() => _removedUuids.add(desc.uuid));
+    await widget.onRemoveDocument?.call(desc);
+  }
 
   Future<void> _pickAndAttach(ImageSource source) async {
     final picker = ImagePicker();
@@ -880,6 +910,9 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
             _ImageStrip(
               images: docs,
               backendUrl: widget.backendUrl ?? '',
+              onDelete: (canAttach || widget.onRemoveDocument != null)
+                  ? _handleDeleteDoc
+                  : null,
             ),
             const SizedBox(height: AppSpacing.md),
           ] else if (!canAttach)
@@ -1123,6 +1156,19 @@ class _ConditionsSection extends StatelessWidget {
                       ? (descriptor) =>
                           onUpdateCondition!(i, c.copyWithDocument(descriptor))
                       : null,
+                  onRemoveDocument: onUpdateCondition != null
+                      ? (descriptor) {
+                          final updated = ChronicCondition(
+                            name: c.name,
+                            icd10: c.icd10,
+                            since: c.since,
+                            documents: c.documents
+                                .where((d) => d.uuid != descriptor.uuid)
+                                .toList(),
+                          );
+                          return onUpdateCondition!(i, updated);
+                        }
+                      : null,
                 ),
               );
             }),
@@ -1332,6 +1378,7 @@ class _ConsultationsSection extends StatelessWidget {
     this.backendUrl,
     this.onWillPauseForPicker,
     this.onMediaAttached,
+    this.onRemoveMedia,
   });
 
   final List<Consultation> consultations;
@@ -1339,6 +1386,8 @@ class _ConsultationsSection extends StatelessWidget {
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveMedia;
 
   @override
   Widget build(BuildContext context) {
@@ -1369,6 +1418,7 @@ class _ConsultationsSection extends StatelessWidget {
                 backendUrl: backendUrl,
                 onWillPauseForPicker: onWillPauseForPicker,
                 onMediaAttached: onMediaAttached,
+                onRemoveMedia: onRemoveMedia,
               ),
             ),
           ),
@@ -1529,6 +1579,7 @@ void _showConsultationSheet(
   VoidCallback? onWillPauseForPicker,
   Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached,
+  Future<void> Function(String consultationId, MediaDescriptor)? onRemoveMedia,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -1542,6 +1593,7 @@ void _showConsultationSheet(
       backendUrl: backendUrl,
       onWillPauseForPicker: onWillPauseForPicker,
       onMediaAttached: onMediaAttached,
+      onRemoveMedia: onRemoveMedia,
     ),
   );
 }
@@ -1552,6 +1604,7 @@ class _ConsultationSheet extends StatefulWidget {
     this.backendUrl,
     this.onWillPauseForPicker,
     this.onMediaAttached,
+    this.onRemoveMedia,
   });
 
   final Consultation consultation;
@@ -1559,6 +1612,10 @@ class _ConsultationSheet extends StatefulWidget {
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+
+  /// Called when the patient removes a media item from a consultation.
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveMedia;
 
   @override
   State<_ConsultationSheet> createState() => _ConsultationSheetState();
@@ -1572,11 +1629,26 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
 
   // Optimistic: descriptors added this session, not yet in widget.consultation.media
   final List<MediaDescriptor> _localMedia = [];
+  // Optimistic: UUIDs removed this session, pending parent record update
+  final Set<String> _removedMediaUuids = {};
 
   List<MediaDescriptor> get _allImages => [
-        ...widget.consultation.media.where((m) => m.mime.startsWith('image/')),
+        ...widget.consultation.media.where(
+          (m) =>
+              m.mime.startsWith('image/') &&
+              !_removedMediaUuids.contains(m.uuid),
+        ),
         ..._localMedia,
       ];
+
+  Future<void> _handleDeleteMedia(MediaDescriptor desc) async {
+    if (_localMedia.remove(desc)) {
+      setState(() {});
+      return;
+    }
+    setState(() => _removedMediaUuids.add(desc.uuid));
+    await widget.onRemoveMedia?.call(widget.consultation.id, desc);
+  }
 
   static String _resolveAndroid(String url) =>
       Platform.isAndroid ? url.replaceFirst('localhost', '10.0.2.2') : url;
@@ -1890,6 +1962,8 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
             _ImageStrip(
               images: images,
               backendUrl: _resolveAndroid(widget.backendUrl ?? ''),
+              onDelete:
+                  widget.onRemoveMedia != null ? _handleDeleteMedia : null,
             ),
           ],
           // ── Attach button ───────────────────────────────────────────────────
@@ -2495,24 +2569,32 @@ class _OrdonnanceLineCard extends StatelessWidget {
 // ── Image strip (#117) ────────────────────────────────────────────────────────
 
 class _ImageStrip extends StatelessWidget {
-  const _ImageStrip({required this.images, required this.backendUrl});
+  const _ImageStrip({
+    required this.images,
+    required this.backendUrl,
+    this.onDelete,
+  });
 
   final List<MediaDescriptor> images;
   final String backendUrl;
 
+  /// Called when the user taps the delete button on a tile. Null = no button.
+  final void Function(MediaDescriptor)? onDelete;
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, i) => _DecryptedImageTile(
-          media: images[i],
-          backendUrl: backendUrl,
-        ),
-      ),
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final img in images)
+          _DecryptedImageTile(
+            key: ValueKey(img.uuid),
+            media: img,
+            backendUrl: backendUrl,
+            onDelete: onDelete != null ? () => onDelete!(img) : null,
+          ),
+      ],
     );
   }
 }
@@ -2520,10 +2602,18 @@ class _ImageStrip extends StatelessWidget {
 // Fetches + XOR-0x5A decrypts one image and displays it as a tappable thumbnail.
 // Dev stub — TODO(#102): replace XOR with MediaCipher(FrbCryptoCore).decrypt().
 class _DecryptedImageTile extends StatefulWidget {
-  const _DecryptedImageTile({required this.media, required this.backendUrl});
+  const _DecryptedImageTile({
+    super.key,
+    required this.media,
+    required this.backendUrl,
+    this.onDelete,
+  });
 
   final MediaDescriptor media;
   final String backendUrl;
+
+  /// Called when the patient taps the ✕ badge. Null = no badge shown.
+  final VoidCallback? onDelete;
 
   @override
   State<_DecryptedImageTile> createState() => _DecryptedImageTileState();
@@ -2583,31 +2673,68 @@ class _DecryptedImageTileState extends State<_DecryptedImageTile> {
     return SizedBox(
       width: 96,
       height: 96,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-        child: Material(
-          color: AppColors.neutral100,
-          child: InkWell(
-            onTap: _bytes != null
-                ? () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _ImageFullScreenPage(bytes: _bytes!),
-                      ),
-                    )
-                : null,
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.primary700),
-                  )
-                : _error != null
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Material(
+              color: AppColors.neutral100,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                onTap: _bytes != null
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                _ImageFullScreenPage(bytes: _bytes!),
+                          ),
+                        )
+                    : null,
+                child: _loading
                     ? const Center(
-                        child: Icon(Icons.broken_image_rounded,
-                            color: AppColors.neutral500),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary700),
                       )
-                    : Image.memory(_bytes!, fit: BoxFit.cover),
+                    : _error != null
+                        ? const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.broken_image_rounded,
+                                    color: AppColors.neutral500, size: 28),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Erreur',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.neutral500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Image.memory(_bytes!, fit: BoxFit.cover),
+              ),
+            ),
           ),
-        ),
+          if (widget.onDelete != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: widget.onDelete,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(160),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 13, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

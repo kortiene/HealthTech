@@ -125,6 +125,32 @@ class _MainShellState extends State<MainShell> {
                 return widget.onUpdateRecord!(updated);
               }
             : null,
+        onRemoveConsultationMedia: widget.onUpdateRecord != null
+            ? (consultationId, descriptor) {
+                final updated = widget.record.copyWith(
+                  consultations: widget.record.consultations
+                      .map(
+                        (c) => c.id == consultationId
+                            ? Consultation(
+                                id: c.id,
+                                date: c.date,
+                                practitionerRef: c.practitionerRef,
+                                summary: c.summary,
+                                prescription: c.prescription,
+                                ordonnances: c.ordonnances,
+                                imageUrls: c.imageUrls,
+                                media: c.media
+                                    .where((m) => m.uuid != descriptor.uuid)
+                                    .toList(),
+                              )
+                            : c,
+                      )
+                      .toList(),
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
         onAddCondition: widget.onUpdateRecord != null
             ? (condition) {
                 final updated = widget.record.copyWith(
