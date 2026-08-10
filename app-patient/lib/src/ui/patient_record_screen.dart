@@ -24,6 +24,7 @@ class PatientRecordScreen extends StatelessWidget {
     required this.account,
     required this.onShowQr,
     this.backendUrl,
+    this.onWillPauseForPicker,
     this.onTreatmentStatusChanged,
     this.onMediaAttached,
   });
@@ -35,6 +36,10 @@ class PatientRecordScreen extends StatelessWidget {
   /// Backend base URL for media upload/download (#117). Null disables the
   /// attach button (read-only mode or no connectivity config).
   final String? backendUrl;
+
+  /// Called just before image_picker opens the camera/gallery so the root
+  /// lifecycle observer can suppress the automatic lock-on-resume (#117).
+  final VoidCallback? onWillPauseForPicker;
 
   /// Called when the patient closes a treatment.
   /// Args: (id, 'completed' | 'discontinued', endedAt ISO date).
@@ -97,6 +102,7 @@ class PatientRecordScreen extends StatelessWidget {
                   _ConsultationsSection(
                     consultations: record.consultations,
                     backendUrl: backendUrl,
+                    onWillPauseForPicker: onWillPauseForPicker,
                     onMediaAttached: onMediaAttached,
                   ),
                 const SizedBox(height: 100),
@@ -456,11 +462,13 @@ class _ConsultationsSection extends StatelessWidget {
   const _ConsultationsSection({
     required this.consultations,
     this.backendUrl,
+    this.onWillPauseForPicker,
     this.onMediaAttached,
   });
 
   final List<Consultation> consultations;
   final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
 
@@ -491,6 +499,7 @@ class _ConsultationsSection extends StatelessWidget {
                 context,
                 sorted[i],
                 backendUrl: backendUrl,
+                onWillPauseForPicker: onWillPauseForPicker,
                 onMediaAttached: onMediaAttached,
               ),
             ),
@@ -635,6 +644,7 @@ void _showConsultationSheet(
   BuildContext context,
   Consultation consultation, {
   String? backendUrl,
+  VoidCallback? onWillPauseForPicker,
   Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached,
 }) {
@@ -648,6 +658,7 @@ void _showConsultationSheet(
     builder: (_) => _ConsultationSheet(
       consultation: consultation,
       backendUrl: backendUrl,
+      onWillPauseForPicker: onWillPauseForPicker,
       onMediaAttached: onMediaAttached,
     ),
   );
@@ -657,11 +668,13 @@ class _ConsultationSheet extends StatefulWidget {
   const _ConsultationSheet({
     required this.consultation,
     this.backendUrl,
+    this.onWillPauseForPicker,
     this.onMediaAttached,
   });
 
   final Consultation consultation;
   final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
 
@@ -706,6 +719,9 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
         _uploadStatus = _UploadStatus.picking;
         _uploadError = null;
       });
+      // Notify root observer: the next pause/resume cycle is image_picker,
+      // not a user-initiated app switch — do NOT lock.
+      widget.onWillPauseForPicker?.call();
       picked = await picker.pickImage(
           source: source, imageQuality: 80, maxWidth: 1920);
     } catch (e) {

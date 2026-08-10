@@ -22,6 +22,7 @@ class MainShell extends StatefulWidget {
     required this.scanService,
     required this.onLock,
     this.backendUrl,
+    this.onWillPauseForPicker,
     this.onUpdateRecord,
     this.onQrClosed,
     this.storedPin,
@@ -39,6 +40,7 @@ class MainShell extends StatefulWidget {
   final ScanService scanService;
   final VoidCallback onLock;
   final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(MedicalRecord)? onUpdateRecord;
   final Future<void> Function()? onQrClosed;
   final String? storedPin;
@@ -89,6 +91,7 @@ class _MainShellState extends State<MainShell> {
         account: widget.account,
         onShowQr: _showQr,
         backendUrl: widget.backendUrl,
+        onWillPauseForPicker: widget.onWillPauseForPicker,
         onTreatmentStatusChanged: widget.onUpdateRecord != null
             ? (id, status, endedAt) {
                 final updated = widget.record.copyWith(
