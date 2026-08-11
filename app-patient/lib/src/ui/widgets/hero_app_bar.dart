@@ -15,8 +15,10 @@ class PatientHeroAppBar extends StatelessWidget {
     this.account,
     this.showGreeting = false,
     this.actions,
-    this.expandedHeight = 200,
+    this.expandedHeight = 220,
     this.showAllergie = true,
+    this.bottom,
+    this.stretch = true,
   });
 
   final MedicalRecord record;
@@ -26,6 +28,8 @@ class PatientHeroAppBar extends StatelessWidget {
   final List<Widget>? actions;
   final double expandedHeight;
   final bool showAllergie;
+  final PreferredSizeWidget? bottom;
+  final bool stretch;
 
   String get _greeting {
     final h = TimeOfDay.now().hour;
@@ -43,7 +47,7 @@ class PatientHeroAppBar extends StatelessWidget {
     return SliverAppBar(
       expandedHeight: expandedHeight,
       pinned: true,
-      stretch: true,
+      stretch: stretch,
       backgroundColor: AppColors.primary900,
       foregroundColor: AppColors.white,
       surfaceTintColor: Colors.transparent,
@@ -57,13 +61,15 @@ class PatientHeroAppBar extends StatelessWidget {
             ?.copyWith(color: AppColors.white),
       ),
       actions: actions,
+      bottom: bottom,
       flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [StretchMode.zoomBackground],
+        stretchModes: stretch ? const [StretchMode.zoomBackground] : const [],
         background: _HeroBackground(
           record: record,
           account: account,
           displayName: displayName,
           showAllergie: showAllergie,
+          bottomInset: bottom?.preferredSize.height ?? 0,
         ),
       ),
     );
@@ -76,12 +82,14 @@ class _HeroBackground extends StatelessWidget {
     required this.displayName,
     this.account,
     required this.showAllergie,
+    this.bottomInset = 0,
   });
 
   final MedicalRecord record;
   final PatientAccount? account;
   final String displayName;
   final bool showAllergie;
+  final double bottomInset;
 
   String get _name => record.demographics.givenName ?? 'Patient';
 
@@ -100,6 +108,11 @@ class _HeroBackground extends StatelessWidget {
 
   List<Allergy> get _severeAllergies =>
       record.allergies.where((a) => a.severity == 'severe').toList();
+
+  String get _allergyChipLabel {
+    if (record.allergies.length == 1) return record.allergies.first.substance;
+    return '${record.allergies.length} allergies';
+  }
 
   String _bodyLabel(Demographics d) {
     final parts = <String>[];
@@ -126,8 +139,8 @@ class _HeroBackground extends StatelessWidget {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, 56, AppSpacing.md, AppSpacing.md),
+          padding: EdgeInsets.fromLTRB(
+              AppSpacing.md, 56, AppSpacing.md, AppSpacing.md + bottomInset),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.end,
@@ -205,17 +218,12 @@ class _HeroBackground extends StatelessWidget {
                       label: 'CMU ✓',
                       success: true,
                     ),
-                  if (_severeAllergies.isNotEmpty && showAllergie)
+                  if (record.allergies.isNotEmpty && showAllergie)
                     HeroStat(
                       icon: Symbols.warning_rounded,
-                      label: _severeAllergies.length == 1
-                          ? _severeAllergies.first.substance
-                          : '${_severeAllergies.length} allergies sévères',
-                      warning: true,
-                      onTap: _severeAllergies.length > 1
-                          ? () =>
-                              _showSevereAllergySheet(context, _severeAllergies)
-                          : null,
+                      label: _allergyChipLabel,
+                      warning: _severeAllergies.isNotEmpty,
+                      onTap: () => _showAllergySheet(context, record.allergies),
                     ),
                 ],
               ),
@@ -227,33 +235,39 @@ class _HeroBackground extends StatelessWidget {
   }
 }
 
-void _showSevereAllergySheet(BuildContext context, List<Allergy> allergies) {
+void _showAllergySheet(BuildContext context, List<Allergy> allergies) {
+  // Severe allergies first, then alphabetical.
+  final sorted = [...allergies]..sort((a, b) {
+      if (a.severity == 'severe' && b.severity != 'severe') return -1;
+      if (b.severity == 'severe' && a.severity != 'severe') return 1;
+      return a.substance.compareTo(b.substance);
+    });
   showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
     ),
-    builder: (_) => _SevereAllergySheet(allergies: allergies),
+    builder: (_) => _AllergySheet(allergies: sorted),
   );
 }
 
-// ── Bottom sheet allergies sévères ────────────────────────────────────────────
+// ── Bottom sheet — toutes les allergies ───────────────────────────────────────
 
-class _SevereAllergySheet extends StatelessWidget {
-  const _SevereAllergySheet({required this.allergies});
+class _AllergySheet extends StatelessWidget {
+  const _AllergySheet({required this.allergies});
   final List<Allergy> allergies;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final severeCount = allergies.where((a) => a.severity == 'severe').length;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // drag handle
           Center(
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -285,11 +299,13 @@ class _SevereAllergySheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Allergies sévères',
+                      Text('Allergies',
                           style: tt.titleSmall
                               ?.copyWith(color: AppColors.neutral900)),
                       Text(
-                        '${allergies.length} substances à risque élevé',
+                        severeCount > 0
+                            ? '${allergies.length} au total · $severeCount sévère(s)'
+                            : '${allergies.length} substance(s) recensée(s)',
                         style:
                             tt.bodySmall?.copyWith(color: AppColors.neutral500),
                       ),
@@ -300,7 +316,6 @@ class _SevereAllergySheet extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: AppColors.neutral100),
-          // list — no scrolling needed, unlikely to overflow
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
@@ -318,8 +333,10 @@ class _SevereAllergySheet extends StatelessWidget {
                             width: 8,
                             height: 8,
                             margin: const EdgeInsets.only(right: AppSpacing.sm),
-                            decoration: const BoxDecoration(
-                              color: AppColors.error,
+                            decoration: BoxDecoration(
+                              color: a.severity == 'severe'
+                                  ? AppColors.error
+                                  : AppColors.neutral500,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -330,22 +347,7 @@ class _SevereAllergySheet extends StatelessWidget {
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withAlpha(15),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: Text(
-                              'Sévère',
-                              style: tt.labelSmall?.copyWith(
-                                color: AppColors.error,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                          _SeverityBadge(severity: a.severity),
                         ],
                       ),
                     ),
@@ -354,6 +356,46 @@ class _SevereAllergySheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SeverityBadge extends StatelessWidget {
+  const _SeverityBadge({required this.severity});
+  final String severity;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    final String label;
+    switch (severity) {
+      case 'severe':
+        bg = AppColors.error.withAlpha(15);
+        fg = AppColors.error;
+        label = 'Sévère';
+      case 'moderate':
+        bg = AppColors.warning.withAlpha(15);
+        fg = AppColors.warning;
+        label = 'Modérée';
+      default:
+        bg = AppColors.neutral100;
+        fg = AppColors.neutral500;
+        label = 'Légère';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

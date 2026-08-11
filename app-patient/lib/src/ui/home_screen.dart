@@ -14,6 +14,7 @@ class HomeScreen extends StatelessWidget {
     required this.onShowQr,
     required this.onScan,
     this.lastSyncedAt,
+    this.onEditProfile,
   });
 
   final MedicalRecord record;
@@ -21,6 +22,10 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onShowQr;
   final VoidCallback onScan;
   final String? lastSyncedAt;
+  final VoidCallback? onEditProfile;
+
+  bool get _isProfileEmpty =>
+      (record.demographics.givenName ?? '').trim().isEmpty;
 
   Consultation? get _lastConsultation {
     if (record.consultations.isEmpty) return null;
@@ -52,6 +57,10 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                if (_isProfileEmpty && onEditProfile != null) ...[
+                  _OnboardingCard(onTap: onEditProfile!),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 _PrimaryAction(onTap: onShowQr),
                 const SizedBox(height: AppSpacing.md),
                 if (last != null) ...[
@@ -70,6 +79,66 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Onboarding — profil vide ─────────────────────────────────────────────────
+
+class _OnboardingCard extends StatelessWidget {
+  const _OnboardingCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Material(
+      color: AppColors.primary100,
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary700.withAlpha(20),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: const Icon(Symbols.assignment_ind_rounded,
+                    color: AppColors.primary700, size: 24),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Complétez votre profil médical',
+                      style:
+                          tt.titleSmall?.copyWith(color: AppColors.primary900),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Ajoutez vos informations pour que votre médecin puisse prendre en charge votre dossier.',
+                      style:
+                          tt.bodyMedium?.copyWith(color: AppColors.primary700),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Icon(Symbols.arrow_forward_ios_rounded,
+                  size: 16, color: AppColors.primary700),
+            ],
+          ),
+        ),
       ),
     );
   }

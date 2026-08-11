@@ -69,77 +69,408 @@ class PatientRecordScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primary50,
-      body: CustomScrollView(
-        slivers: [
-          PatientHeroAppBar(
-            record: record,
-            account: account,
-            showAllergie: false,
-            collapsedTitle: 'Mon Dossier',
-            expandedHeight: 190,
-            actions: const [
-              Padding(
-                padding: EdgeInsets.only(right: AppSpacing.sm),
-                child: _SyncChip(),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: AppColors.primary50,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverOverlapAbsorber(
+              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+              sliver: PatientHeroAppBar(
+                record: record,
+                account: account,
+                showAllergie: false,
+                collapsedTitle: 'Mon Dossier',
+                expandedHeight: 238,
+                stretch: false,
+                bottom: TabBar(
+                  labelColor: AppColors.white,
+                  unselectedLabelColor: AppColors.white.withAlpha(140),
+                  indicatorColor: AppColors.white,
+                  indicatorWeight: 2,
+                  tabs: const [
+                    Tab(text: 'Suivi'),
+                    Tab(text: 'Antécédents'),
+                    Tab(text: 'Profil médical'),
+                  ],
+                ),
+                actions: const [
+                  Padding(
+                    padding: EdgeInsets.only(right: AppSpacing.sm),
+                    child: _SyncChip(),
+                  ),
+                ],
               ),
+            ),
+          ],
+          body: TabBarView(
+            children: [
+              _SuiviTab(
+                record: record,
+                onTreatmentStatusChanged: onTreatmentStatusChanged,
+                backendUrl: backendUrl,
+                onWillPauseForPicker: onWillPauseForPicker,
+                onMediaAttached: onMediaAttached,
+                onRemoveConsultationMedia: onRemoveConsultationMedia,
+              ),
+              _AntecedintsTab(
+                record: record,
+                backendUrl: backendUrl,
+                onAddCondition: onAddCondition,
+                onUpdateCondition: onUpdateCondition,
+                onWillPauseForPicker: onWillPauseForPicker,
+              ),
+              _ProfilTab(record: record),
             ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: onShowQr,
+          icon: const Icon(Symbols.qr_code_rounded),
+          label: const Text('Partager mon dossier'),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Tab: Suivi (traitements + consultations) ─────────────────────────────────
+
+class _SuiviTab extends StatelessWidget {
+  const _SuiviTab({
+    required this.record,
+    this.onTreatmentStatusChanged,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onMediaAttached,
+    this.onRemoveConsultationMedia,
+  });
+
+  final MedicalRecord record;
+  final void Function(String, String, String)? onTreatmentStatusChanged;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+  final Future<void> Function(String, MediaDescriptor)? onMediaAttached;
+  final Future<void> Function(String, MediaDescriptor)?
+      onRemoveConsultationMedia;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = record.medications.isEmpty &&
+        record.treatments.isEmpty &&
+        record.consultations.isEmpty;
+    return _TabScrollView(
+      children: isEmpty
+          ? [
+              const _EmptyTabPlaceholder(
+                icon: Symbols.medical_information_rounded,
+                message: 'Aucun suivi médical enregistré',
+              ),
+            ]
+          : [
+              if (record.medications.isNotEmpty) ...[
+                _MedicationsSection(medications: record.medications),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (record.treatments.isNotEmpty) ...[
+                _TreatmentsSection(
+                  record: record,
+                  onTreatmentStatusChanged: onTreatmentStatusChanged,
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (record.consultations.isNotEmpty)
+                _ConsultationsSection(
+                  consultations: record.consultations,
+                  backendUrl: backendUrl,
+                  onWillPauseForPicker: onWillPauseForPicker,
+                  onMediaAttached: onMediaAttached,
+                  onRemoveMedia: onRemoveConsultationMedia,
+                ),
+            ],
+    );
+  }
+}
+
+// ─── Tab: Antécédents (conditions chroniques) ────────────────────────────────
+
+class _AntecedintsTab extends StatelessWidget {
+  const _AntecedintsTab({
+    required this.record,
+    this.backendUrl,
+    this.onAddCondition,
+    this.onUpdateCondition,
+    this.onWillPauseForPicker,
+  });
+
+  final MedicalRecord record;
+  final String? backendUrl;
+  final Future<void> Function(ChronicCondition)? onAddCondition;
+  final Future<void> Function(int, ChronicCondition)? onUpdateCondition;
+  final VoidCallback? onWillPauseForPicker;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TabScrollView(
+      children: [
+        _ConditionsSection(
+          conditions: record.chronicConditions,
+          backendUrl: backendUrl,
+          onAddCondition: onAddCondition,
+          onUpdateCondition: onUpdateCondition,
+          onWillPauseForPicker: onWillPauseForPicker,
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Tab: Profil médical (allergies) ─────────────────────────────────────────
+
+class _ProfilTab extends StatelessWidget {
+  const _ProfilTab({required this.record});
+  final MedicalRecord record;
+
+  bool get _hasStableData {
+    final d = record.demographics;
+    return d.bloodType != null ||
+        d.heightCm != null ||
+        d.weightKg != null ||
+        d.bmi != null ||
+        d.birthYear != null ||
+        d.sex != null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = record.allergies.isEmpty && !_hasStableData;
+    return _TabScrollView(
+      children: isEmpty
+          ? [
+              const _EmptyTabPlaceholder(
+                icon: Symbols.health_and_safety_rounded,
+                message: 'Aucune donnée médicale enregistrée',
+              ),
+            ]
+          : [
+              if (_hasStableData) ...[
+                _MedicalStatsSection(demographics: record.demographics),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (record.allergies.isNotEmpty)
+                _AllergySection(allergies: record.allergies),
+            ],
+    );
+  }
+}
+
+// ─── Données médicales stables (onglet Profil médical) ───────────────────────
+
+class _MedicalStatsSection extends StatelessWidget {
+  const _MedicalStatsSection({required this.demographics});
+  final Demographics demographics;
+
+  String _bmiCategory(double bmi) {
+    if (bmi < 18.5) return 'Insuffisance pondérale';
+    if (bmi < 25.0) return 'Normal';
+    if (bmi < 30.0) return 'Surpoids';
+    return 'Obésité';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demographics;
+    final rows = <_StatRowData>[];
+
+    if (d.bloodType != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.water_drop_rounded,
+        iconColor: AppColors.error,
+        iconBg: AppColors.errorBg,
+        label: 'Groupe sanguin',
+        value: d.bloodType!,
+      ));
+    }
+    if (d.birthYear != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.cake_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Âge',
+        value: '${DateTime.now().year - d.birthYear!} ans',
+      ));
+    }
+    if (d.sex != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.person_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Sexe',
+        value: d.sex == 'M'
+            ? 'Homme'
+            : d.sex == 'F'
+                ? 'Femme'
+                : d.sex!,
+      ));
+    }
+    if (d.heightCm != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.height_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Taille',
+        value: '${d.heightCm} cm',
+      ));
+    }
+    if (d.weightKg != null) {
+      final kg = d.weightKg!;
+      rows.add(_StatRowData(
+        icon: Symbols.monitor_weight_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Poids',
+        value:
+            '${kg == kg.roundToDouble() ? kg.toInt() : kg.toStringAsFixed(1)} kg',
+      ));
+    }
+    if (d.bmi != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.calculate_rounded,
+        iconColor: AppColors.accent700,
+        iconBg: AppColors.accent100,
+        label: 'IMC',
+        value: '${d.bmi!.toStringAsFixed(1)} · ${_bmiCategory(d.bmi!)}',
+      ));
+    }
+
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(
+            icon: Symbols.medical_information_rounded,
+            title: 'Données médicales',
+          ),
+          ...rows.map((r) => _StatRow(data: r)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRowData {
+  const _StatRowData({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.label,
+    required this.value,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final String label;
+  final String value;
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.data});
+  final _StatRowData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: data.iconBg,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            child: Icon(data.icon, size: 16, color: data.iconColor),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              data.label,
+              style: tt.bodyMedium?.copyWith(color: AppColors.neutral500),
+            ),
+          ),
+          Text(
+            data.value,
+            style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Tab scroll view (NestedScrollView-aware) ────────────────────────────────
+
+class _TabScrollView extends StatelessWidget {
+  const _TabScrollView({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (ctx) => CustomScrollView(
+        slivers: [
+          SliverOverlapInjector(
+            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(ctx),
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              100,
+            ),
             sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // if (record.demographics.heightCm != null ||
-                //     record.demographics.weightKg != null) ...[
-                //   _DemographicsSection(demographics: record.demographics),
-                //   const SizedBox(height: AppSpacing.md),
-                // ],
-                if (record.allergies.isNotEmpty) ...[
-                  _AllergySection(allergies: record.allergies),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (record.chronicConditions.isNotEmpty ||
-                    onAddCondition != null) ...[
-                  _ConditionsSection(
-                    conditions: record.chronicConditions,
-                    backendUrl: backendUrl,
-                    onAddCondition: onAddCondition,
-                    onUpdateCondition: onUpdateCondition,
-                    onWillPauseForPicker: onWillPauseForPicker,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (record.medications.isNotEmpty) ...[
-                  _MedicationsSection(medications: record.medications),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (record.treatments.isNotEmpty) ...[
-                  _TreatmentsSection(
-                    record: record,
-                    onTreatmentStatusChanged: onTreatmentStatusChanged,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (record.consultations.isNotEmpty)
-                  _ConsultationsSection(
-                    consultations: record.consultations,
-                    backendUrl: backendUrl,
-                    onWillPauseForPicker: onWillPauseForPicker,
-                    onMediaAttached: onMediaAttached,
-                    onRemoveMedia: onRemoveConsultationMedia,
-                  ),
-                const SizedBox(height: 100),
-              ]),
+              delegate: SliverChildListDelegate(children),
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: onShowQr,
-        icon: const Icon(Symbols.qr_code_rounded),
-        label: const Text('Partager mon dossier'),
+    );
+  }
+}
+
+// ─── Empty tab placeholder ────────────────────────────────────────────────────
+
+class _EmptyTabPlaceholder extends StatelessWidget {
+  const _EmptyTabPlaceholder({
+    required this.icon,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: AppColors.neutral200),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            message,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: AppColors.neutral500),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

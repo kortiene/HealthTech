@@ -33,3 +33,7 @@ reason = "sqlx 0.7.4 — h2 integer overflow; fixed in sqlx 0.8.1. Upgrade defer
 [[IgnoredVulns]]
 id = "GHSA-frvp-7c67-39w9"
 reason = "@hono/node-server 1.19.14 — fixed in 2.0.5 (major version bump). adw_sdlc dev tooling only; not part of the patient data pipeline. Upgrade blocked by semver constraint; bump separately."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0253"
+reason = "lru 0.16.4 — transitive dep of aws-sdk-s3 (S3 media storage). aws-sdk-s3 v1.141.0 still pins lru <0.18; fix requires upstream AWS SDK update. lru is used only for S3 SDK internals (request caching), not in the AES-256-GCM crypto path. Revisit on next aws-sdk-s3 minor that lifts the lru constraint."
