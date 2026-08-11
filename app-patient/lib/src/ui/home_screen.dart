@@ -121,14 +121,14 @@ class _OnboardingCard extends StatelessWidget {
                   children: [
                     Text(
                       'Complétez votre profil médical',
-                      style: tt.titleSmall
-                          ?.copyWith(color: AppColors.primary900),
+                      style:
+                          tt.titleSmall?.copyWith(color: AppColors.primary900),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Ajoutez vos informations pour que votre médecin puisse prendre en charge votre dossier.',
-                      style: tt.bodyMedium
-                          ?.copyWith(color: AppColors.primary700),
+                      style:
+                          tt.bodyMedium?.copyWith(color: AppColors.primary700),
                     ),
                   ],
                 ),

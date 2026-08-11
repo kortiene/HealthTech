@@ -63,8 +63,7 @@ class PatientHeroAppBar extends StatelessWidget {
       actions: actions,
       bottom: bottom,
       flexibleSpace: FlexibleSpaceBar(
-        stretchModes:
-            stretch ? const [StretchMode.zoomBackground] : const [],
+        stretchModes: stretch ? const [StretchMode.zoomBackground] : const [],
         background: _HeroBackground(
           record: record,
           account: account,
