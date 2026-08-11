@@ -144,8 +144,9 @@ class _QrScreenState extends State<QrScreen> {
         } else {
           final answer = await _askShareMedia(count);
           if (!mounted) return;
-          if (answer == null)
+          if (answer == null) {
             return; // dialog dismissed — stay on mode selector
+          }
           shareMedia = answer;
         }
       }
