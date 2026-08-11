@@ -27,6 +27,7 @@ class QrScreen extends StatefulWidget {
     required this.controller,
     this.record,
     this.autoMode,
+    this.autoShareMedia = false,
   });
 
   final QrController controller;
@@ -39,6 +40,10 @@ class QrScreen extends StatefulWidget {
   /// Skips the mode selector and generates immediately with this mode.
   /// Intended for widget tests only.
   final QrMode? autoMode;
+
+  /// When true, justificatifs are always shared without asking consent.
+  /// Controlled by the "Partage automatique" toggle in Settings.
+  final bool autoShareMedia;
 
   @override
   State<QrScreen> createState() => _QrScreenState();
@@ -128,16 +133,21 @@ class _QrScreenState extends State<QrScreen> {
       );
 
   Future<void> _generate(QrMode mode) async {
-    // Detect pending local media and ask the patient before uploading.
     bool shareMedia = false;
     final rec = widget.record;
     if (rec != null) {
       final count = _countPendingMedia(rec);
       if (count > 0) {
-        final answer = await _askShareMedia(count);
-        if (!mounted) return;
-        if (answer == null) return; // dialog dismissed — stay on mode selector
-        shareMedia = answer;
+        if (widget.autoShareMedia) {
+          // Patient configured auto-share in Settings — no dialog needed.
+          shareMedia = true;
+        } else {
+          final answer = await _askShareMedia(count);
+          if (!mounted) return;
+          if (answer == null)
+            return; // dialog dismissed — stay on mode selector
+          shareMedia = answer;
+        }
       }
     }
     await _doGenerate(mode, shareMedia: shareMedia);

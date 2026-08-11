@@ -225,7 +225,7 @@ class AccessTokenService {
         await _flushPendingMedia(pending, _mediaClient);
       }
     }
-    qrRecord = _sanitiseFileUrls(record);
+    qrRecord = _sanitiseFileUrls(record, removeDescriptors: !shareMedia);
 
     // 5. Re-encrypt sanitised record with session key — doctor will decrypt with this key.
     final plaintext = Uint8List.fromList(qrRecord.toUtf8Bytes());
@@ -276,31 +276,42 @@ class AccessTokenService {
     }
   }
 
-  /// Returns a copy of [record] with all `file://` URLs stripped to null.
+  /// Returns a copy of [record] with all `file://` descriptors handled.
   ///
-  /// Stripping is unconditional: whether or not bytes were uploaded, the QR
-  /// payload must never contain local device paths (they are meaningless outside
-  /// the patient's phone and could leak the internal file layout).
-  MedicalRecord _sanitiseFileUrls(MedicalRecord record) {
-    MediaDescriptor strip(MediaDescriptor d) {
-      if (!(d.url?.startsWith('file://') ?? false)) return d;
-      return MediaDescriptor(
-        uuid: d.uuid,
-        contentKey: d.contentKey,
-        contentHash: d.contentHash,
-        mime: d.mime,
-        sizeBytes: d.sizeBytes,
-        addedAt: d.addedAt,
-        alg: d.alg,
-        durationMs: d.durationMs,
-        // url intentionally omitted → null
-      );
-    }
+  /// When [removeDescriptors] is true (patient refused sharing): descriptors
+  /// whose URL starts with `file://` are removed entirely — the doctor receives
+  /// no UUID and cannot call requestAccess() for the patient's local files.
+  ///
+  /// When [removeDescriptors] is false (patient consented to share, bytes already
+  /// uploaded): the URL is set to null so the QR payload carries no local path.
+  /// The doctor fetches bytes via requestAccess(uuid).
+  ///
+  /// In both cases, local `file://` paths are never embedded in the QR payload.
+  MedicalRecord _sanitiseFileUrls(
+    MedicalRecord record, {
+    bool removeDescriptors = false,
+  }) {
+    bool isDirty(MediaDescriptor d) => d.url?.startsWith('file://') ?? false;
+
+    MediaDescriptor nullUrl(MediaDescriptor d) => MediaDescriptor(
+          uuid: d.uuid,
+          contentKey: d.contentKey,
+          contentHash: d.contentHash,
+          mime: d.mime,
+          sizeBytes: d.sizeBytes,
+          addedAt: d.addedAt,
+          alg: d.alg,
+          durationMs: d.durationMs,
+          // url intentionally omitted → null
+        );
+
+    List<MediaDescriptor> handle(List<MediaDescriptor> media) =>
+        removeDescriptors
+            ? media.where((d) => !isDirty(d)).toList()
+            : media.map((d) => isDirty(d) ? nullUrl(d) : d).toList();
 
     final sanitisedConsultations = record.consultations.map((c) {
-      final hasDirty =
-          c.media.any((d) => d.url?.startsWith('file://') ?? false);
-      if (!hasDirty) return c;
+      if (!c.media.any(isDirty)) return c;
       return Consultation(
         id: c.id,
         date: c.date,
@@ -309,19 +320,17 @@ class AccessTokenService {
         prescription: c.prescription,
         ordonnances: c.ordonnances,
         imageUrls: c.imageUrls,
-        media: c.media.map(strip).toList(),
+        media: handle(c.media),
       );
     }).toList();
 
     final sanitisedConditions = record.chronicConditions.map((cc) {
-      final hasDirty =
-          cc.documents.any((d) => d.url?.startsWith('file://') ?? false);
-      if (!hasDirty) return cc;
+      if (!cc.documents.any(isDirty)) return cc;
       return ChronicCondition(
         name: cc.name,
         icd10: cc.icd10,
         since: cc.since,
-        documents: cc.documents.map(strip).toList(),
+        documents: handle(cc.documents),
       );
     }).toList();
 

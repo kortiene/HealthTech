@@ -22,6 +22,8 @@ class SettingsScreen extends StatefulWidget {
     this.lastSyncedAt,
     this.onManualSync,
     this.onDeleteAccount,
+    this.autoShareMedia = false,
+    this.onAutoShareMediaChanged,
   });
 
   final MedicalRecord record;
@@ -35,6 +37,8 @@ class SettingsScreen extends StatefulWidget {
   final String? lastSyncedAt;
   final Future<void> Function()? onManualSync;
   final Future<void> Function()? onDeleteAccount;
+  final bool autoShareMedia;
+  final Future<void> Function(bool)? onAutoShareMediaChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -42,6 +46,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _biometrics;
+  late bool _autoShareMedia;
   bool _autoSync = false;
   bool _syncing = false;
 
@@ -49,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _biometrics = widget.biometricEnabled;
+    _autoShareMedia = widget.autoShareMedia;
   }
 
   static String _maskCmu(String cmu) {
@@ -224,6 +230,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Switch.adaptive(
                         value: _autoSync,
                         onChanged: (v) => setState(() => _autoSync = v),
+                        // ignore: deprecated_member_use
+                        activeColor: AppColors.primary700,
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Symbols.attach_file_rounded,
+                      iconBg: AppColors.primary100,
+                      iconColor: AppColors.primary700,
+                      title: 'Partage automatique des pièces jointes',
+                      subtitle: _autoShareMedia
+                          ? 'Les justificatifs sont toujours partagés au QR'
+                          : 'Demande de confirmation à chaque partage QR',
+                      trailing: Switch.adaptive(
+                        value: _autoShareMedia,
+                        onChanged: widget.onAutoShareMediaChanged != null
+                            ? (v) {
+                                setState(() => _autoShareMedia = v);
+                                widget.onAutoShareMediaChanged!(v);
+                              }
+                            : null,
                         // ignore: deprecated_member_use
                         activeColor: AppColors.primary700,
                       ),
