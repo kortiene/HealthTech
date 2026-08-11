@@ -657,6 +657,28 @@ class _DangerZone extends StatelessWidget {
 
 // ─── Profile edit bottom sheet ────────────────────────────────────────────────
 
+/// Opens the profile edit sheet from anywhere in the widget tree.
+void showEditProfileSheet(
+  BuildContext context, {
+  required Demographics demographics,
+  required List<Allergy> allergies,
+  required Future<void> Function(Demographics, List<Allergy>) onSave,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    ),
+    builder: (_) => _EditProfileSheet(
+      demographics: demographics,
+      allergies: allergies,
+      onSave: onSave,
+    ),
+  );
+}
+
 class _EditProfileSheet extends StatefulWidget {
   const _EditProfileSheet({
     required this.demographics,

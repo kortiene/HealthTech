@@ -71,6 +71,23 @@ class _MainShellState extends State<MainShell> {
     await widget.onQrClosed?.call();
   }
 
+  void _openEditProfile() {
+    if (widget.onUpdateRecord == null) return;
+    showEditProfileSheet(
+      context,
+      demographics: widget.record.demographics,
+      allergies: widget.record.allergies,
+      onSave: (newDemo, newAllergies) async {
+        final updated = widget.record.copyWith(
+          demographics: newDemo,
+          allergies: newAllergies,
+          updatedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        await widget.onUpdateRecord!(updated);
+      },
+    );
+  }
+
   void _showScan() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -88,7 +105,7 @@ class _MainShellState extends State<MainShell> {
         onShowQr: _showQr,
         onScan: _showScan,
         lastSyncedAt: widget.lastSyncedAt,
-        onEditProfile: () => setState(() => _tab = 2),
+        onEditProfile: _openEditProfile,
       ),
       PatientRecordScreen(
         record: widget.record,

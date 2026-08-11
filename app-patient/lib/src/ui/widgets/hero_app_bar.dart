@@ -15,7 +15,7 @@ class PatientHeroAppBar extends StatelessWidget {
     this.account,
     this.showGreeting = false,
     this.actions,
-    this.expandedHeight = 200,
+    this.expandedHeight = 220,
     this.showAllergie = true,
     this.bottom,
   });
@@ -67,6 +67,7 @@ class PatientHeroAppBar extends StatelessWidget {
           account: account,
           displayName: displayName,
           showAllergie: showAllergie,
+          bottomInset: bottom?.preferredSize.height ?? 0,
         ),
       ),
     );
@@ -79,12 +80,14 @@ class _HeroBackground extends StatelessWidget {
     required this.displayName,
     this.account,
     required this.showAllergie,
+    this.bottomInset = 0,
   });
 
   final MedicalRecord record;
   final PatientAccount? account;
   final String displayName;
   final bool showAllergie;
+  final double bottomInset;
 
   String get _name => record.demographics.givenName ?? 'Patient';
 
@@ -134,8 +137,8 @@ class _HeroBackground extends StatelessWidget {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, 56, AppSpacing.md, AppSpacing.md),
+          padding: EdgeInsets.fromLTRB(
+              AppSpacing.md, 56, AppSpacing.md, AppSpacing.md + bottomInset),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.end,
@@ -218,8 +221,7 @@ class _HeroBackground extends StatelessWidget {
                       icon: Symbols.warning_rounded,
                       label: _allergyChipLabel,
                       warning: _severeAllergies.isNotEmpty,
-                      onTap: () =>
-                          _showAllergySheet(context, record.allergies),
+                      onTap: () => _showAllergySheet(context, record.allergies),
                     ),
                 ],
               ),

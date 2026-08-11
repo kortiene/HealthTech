@@ -232,17 +232,181 @@ class _ProfilTab extends StatelessWidget {
   const _ProfilTab({required this.record});
   final MedicalRecord record;
 
+  bool get _hasStableData {
+    final d = record.demographics;
+    return d.bloodType != null ||
+        d.heightCm != null ||
+        d.weightKg != null ||
+        d.bmi != null ||
+        d.birthYear != null ||
+        d.sex != null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isEmpty = record.allergies.isEmpty && !_hasStableData;
     return _TabScrollView(
-      children: record.allergies.isEmpty
+      children: isEmpty
           ? [
               const _EmptyTabPlaceholder(
                 icon: Symbols.health_and_safety_rounded,
-                message: 'Aucune allergie enregistrée',
+                message: 'Aucune donnée médicale enregistrée',
               ),
             ]
-          : [_AllergySection(allergies: record.allergies)],
+          : [
+              if (_hasStableData) ...[
+                _MedicalStatsSection(demographics: record.demographics),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (record.allergies.isNotEmpty)
+                _AllergySection(allergies: record.allergies),
+            ],
+    );
+  }
+}
+
+// ─── Données médicales stables (onglet Profil médical) ───────────────────────
+
+class _MedicalStatsSection extends StatelessWidget {
+  const _MedicalStatsSection({required this.demographics});
+  final Demographics demographics;
+
+  String _bmiCategory(double bmi) {
+    if (bmi < 18.5) return 'Insuffisance pondérale';
+    if (bmi < 25.0) return 'Normal';
+    if (bmi < 30.0) return 'Surpoids';
+    return 'Obésité';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = demographics;
+    final rows = <_StatRowData>[];
+
+    if (d.bloodType != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.water_drop_rounded,
+        iconColor: AppColors.error,
+        iconBg: AppColors.errorBg,
+        label: 'Groupe sanguin',
+        value: d.bloodType!,
+      ));
+    }
+    if (d.birthYear != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.cake_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Âge',
+        value: '${DateTime.now().year - d.birthYear!} ans',
+      ));
+    }
+    if (d.sex != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.person_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Sexe',
+        value: d.sex == 'M'
+            ? 'Homme'
+            : d.sex == 'F'
+                ? 'Femme'
+                : d.sex!,
+      ));
+    }
+    if (d.heightCm != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.height_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Taille',
+        value: '${d.heightCm} cm',
+      ));
+    }
+    if (d.weightKg != null) {
+      final kg = d.weightKg!;
+      rows.add(_StatRowData(
+        icon: Symbols.monitor_weight_rounded,
+        iconColor: AppColors.primary700,
+        iconBg: AppColors.primary100,
+        label: 'Poids',
+        value:
+            '${kg == kg.roundToDouble() ? kg.toInt() : kg.toStringAsFixed(1)} kg',
+      ));
+    }
+    if (d.bmi != null) {
+      rows.add(_StatRowData(
+        icon: Symbols.calculate_rounded,
+        iconColor: AppColors.accent700,
+        iconBg: AppColors.accent100,
+        label: 'IMC',
+        value: '${d.bmi!.toStringAsFixed(1)} · ${_bmiCategory(d.bmi!)}',
+      ));
+    }
+
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(
+            icon: Symbols.medical_information_rounded,
+            title: 'Données médicales',
+          ),
+          ...rows.map((r) => _StatRow(data: r)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRowData {
+  const _StatRowData({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.label,
+    required this.value,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final String label;
+  final String value;
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.data});
+  final _StatRowData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: data.iconBg,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+            ),
+            child: Icon(data.icon, size: 16, color: data.iconColor),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              data.label,
+              style: tt.bodyMedium?.copyWith(color: AppColors.neutral500),
+            ),
+          ),
+          Text(
+            data.value,
+            style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
