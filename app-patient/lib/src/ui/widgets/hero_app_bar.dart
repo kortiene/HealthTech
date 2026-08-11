@@ -18,6 +18,7 @@ class PatientHeroAppBar extends StatelessWidget {
     this.expandedHeight = 220,
     this.showAllergie = true,
     this.bottom,
+    this.stretch = true,
   });
 
   final MedicalRecord record;
@@ -28,6 +29,7 @@ class PatientHeroAppBar extends StatelessWidget {
   final double expandedHeight;
   final bool showAllergie;
   final PreferredSizeWidget? bottom;
+  final bool stretch;
 
   String get _greeting {
     final h = TimeOfDay.now().hour;
@@ -45,7 +47,7 @@ class PatientHeroAppBar extends StatelessWidget {
     return SliverAppBar(
       expandedHeight: expandedHeight,
       pinned: true,
-      stretch: true,
+      stretch: stretch,
       backgroundColor: AppColors.primary900,
       foregroundColor: AppColors.white,
       surfaceTintColor: Colors.transparent,
@@ -61,7 +63,8 @@ class PatientHeroAppBar extends StatelessWidget {
       actions: actions,
       bottom: bottom,
       flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [StretchMode.zoomBackground],
+        stretchModes:
+            stretch ? const [StretchMode.zoomBackground] : const [],
         background: _HeroBackground(
           record: record,
           account: account,

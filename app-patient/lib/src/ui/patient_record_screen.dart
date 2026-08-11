@@ -84,6 +84,7 @@ class PatientRecordScreen extends StatelessWidget {
                 showAllergie: false,
                 collapsedTitle: 'Mon Dossier',
                 expandedHeight: 238,
+                stretch: false,
                 bottom: TabBar(
                   labelColor: AppColors.white,
                   unselectedLabelColor: AppColors.white.withAlpha(140),
