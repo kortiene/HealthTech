@@ -27,6 +27,9 @@ class PatientRecordScreen extends StatelessWidget {
     this.onWillPauseForPicker,
     this.onTreatmentStatusChanged,
     this.onMediaAttached,
+    this.onRemoveConsultationMedia,
+    this.onAddCondition,
+    this.onUpdateCondition,
   });
 
   final MedicalRecord record;
@@ -51,6 +54,19 @@ class PatientRecordScreen extends StatelessWidget {
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
 
+  /// Called when the patient removes a media item from a consultation.
+  /// Args: (consultationId, descriptor). Caller removes it from the record.
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveConsultationMedia;
+
+  /// Called when the patient adds a new chronic condition (#115).
+  /// Caller persists the record update.
+  final Future<void> Function(ChronicCondition)? onAddCondition;
+
+  /// Called when a document is added to condition at [index] (#115).
+  /// Args: (index in chronicConditions, updated condition with new doc appended).
+  final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,6 +78,7 @@ class PatientRecordScreen extends StatelessWidget {
             account: account,
             showAllergie: false,
             collapsedTitle: 'Mon Dossier',
+            expandedHeight: 190,
             actions: const [
               Padding(
                 padding: EdgeInsets.only(right: AppSpacing.sm),
@@ -83,8 +100,15 @@ class PatientRecordScreen extends StatelessWidget {
                   _AllergySection(allergies: record.allergies),
                   const SizedBox(height: AppSpacing.md),
                 ],
-                if (record.chronicConditions.isNotEmpty) ...[
-                  _ConditionsSection(conditions: record.chronicConditions),
+                if (record.chronicConditions.isNotEmpty ||
+                    onAddCondition != null) ...[
+                  _ConditionsSection(
+                    conditions: record.chronicConditions,
+                    backendUrl: backendUrl,
+                    onAddCondition: onAddCondition,
+                    onUpdateCondition: onUpdateCondition,
+                    onWillPauseForPicker: onWillPauseForPicker,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (record.medications.isNotEmpty) ...[
@@ -104,6 +128,7 @@ class PatientRecordScreen extends StatelessWidget {
                     backendUrl: backendUrl,
                     onWillPauseForPicker: onWillPauseForPicker,
                     onMediaAttached: onMediaAttached,
+                    onRemoveMedia: onRemoveConsultationMedia,
                   ),
                 const SizedBox(height: 100),
               ]),
@@ -216,6 +241,735 @@ Widget _sectionCard({required Widget child}) {
   );
 }
 
+// ─── Add condition sheet (#115) ───────────────────────────────────────────────
+
+void _showAddConditionSheet(
+  BuildContext context, {
+  required Future<void> Function(ChronicCondition) onAdd,
+  VoidCallback? onWillPauseForPicker,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    ),
+    builder: (ctx) => _AddConditionSheet(
+      onAdd: onAdd,
+      onWillPauseForPicker: onWillPauseForPicker,
+    ),
+  );
+}
+
+class _AddConditionSheet extends StatefulWidget {
+  const _AddConditionSheet({
+    required this.onAdd,
+    this.onWillPauseForPicker,
+  });
+
+  final Future<void> Function(ChronicCondition) onAdd;
+  final VoidCallback? onWillPauseForPicker;
+
+  @override
+  State<_AddConditionSheet> createState() => _AddConditionSheetState();
+}
+
+class _AddConditionSheetState extends State<_AddConditionSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _icdCtrl = TextEditingController();
+  final _sinceCtrl = TextEditingController();
+
+  MediaDescriptor? _photoDescriptor;
+  _UploadStatus _photoStatus = _UploadStatus.idle;
+  String? _photoError;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _icdCtrl.dispose();
+    _sinceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      setState(() {
+        _photoStatus = _UploadStatus.picking;
+        _photoError = null;
+      });
+      widget.onWillPauseForPicker?.call();
+      picked = await picker.pickImage(
+          source: source, imageQuality: 60, maxWidth: 1280);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
+      return;
+    }
+    if (picked == null) {
+      if (mounted) setState(() => _photoStatus = _UploadStatus.idle);
+      return;
+    }
+    setState(() => _photoStatus = _UploadStatus.uploading);
+    try {
+      final bytes = await picked.readAsBytes();
+      // Dev stub: XOR 0x5A — NOT a cipher. TODO(#102): replace with MediaCipher(FrbCryptoCore).encrypt().
+      final cipher = Uint8List(bytes.length);
+      for (var i = 0; i < bytes.length; i++) {
+        cipher[i] = bytes[i] ^ 0x5A;
+      }
+      final uuid = _genUuid();
+      final hash = sha256.convert(bytes).toString();
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
+      final descriptor = MediaDescriptor(
+        uuid: uuid,
+        contentKey: base64Encode(Uint8List(32)), // stub — TODO(#102)
+        contentHash: hash,
+        mime: 'image/jpeg',
+        sizeBytes: bytes.length,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+        url: 'file://${localFile.path}',
+      );
+      if (mounted) {
+        setState(() {
+          _photoDescriptor = descriptor;
+          _photoStatus = _UploadStatus.idle;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = e.toString();
+        });
+      }
+    }
+  }
+
+  void _showPhotoPicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Depuis la galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _saving = true);
+    try {
+      final condition = ChronicCondition(
+        name: _nameCtrl.text.trim(),
+        icd10: _icdCtrl.text.trim().isEmpty ? null : _icdCtrl.text.trim(),
+        since: _sinceCtrl.text.trim().isEmpty ? null : _sinceCtrl.text.trim(),
+        documents: [if (_photoDescriptor != null) _photoDescriptor!],
+      );
+      await widget.onAdd(condition);
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (_, scrollCtrl) => ListView(
+        controller: scrollCtrl,
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary100,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: const Icon(Symbols.history_rounded,
+                    color: AppColors.primary700, size: 22),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text('Ajouter une pathologie', style: tt.titleSmall),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.neutral500),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Fermer',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Nom *',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _nameCtrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. Diabète de type 2',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Requis' : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('Code ICD-10 (optionnel)',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _icdCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. E11',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('Depuis (année, optionnel)',
+                    style:
+                        tt.labelMedium?.copyWith(color: AppColors.neutral500)),
+                const SizedBox(height: AppSpacing.xs),
+                TextFormField(
+                  controller: _sinceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex. 2020',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                // ── Justificatif photo ──────────────────────────────────────
+                if (_photoDescriptor != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Symbols.attach_file_rounded,
+                          size: 14, color: AppColors.primary700),
+                      const SizedBox(width: 4),
+                      Text('Justificatif joint',
+                          style: tt.bodySmall
+                              ?.copyWith(color: AppColors.primary700)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _photoDescriptor = null;
+                          _photoStatus = _UploadStatus.idle;
+                          _photoError = null;
+                        }),
+                        child: const Text('Supprimer'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _DecryptedImageTile(
+                    media: _photoDescriptor!,
+                    backendUrl: '',
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ] else ...[
+                  if (_photoStatus == _UploadStatus.error &&
+                      _photoError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Text(_photoError!,
+                          style:
+                              tt.bodySmall?.copyWith(color: AppColors.allergy)),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: _photoStatus == _UploadStatus.idle ||
+                            _photoStatus == _UploadStatus.error
+                        ? () => _showPhotoPicker(context)
+                        : null,
+                    icon: _photoStatus == _UploadStatus.uploading ||
+                            _photoStatus == _UploadStatus.picking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.primary700),
+                          )
+                        : const Icon(Icons.add_photo_alternate_rounded),
+                    label: Text(
+                      _photoStatus == _UploadStatus.uploading
+                          ? 'Enregistrement…'
+                          : _photoStatus == _UploadStatus.picking
+                              ? 'Sélection…'
+                              : '+ Ajouter un justificatif (optionnel)',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary700,
+                      side: const BorderSide(color: AppColors.primary100),
+                      minimumSize: const Size(double.infinity, 44),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                // ── Enregistrer ─────────────────────────────────────────────
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 48),
+                    backgroundColor: AppColors.primary700,
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.white),
+                        )
+                      : const Text('Enregistrer'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Condition detail sheet (#115) ────────────────────────────────────────────
+
+void _showConditionDetailSheet(
+  BuildContext context, {
+  required ChronicCondition condition,
+  String? backendUrl,
+  VoidCallback? onWillPauseForPicker,
+  Future<void> Function(MediaDescriptor)? onAddDocument,
+  Future<void> Function(MediaDescriptor)? onRemoveDocument,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    ),
+    builder: (_) => _ConditionDetailSheet(
+      condition: condition,
+      backendUrl: backendUrl,
+      onWillPauseForPicker: onWillPauseForPicker,
+      onAddDocument: onAddDocument,
+      onRemoveDocument: onRemoveDocument,
+    ),
+  );
+}
+
+class _ConditionDetailSheet extends StatefulWidget {
+  const _ConditionDetailSheet({
+    required this.condition,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onAddDocument,
+    this.onRemoveDocument,
+  });
+
+  final ChronicCondition condition;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+
+  /// Called after saving a new document to disk. Caller persists the record.
+  final Future<void> Function(MediaDescriptor)? onAddDocument;
+
+  /// Called when the patient deletes a persisted document. Caller removes it
+  /// from the record and persists. Null = delete button hidden.
+  final Future<void> Function(MediaDescriptor)? onRemoveDocument;
+
+  @override
+  State<_ConditionDetailSheet> createState() => _ConditionDetailSheetState();
+}
+
+class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
+  _UploadStatus _uploadStatus = _UploadStatus.idle;
+  String? _uploadError;
+
+  // Optimistic: descriptors added this session, not yet in widget.condition.documents
+  final List<MediaDescriptor> _localDocs = [];
+  // Optimistic: UUIDs removed this session, pending parent record update
+  final Set<String> _removedUuids = {};
+
+  List<MediaDescriptor> get _allDocs => [
+        ...widget.condition.documents
+            .where((d) => !_removedUuids.contains(d.uuid)),
+        ..._localDocs,
+      ];
+
+  Future<void> _handleDeleteDoc(MediaDescriptor desc) async {
+    // Local-only doc (added this session) — just remove from local list.
+    if (_localDocs.remove(desc)) {
+      setState(() {});
+      return;
+    }
+    // Persisted doc — optimistic UI removal + delegate to parent.
+    setState(() => _removedUuids.add(desc.uuid));
+    await widget.onRemoveDocument?.call(desc);
+  }
+
+  Future<void> _pickAndAttach(ImageSource source) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      setState(() {
+        _uploadStatus = _UploadStatus.picking;
+        _uploadError = null;
+      });
+      widget.onWillPauseForPicker?.call();
+      picked = await picker.pickImage(
+          source: source, imageQuality: 60, maxWidth: 1280);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadStatus = _UploadStatus.error;
+          _uploadError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
+      return;
+    }
+    if (picked == null) {
+      if (mounted) setState(() => _uploadStatus = _UploadStatus.idle);
+      return;
+    }
+    setState(() => _uploadStatus = _UploadStatus.uploading);
+    try {
+      final bytes = await picked.readAsBytes();
+      // Dev stub: XOR 0x5A — NOT a cipher. TODO(#102): replace with MediaCipher(FrbCryptoCore).encrypt().
+      final cipher = Uint8List(bytes.length);
+      for (var i = 0; i < bytes.length; i++) {
+        cipher[i] = bytes[i] ^ 0x5A;
+      }
+      final uuid = _genUuid();
+      final hash = sha256.convert(bytes).toString();
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
+      final descriptor = MediaDescriptor(
+        uuid: uuid,
+        contentKey: base64Encode(Uint8List(32)), // stub — TODO(#102)
+        contentHash: hash,
+        mime: 'image/jpeg',
+        sizeBytes: bytes.length,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+        url: 'file://${localFile.path}',
+      );
+      if (mounted) {
+        setState(() {
+          _localDocs.add(descriptor);
+          _uploadStatus = _UploadStatus.idle;
+        });
+      }
+      await widget.onAddDocument?.call(descriptor);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadStatus = _UploadStatus.error;
+          _uploadError = e.toString();
+        });
+      }
+    }
+  }
+
+  void _showSourcePicker(BuildContext ctx) {
+    showModalBottomSheet<void>(
+      context: ctx,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (inner) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(inner);
+                _pickAndAttach(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Depuis la galerie'),
+              onTap: () {
+                Navigator.pop(inner);
+                _pickAndAttach(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final docs = _allDocs;
+    final canAttach = widget.onAddDocument != null;
+    final icd = widget.condition.icd10;
+    final since = widget.condition.since;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.5,
+      maxChildSize: 0.92,
+      minChildSize: 0.3,
+      builder: (_, scrollCtrl) => ListView(
+        controller: scrollCtrl,
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+            ),
+          ),
+          // Header
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.primary100,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: const Icon(Symbols.history_rounded,
+                    color: AppColors.primary700, size: 24),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.condition.name,
+                        style: tt.titleSmall
+                            ?.copyWith(color: AppColors.primary700)),
+                    if (since != null && since.isNotEmpty)
+                      Text('Depuis $since', style: tt.bodyMedium),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.neutral500),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Fermer',
+              ),
+            ],
+          ),
+          // ICD-10
+          if (icd != null && icd.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary100,
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'ICD-10 ',
+                        style:
+                            tt.bodySmall?.copyWith(color: AppColors.neutral500),
+                      ),
+                      Text(
+                        icd,
+                        style: tt.bodySmall?.copyWith(
+                          color: AppColors.primary700,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+          // Justificatifs
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              const Icon(Symbols.attach_file_rounded,
+                  size: 16, color: AppColors.neutral500),
+              const SizedBox(width: 6),
+              Text(
+                docs.isEmpty
+                    ? 'Justificatifs'
+                    : 'Justificatifs (${docs.length})',
+                style: tt.labelLarge
+                    ?.copyWith(color: AppColors.neutral500, letterSpacing: 0.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (docs.isNotEmpty) ...[
+            _ImageStrip(
+              images: docs,
+              backendUrl: widget.backendUrl ?? '',
+              onDelete: (canAttach || widget.onRemoveDocument != null)
+                  ? _handleDeleteDoc
+                  : null,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ] else if (!canAttach)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(
+                'Aucun justificatif joint.',
+                style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+              ),
+            ),
+          if (canAttach) ...[
+            if (_uploadStatus == _UploadStatus.error &&
+                _uploadError != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  _uploadError!,
+                  style: tt.bodySmall?.copyWith(color: AppColors.allergy),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            OutlinedButton.icon(
+              onPressed: _uploadStatus == _UploadStatus.idle ||
+                      _uploadStatus == _UploadStatus.error
+                  ? () => _showSourcePicker(context)
+                  : null,
+              icon: _uploadStatus == _UploadStatus.uploading ||
+                      _uploadStatus == _UploadStatus.picking
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary700),
+                    )
+                  : const Icon(Icons.add_photo_alternate_rounded),
+              label: Text(
+                _uploadStatus == _UploadStatus.uploading
+                    ? 'Enregistrement…'
+                    : _uploadStatus == _UploadStatus.picking
+                        ? 'Sélection…'
+                        : '+ Ajouter un justificatif',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary700,
+                side: const BorderSide(color: AppColors.primary100),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Allergies ────────────────────────────────────────────────────────────────
 
 class _AllergySection extends StatelessWidget {
@@ -299,24 +1053,125 @@ class _AllergyPill extends StatelessWidget {
   }
 }
 
-// ─── Pathologies ──────────────────────────────────────────────────────────────
+// ─── Antécédents (#115) ───────────────────────────────────────────────────────
 
 class _ConditionsSection extends StatelessWidget {
-  const _ConditionsSection({required this.conditions});
+  const _ConditionsSection({
+    required this.conditions,
+    this.backendUrl,
+    this.onAddCondition,
+    this.onUpdateCondition,
+    this.onWillPauseForPicker,
+  });
+
   final List<ChronicCondition> conditions;
+  final String? backendUrl;
+  final Future<void> Function(ChronicCondition)? onAddCondition;
+  final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+  final VoidCallback? onWillPauseForPicker;
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     return _sectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(
-            icon: Symbols.history_rounded,
-            title: 'Pathologies chroniques',
-            badge: '${conditions.length}',
+          // Custom header row with optional "+ Ajouter" button
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary100,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: const Icon(Symbols.history_rounded,
+                      size: 20, color: AppColors.primary700),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text('Antécédents', style: tt.titleSmall),
+                if (conditions.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary100,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      '${conditions.length}',
+                      style: tt.bodySmall?.copyWith(
+                        color: AppColors.primary700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (onAddCondition != null)
+                  OutlinedButton.icon(
+                    onPressed: () => _showAddConditionSheet(
+                      context,
+                      onAdd: onAddCondition!,
+                      onWillPauseForPicker: onWillPauseForPicker,
+                    ),
+                    icon: const Icon(Icons.add, size: 13),
+                    label: const Text('Ajouter'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary700,
+                      side: const BorderSide(color: AppColors.primary100),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(fontSize: 12),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+              ],
+            ),
           ),
-          ...conditions.map((c) => _ConditionRow(condition: c)),
+          if (conditions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                'Aucune pathologie chronique renseignée.',
+                style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+              ),
+            )
+          else
+            ...List.generate(conditions.length, (i) {
+              final c = conditions[i];
+              return _ConditionRow(
+                condition: c,
+                onTap: () => _showConditionDetailSheet(
+                  context,
+                  condition: c,
+                  backendUrl: backendUrl,
+                  onWillPauseForPicker: onWillPauseForPicker,
+                  onAddDocument: onUpdateCondition != null
+                      ? (descriptor) =>
+                          onUpdateCondition!(i, c.copyWithDocument(descriptor))
+                      : null,
+                  onRemoveDocument: onUpdateCondition != null
+                      ? (descriptor) {
+                          final updated = ChronicCondition(
+                            name: c.name,
+                            icd10: c.icd10,
+                            since: c.since,
+                            documents: c.documents
+                                .where((d) => d.uuid != descriptor.uuid)
+                                .toList(),
+                          );
+                          return onUpdateCondition!(i, updated);
+                        }
+                      : null,
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -324,16 +1179,17 @@ class _ConditionsSection extends StatelessWidget {
 }
 
 class _ConditionRow extends StatelessWidget {
-  const _ConditionRow({required this.condition});
+  const _ConditionRow({required this.condition, this.onTap});
   final ChronicCondition condition;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final icd = condition.icd10;
+    final docCount = condition.documents.length;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.sm + 2),
       decoration: BoxDecoration(
         color: AppColors.primary50,
         borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -341,28 +1197,86 @@ class _ConditionRow extends StatelessWidget {
           left: BorderSide(color: AppColors.primary500, width: 3),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(condition.name,
-                style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
-          ),
-          if (icd != null && icd.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.primary100,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Text(
-                icd,
-                style: tt.bodySmall?.copyWith(
-                  color: AppColors.primary700,
-                  fontWeight: FontWeight.w600,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm + 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        condition.name,
+                        style:
+                            tt.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                      ),
+                      if (condition.since != null &&
+                          condition.since!.isNotEmpty)
+                        Text(
+                          'Depuis ${condition.since}',
+                          style: tt.bodySmall
+                              ?.copyWith(color: AppColors.neutral500),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: AppSpacing.sm),
+                if (docCount > 0) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutral200,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Symbols.attach_file_rounded,
+                            size: 10, color: AppColors.neutral500),
+                        const SizedBox(width: 2),
+                        Text(
+                          '$docCount',
+                          style: tt.bodySmall?.copyWith(
+                              color: AppColors.neutral500,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                if (icd != null && icd.isNotEmpty) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary100,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      icd,
+                      style: tt.bodySmall?.copyWith(
+                        color: AppColors.primary700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                if (onTap != null)
+                  const Icon(Icons.chevron_right,
+                      size: 16, color: AppColors.neutral500),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -464,6 +1378,7 @@ class _ConsultationsSection extends StatelessWidget {
     this.backendUrl,
     this.onWillPauseForPicker,
     this.onMediaAttached,
+    this.onRemoveMedia,
   });
 
   final List<Consultation> consultations;
@@ -471,6 +1386,8 @@ class _ConsultationsSection extends StatelessWidget {
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveMedia;
 
   @override
   Widget build(BuildContext context) {
@@ -501,6 +1418,7 @@ class _ConsultationsSection extends StatelessWidget {
                 backendUrl: backendUrl,
                 onWillPauseForPicker: onWillPauseForPicker,
                 onMediaAttached: onMediaAttached,
+                onRemoveMedia: onRemoveMedia,
               ),
             ),
           ),
@@ -638,6 +1556,20 @@ class _TimelineEntry extends StatelessWidget {
   }
 }
 
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+String _genUuid() {
+  final rng = Random.secure();
+  final b = List.generate(16, (_) => rng.nextInt(256));
+  b[6] = (b[6] & 0x0F) | 0x40;
+  b[8] = (b[8] & 0x3F) | 0x80;
+  String h(int v) => v.toRadixString(16).padLeft(2, '0');
+  return '${h(b[0])}${h(b[1])}${h(b[2])}${h(b[3])}-'
+      '${h(b[4])}${h(b[5])}-${h(b[6])}${h(b[7])}-'
+      '${h(b[8])}${h(b[9])}-'
+      '${h(b[10])}${h(b[11])}${h(b[12])}${h(b[13])}${h(b[14])}${h(b[15])}';
+}
+
 // ─── Consultation detail sheet ────────────────────────────────────────────────
 
 void _showConsultationSheet(
@@ -647,6 +1579,7 @@ void _showConsultationSheet(
   VoidCallback? onWillPauseForPicker,
   Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached,
+  Future<void> Function(String consultationId, MediaDescriptor)? onRemoveMedia,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -660,6 +1593,7 @@ void _showConsultationSheet(
       backendUrl: backendUrl,
       onWillPauseForPicker: onWillPauseForPicker,
       onMediaAttached: onMediaAttached,
+      onRemoveMedia: onRemoveMedia,
     ),
   );
 }
@@ -670,6 +1604,7 @@ class _ConsultationSheet extends StatefulWidget {
     this.backendUrl,
     this.onWillPauseForPicker,
     this.onMediaAttached,
+    this.onRemoveMedia,
   });
 
   final Consultation consultation;
@@ -677,6 +1612,10 @@ class _ConsultationSheet extends StatefulWidget {
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(String consultationId, MediaDescriptor)?
       onMediaAttached;
+
+  /// Called when the patient removes a media item from a consultation.
+  final Future<void> Function(String consultationId, MediaDescriptor)?
+      onRemoveMedia;
 
   @override
   State<_ConsultationSheet> createState() => _ConsultationSheetState();
@@ -690,26 +1629,29 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
 
   // Optimistic: descriptors added this session, not yet in widget.consultation.media
   final List<MediaDescriptor> _localMedia = [];
+  // Optimistic: UUIDs removed this session, pending parent record update
+  final Set<String> _removedMediaUuids = {};
 
   List<MediaDescriptor> get _allImages => [
-        ...widget.consultation.media.where((m) => m.mime.startsWith('image/')),
+        ...widget.consultation.media.where(
+          (m) =>
+              m.mime.startsWith('image/') &&
+              !_removedMediaUuids.contains(m.uuid),
+        ),
         ..._localMedia,
       ];
 
+  Future<void> _handleDeleteMedia(MediaDescriptor desc) async {
+    if (_localMedia.remove(desc)) {
+      setState(() {});
+      return;
+    }
+    setState(() => _removedMediaUuids.add(desc.uuid));
+    await widget.onRemoveMedia?.call(widget.consultation.id, desc);
+  }
+
   static String _resolveAndroid(String url) =>
       Platform.isAndroid ? url.replaceFirst('localhost', '10.0.2.2') : url;
-
-  static String _genUuid() {
-    final rng = Random.secure();
-    final b = List.generate(16, (_) => rng.nextInt(256));
-    b[6] = (b[6] & 0x0F) | 0x40;
-    b[8] = (b[8] & 0x3F) | 0x80;
-    String h(int v) => v.toRadixString(16).padLeft(2, '0');
-    return '${h(b[0])}${h(b[1])}${h(b[2])}${h(b[3])}-'
-        '${h(b[4])}${h(b[5])}-${h(b[6])}${h(b[7])}-'
-        '${h(b[8])}${h(b[9])}-'
-        '${h(b[10])}${h(b[11])}${h(b[12])}${h(b[13])}${h(b[14])}${h(b[15])}';
-  }
 
   Future<void> _pickAndAttach(ImageSource source) async {
     final picker = ImagePicker();
@@ -723,7 +1665,7 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
       // not a user-initiated app switch — do NOT lock.
       widget.onWillPauseForPicker?.call();
       picked = await picker.pickImage(
-          source: source, imageQuality: 80, maxWidth: 1920);
+          source: source, imageQuality: 60, maxWidth: 1280);
     } catch (e) {
       // Surface picker errors (permission denied, camera unavailable, etc.)
       if (mounted) {
@@ -1020,6 +1962,8 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
             _ImageStrip(
               images: images,
               backendUrl: _resolveAndroid(widget.backendUrl ?? ''),
+              onDelete:
+                  widget.onRemoveMedia != null ? _handleDeleteMedia : null,
             ),
           ],
           // ── Attach button ───────────────────────────────────────────────────
@@ -1625,24 +2569,32 @@ class _OrdonnanceLineCard extends StatelessWidget {
 // ── Image strip (#117) ────────────────────────────────────────────────────────
 
 class _ImageStrip extends StatelessWidget {
-  const _ImageStrip({required this.images, required this.backendUrl});
+  const _ImageStrip({
+    required this.images,
+    required this.backendUrl,
+    this.onDelete,
+  });
 
   final List<MediaDescriptor> images;
   final String backendUrl;
 
+  /// Called when the user taps the delete button on a tile. Null = no button.
+  final void Function(MediaDescriptor)? onDelete;
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, i) => _DecryptedImageTile(
-          media: images[i],
-          backendUrl: backendUrl,
-        ),
-      ),
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final img in images)
+          _DecryptedImageTile(
+            key: ValueKey(img.uuid),
+            media: img,
+            backendUrl: backendUrl,
+            onDelete: onDelete != null ? () => onDelete!(img) : null,
+          ),
+      ],
     );
   }
 }
@@ -1650,10 +2602,18 @@ class _ImageStrip extends StatelessWidget {
 // Fetches + XOR-0x5A decrypts one image and displays it as a tappable thumbnail.
 // Dev stub — TODO(#102): replace XOR with MediaCipher(FrbCryptoCore).decrypt().
 class _DecryptedImageTile extends StatefulWidget {
-  const _DecryptedImageTile({required this.media, required this.backendUrl});
+  const _DecryptedImageTile({
+    super.key,
+    required this.media,
+    required this.backendUrl,
+    this.onDelete,
+  });
 
   final MediaDescriptor media;
   final String backendUrl;
+
+  /// Called when the patient taps the ✕ badge. Null = no badge shown.
+  final VoidCallback? onDelete;
 
   @override
   State<_DecryptedImageTile> createState() => _DecryptedImageTileState();
@@ -1713,31 +2673,68 @@ class _DecryptedImageTileState extends State<_DecryptedImageTile> {
     return SizedBox(
       width: 96,
       height: 96,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-        child: Material(
-          color: AppColors.neutral100,
-          child: InkWell(
-            onTap: _bytes != null
-                ? () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _ImageFullScreenPage(bytes: _bytes!),
-                      ),
-                    )
-                : null,
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.primary700),
-                  )
-                : _error != null
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+            child: Material(
+              color: AppColors.neutral100,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                onTap: _bytes != null
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                _ImageFullScreenPage(bytes: _bytes!),
+                          ),
+                        )
+                    : null,
+                child: _loading
                     ? const Center(
-                        child: Icon(Icons.broken_image_rounded,
-                            color: AppColors.neutral500),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary700),
                       )
-                    : Image.memory(_bytes!, fit: BoxFit.cover),
+                    : _error != null
+                        ? const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.broken_image_rounded,
+                                    color: AppColors.neutral500, size: 28),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Erreur',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.neutral500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Image.memory(_bytes!, fit: BoxFit.cover),
+              ),
+            ),
           ),
-        ),
+          if (widget.onDelete != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: widget.onDelete,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(160),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 13, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

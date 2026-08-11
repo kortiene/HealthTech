@@ -19,11 +19,22 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../design/app_theme.dart';
 import '../qr/access_token.dart';
+import '../record/medical_record.dart';
 
 class QrScreen extends StatefulWidget {
-  const QrScreen({super.key, required this.controller, this.autoMode});
+  const QrScreen({
+    super.key,
+    required this.controller,
+    this.record,
+    this.autoMode,
+  });
 
   final QrController controller;
+
+  /// The patient's current record — used to detect pending local media so a
+  /// consent dialog is shown before QR generation. Optional: when null the
+  /// dialog is skipped and no media flush is attempted.
+  final MedicalRecord? record;
 
   /// Skips the mode selector and generates immediately with this mode.
   /// Intended for widget tests only.
@@ -37,6 +48,7 @@ class _QrScreenState extends State<QrScreen> {
   QrPayload? _payload;
   String? _error;
   bool _generating = false;
+  String _loadingMessage = 'Génération du code…';
   Timer? _countdownTimer;
   int _remainingSeconds = 0;
   QrMode? _selectedMode; // null = mode-selector phase
@@ -56,7 +68,82 @@ class _QrScreenState extends State<QrScreen> {
     super.dispose();
   }
 
+  // Returns the number of local-only (file://) media items in the record.
+  int _countPendingMedia(MedicalRecord record) {
+    var n = 0;
+    for (final c in record.consultations) {
+      n += c.media.where((d) => d.url?.startsWith('file://') ?? false).length;
+    }
+    for (final cc in record.chronicConditions) {
+      n += cc.documents
+          .where((d) => d.url?.startsWith('file://') ?? false)
+          .length;
+    }
+    return n;
+  }
+
+  // Consent dialog: returns true = share, false = skip, null = cancelled.
+  Future<bool?> _askShareMedia(int count) => showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Partager les justificatifs ?'),
+          content: Text(
+            'Votre dossier contient $count justificatif(s) enregistré(s) '
+            'sur cet appareil. Souhaitez-vous les envoyer au médecin ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Non, ignorer'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Oui, partager'),
+            ),
+          ],
+        ),
+      );
+
+  // Fallback dialog after upload failure: returns true = retry without media.
+  Future<bool?> _askFallbackWithoutMedia() => showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Envoi impossible'),
+          content: const Text(
+            'Les justificatifs n\'ont pas pu être envoyés. '
+            'Générer le code sans eux ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continuer sans'),
+            ),
+          ],
+        ),
+      );
+
   Future<void> _generate(QrMode mode) async {
+    // Detect pending local media and ask the patient before uploading.
+    bool shareMedia = false;
+    final rec = widget.record;
+    if (rec != null) {
+      final count = _countPendingMedia(rec);
+      if (count > 0) {
+        final answer = await _askShareMedia(count);
+        if (!mounted) return;
+        if (answer == null) return; // dialog dismissed — stay on mode selector
+        shareMedia = answer;
+      }
+    }
+    await _doGenerate(mode, shareMedia: shareMedia);
+  }
+
+  Future<void> _doGenerate(QrMode mode, {bool shareMedia = false}) async {
     _countdownTimer?.cancel();
     setState(() {
       _generating = true;
@@ -65,9 +152,12 @@ class _QrScreenState extends State<QrScreen> {
       _payload = null;
       _remainingSeconds = 0;
       _selectedMode = mode;
+      _loadingMessage =
+          shareMedia ? 'Envoi des justificatifs…' : 'Génération du code…';
     });
     try {
-      final p = await widget.controller.generate(mode: mode);
+      final p =
+          await widget.controller.generate(mode: mode, shareMedia: shareMedia);
       if (!mounted) {
         p.wipe();
         return;
@@ -76,14 +166,25 @@ class _QrScreenState extends State<QrScreen> {
       setState(() {
         _payload = p;
         _generating = false;
+        _loadingMessage = 'Génération du code…';
         _remainingSeconds = secs > 0 ? secs : 0;
       });
       if (secs > 0) _startCountdown();
     } catch (e) {
       if (!mounted) return;
+      if (shareMedia) {
+        // Upload failed — offer to continue without the media.
+        final fallback = await _askFallbackWithoutMedia();
+        if (!mounted) return;
+        if (fallback == true) {
+          await _doGenerate(mode, shareMedia: false);
+          return;
+        }
+      }
       setState(() {
         _error = e.toString();
         _generating = false;
+        _loadingMessage = 'Génération du code…';
       });
     }
   }
@@ -127,7 +228,7 @@ class _QrScreenState extends State<QrScreen> {
     if (_selectedMode == null) {
       return _ModeSelectorView(onSelect: _generate);
     }
-    if (_generating) return const _LoadingView();
+    if (_generating) return _LoadingView(message: _loadingMessage);
     if (_error != null) {
       return _ErrorView(
         message: _error!,
@@ -135,7 +236,7 @@ class _QrScreenState extends State<QrScreen> {
       );
     }
     final p = _payload;
-    if (p == null) return const _LoadingView();
+    if (p == null) return const _LoadingView(message: 'Génération du code…');
     if (_remainingSeconds == 0) {
       return _ExpiredView(onRegenerate: () => _generate(_selectedMode!));
     }
@@ -275,7 +376,9 @@ class _ModeCard extends StatelessWidget {
 // ── States ────────────────────────────────────────────────────────────────────
 
 class _LoadingView extends StatelessWidget {
-  const _LoadingView();
+  const _LoadingView({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +396,7 @@ class _LoadingView extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'Génération du code…',
+            message,
             style: TextStyle(
               color: AppColors.white.withAlpha(180),
               fontSize: 14,

@@ -17,6 +17,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
+import 'src/cloud/media_client.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
@@ -199,23 +200,12 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          // Cloud-first on startup: picks up doctor's session changes from
-          // a prior QR scan without requiring another QR cycle.
-          MedicalRecord? cloudRecord;
-          try {
-            cloudRecord = await _recordStore.read(
-              handle,
-              _account!.anonymousUuid,
-              forceCloud: true,
-            );
-          } on BackendUnavailable {
-            // Offline — fall back to local cache below.
-          } catch (_) {
-            // Decrypt error (session-key blob in prod) — local is intact,
-            // fall back below.
-          }
-          _record = cloudRecord ??
-              await _recordStore.read(handle, _account!.anonymousUuid);
+          // Always read from local cache at startup — the cloud may have a
+          // session-key blob (from a QR session) which cannot be decrypted
+          // with the master key and would silently corrupt _record in dev.
+          // _onQrClosed restores the canonical master-key blob after each
+          // session, so the local cache is always consistent.
+          _record = await _recordStore.read(handle, _account!.anonymousUuid);
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(
@@ -254,28 +244,26 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   }
 
   Future<void> _onQrClosed() async {
+    final savedRecord = _record;
+    if (savedRecord == null || _account == null) return;
     final handle = await _masterKey.unsealForUse();
     try {
-      final updated = await _recordStore.read(
-        handle,
-        _account!.anonymousUuid,
-        forceCloud: true,
-      );
-      // Update UI immediately — don't let a write failure block the display.
-      if (mounted) setState(() => _record = updated);
-      // Re-encrypt with master key — takes back ownership from session-key blob.
+      // Re-encrypt with master key to restore the canonical blob on the backend.
+      // During QR generation AccessTokenService uploaded a session-key-encrypted
+      // blob; this write takes back ownership so subsequent reads and new-device
+      // restores always get the master-key version with file:// media intact.
+      // We do NOT attempt forceCloud: in production the session blob is
+      // AES-GCM-encrypted with the ephemeral session key (DecryptError with the
+      // master key); in dev the XOR-0x5A stub is symmetric and would silently
+      // return the sanitised record (url: null), permanently losing file:// URLs.
       try {
-        await _recordStore.write(updated, handle, _account!.anonymousUuid);
+        await _recordStore.write(savedRecord, handle, _account!.anonymousUuid);
         final now = DateTime.now().toUtc().toIso8601String();
         await _storage.write(key: _kLastSyncKey, value: now);
         if (mounted) setState(() => _lastSyncedAt = now);
       } on BackendUnavailable {
-        // Offline — local write already happened inside write(); cloud retry later.
+        // Offline — local record intact; cloud sync will restore on next connect.
       }
-    } on BackendUnavailable {
-      // offline — keep existing record
-    } catch (_) {
-      // timing issue (patient closed before doctor finished) — keep existing record
     } finally {
       await _masterKey.wipeHandle(handle);
     }
@@ -352,6 +340,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           crypto: const FrbCryptoCore(),
           recordStore: _recordStore,
           client: BackendClient(_kBackendBaseUrl),
+          mediaClient: MediaClient(_kBackendBaseUrl),
         ),
         backendUrl: _kBackendBaseUrl,
       );

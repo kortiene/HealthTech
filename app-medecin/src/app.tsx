@@ -249,6 +249,7 @@ export function App() {
       record={scannedRecord}
       pendingCount={pendingCount}
       readOnly={!qrPayload?.wt}
+      backendUrl={qrPayload?.url ?? ""}
       onSynced={() => setPendingCount(0)}
       onAddNote={() => setScreen("note-choice")}
       onTerminated={() => {

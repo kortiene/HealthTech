@@ -61,7 +61,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _showQr() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => QrScreen(controller: widget.qrController),
+        builder: (_) => QrScreen(
+          controller: widget.qrController,
+          record: widget.record,
+        ),
       ),
     );
     // QR screen closed — doctor may have written a note; pull latest from cloud.
@@ -117,6 +120,55 @@ class _MainShellState extends State<MainShell> {
                             : c,
                       )
                       .toList(),
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
+        onRemoveConsultationMedia: widget.onUpdateRecord != null
+            ? (consultationId, descriptor) {
+                final updated = widget.record.copyWith(
+                  consultations: widget.record.consultations
+                      .map(
+                        (c) => c.id == consultationId
+                            ? Consultation(
+                                id: c.id,
+                                date: c.date,
+                                practitionerRef: c.practitionerRef,
+                                summary: c.summary,
+                                prescription: c.prescription,
+                                ordonnances: c.ordonnances,
+                                imageUrls: c.imageUrls,
+                                media: c.media
+                                    .where((m) => m.uuid != descriptor.uuid)
+                                    .toList(),
+                              )
+                            : c,
+                      )
+                      .toList(),
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
+        onAddCondition: widget.onUpdateRecord != null
+            ? (condition) {
+                final updated = widget.record.copyWith(
+                  chronicConditions: [
+                    ...widget.record.chronicConditions,
+                    condition,
+                  ],
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
+        onUpdateCondition: widget.onUpdateRecord != null
+            ? (index, updatedCondition) {
+                final conditions = List.of(widget.record.chronicConditions);
+                conditions[index] = updatedCondition;
+                final updated = widget.record.copyWith(
+                  chronicConditions: conditions,
                   updatedAt: DateTime.now().toIso8601String(),
                 );
                 return widget.onUpdateRecord!(updated);
