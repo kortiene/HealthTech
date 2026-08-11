@@ -694,6 +694,91 @@ class Immunization {
   int get hashCode => Object.hash(name, date, dose);
 }
 
+/// Administrative document type for [PatientDocument] (#116).
+enum DocumentType {
+  cmuCard,
+  insuranceCard,
+  other;
+
+  String get label => switch (this) {
+        DocumentType.cmuCard => 'Carte CMU',
+        DocumentType.insuranceCard => "Carte d'assurance",
+        DocumentType.other => 'Autre document',
+      };
+
+  String get _jsonValue => switch (this) {
+        DocumentType.cmuCard => 'cmu_card',
+        DocumentType.insuranceCard => 'insurance_card',
+        DocumentType.other => 'other',
+      };
+
+  static DocumentType _fromJson(String s) => switch (s) {
+        'cmu_card' => DocumentType.cmuCard,
+        'insurance_card' => DocumentType.insuranceCard,
+        _ => DocumentType.other,
+      };
+}
+
+/// A patient-owned administrative document (CMU card, insurance card, etc.).
+///
+/// The heavy media bytes are encrypted and stored on-device (file://) until the
+/// patient shares via QR, at which point they are flushed to the backend and the
+/// descriptor carries a server UUID. Additive schema field: records written before
+/// #116 round-trip unchanged (absent `documents` defaults to []).
+class PatientDocument {
+  const PatientDocument({
+    required this.id,
+    required this.type,
+    required this.label,
+    required this.media,
+    required this.addedAt,
+  });
+
+  factory PatientDocument.fromJson(Map<String, Object?> json) {
+    return PatientDocument(
+      id: json['id'] as String? ?? '',
+      type: DocumentType._fromJson(json['type'] as String? ?? 'other'),
+      label: json['label'] as String? ?? '',
+      media: MediaDescriptor.fromJson(json['media'] as Map<String, Object?>),
+      addedAt: json['added_at'] as String? ?? '',
+    );
+  }
+
+  final String id;
+  final DocumentType type;
+  final String label;
+  final MediaDescriptor media;
+  final String addedAt;
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'type': type._jsonValue,
+        'label': label,
+        'media': media.toJson(),
+        'added_at': addedAt,
+      };
+
+  PatientDocument copyWithMedia(MediaDescriptor d) => PatientDocument(
+        id: id,
+        type: type,
+        label: label,
+        media: d,
+        addedAt: addedAt,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is PatientDocument &&
+      other.id == id &&
+      other.type == type &&
+      other.label == label &&
+      other.media == media &&
+      other.addedAt == addedAt;
+
+  @override
+  int get hashCode => Object.hash(id, type, label, media, addedAt);
+}
+
 /// The versioned patient medical record — root of the encrypted payload.
 ///
 /// Serialise with [toJson]; the resulting UTF-8 bytes are passed to
@@ -709,6 +794,7 @@ class MedicalRecord {
     this.treatments = const [],
     this.consultations = const [],
     this.immunizations = const [],
+    this.documents = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -731,6 +817,7 @@ class MedicalRecord {
     final rawTreatments = json['treatments'] as List<Object?>? ?? const [];
     final rawConsults = json['consultations'] as List<Object?>? ?? const [];
     final rawImm = json['immunizations'] as List<Object?>? ?? const [];
+    final rawDocs = json['documents'] as List<Object?>? ?? const [];
 
     return MedicalRecord(
       patientId: json['patient_id'] as String,
@@ -760,6 +847,10 @@ class MedicalRecord {
         for (final e in rawImm)
           Immunization.fromJson(e as Map<String, Object?>),
       ],
+      documents: [
+        for (final e in rawDocs)
+          PatientDocument.fromJson(e as Map<String, Object?>),
+      ],
       createdAt: json['created_at'] as String,
       updatedAt: json['updated_at'] as String,
     );
@@ -783,6 +874,10 @@ class MedicalRecord {
   final List<Consultation> consultations;
   final List<Immunization> immunizations;
 
+  /// Patient-owned administrative documents (#116): CMU card, insurance card, etc.
+  /// Additive field — absent in records written before #116, defaults to [].
+  final List<PatientDocument> documents;
+
   /// ISO-8601 UTC timestamp of record creation.
   final String createdAt;
 
@@ -800,6 +895,8 @@ class MedicalRecord {
           'treatments': treatments.map((e) => e.toJson()).toList(),
         'consultations': consultations.map((e) => e.toJson()).toList(),
         'immunizations': immunizations.map((e) => e.toJson()).toList(),
+        if (documents.isNotEmpty)
+          'documents': documents.map((e) => e.toJson()).toList(),
         'created_at': createdAt,
         'updated_at': updatedAt,
       };
@@ -817,6 +914,7 @@ class MedicalRecord {
     List<ChronicCondition>? chronicConditions,
     List<Medication>? medications,
     List<Immunization>? immunizations,
+    List<PatientDocument>? documents,
   }) {
     return MedicalRecord(
       patientId: patientId,
@@ -827,6 +925,7 @@ class MedicalRecord {
       treatments: treatments ?? this.treatments,
       consultations: consultations ?? this.consultations,
       immunizations: immunizations ?? this.immunizations,
+      documents: documents ?? this.documents,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -844,6 +943,7 @@ class MedicalRecord {
       _listEq(other.treatments, treatments) &&
       _listEq(other.consultations, consultations) &&
       _listEq(other.immunizations, immunizations) &&
+      _listEq(other.documents, documents) &&
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt;
 
@@ -858,6 +958,7 @@ class MedicalRecord {
         Object.hashAll(treatments),
         Object.hashAll(consultations),
         Object.hashAll(immunizations),
+        Object.hashAll(documents),
         createdAt,
         updatedAt,
       );

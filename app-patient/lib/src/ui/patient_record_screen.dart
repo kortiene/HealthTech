@@ -30,6 +30,8 @@ class PatientRecordScreen extends StatelessWidget {
     this.onRemoveConsultationMedia,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onAddDocument,
+    this.onRemoveDocument,
   });
 
   final MedicalRecord record;
@@ -66,6 +68,12 @@ class PatientRecordScreen extends StatelessWidget {
   /// Called when a document is added to condition at [index] (#115).
   /// Args: (index in chronicConditions, updated condition with new doc appended).
   final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+
+  /// Called when the patient adds a new administrative document (#116).
+  final Future<void> Function(PatientDocument)? onAddDocument;
+
+  /// Called when the patient removes an administrative document (#116).
+  final Future<void> Function(PatientDocument)? onRemoveDocument;
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +129,13 @@ class PatientRecordScreen extends StatelessWidget {
                 onUpdateCondition: onUpdateCondition,
                 onWillPauseForPicker: onWillPauseForPicker,
               ),
-              _ProfilTab(record: record),
+              _ProfilTab(
+                record: record,
+                backendUrl: backendUrl,
+                onWillPauseForPicker: onWillPauseForPicker,
+                onAddDocument: onAddDocument,
+                onRemoveDocument: onRemoveDocument,
+              ),
             ],
           ),
         ),
@@ -226,11 +240,22 @@ class _AntecedintsTab extends StatelessWidget {
   }
 }
 
-// ─── Tab: Profil médical (allergies) ─────────────────────────────────────────
+// ─── Tab: Profil médical (documents admin + données médicales + allergies) ────
 
 class _ProfilTab extends StatelessWidget {
-  const _ProfilTab({required this.record});
+  const _ProfilTab({
+    required this.record,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onAddDocument,
+    this.onRemoveDocument,
+  });
+
   final MedicalRecord record;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+  final Future<void> Function(PatientDocument)? onAddDocument;
+  final Future<void> Function(PatientDocument)? onRemoveDocument;
 
   bool get _hasStableData {
     final d = record.demographics;
@@ -244,7 +269,8 @@ class _ProfilTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = record.allergies.isEmpty && !_hasStableData;
+    final isEmpty =
+        record.allergies.isEmpty && !_hasStableData && record.documents.isEmpty;
     return _TabScrollView(
       children: isEmpty
           ? [
@@ -254,6 +280,14 @@ class _ProfilTab extends StatelessWidget {
               ),
             ]
           : [
+              _DocumentsSection(
+                documents: record.documents,
+                backendUrl: backendUrl,
+                onWillPauseForPicker: onWillPauseForPicker,
+                onAddDocument: onAddDocument,
+                onRemoveDocument: onRemoveDocument,
+              ),
+              const SizedBox(height: AppSpacing.md),
               if (_hasStableData) ...[
                 _MedicalStatsSection(demographics: record.demographics),
                 const SizedBox(height: AppSpacing.md),
@@ -261,6 +295,437 @@ class _ProfilTab extends StatelessWidget {
               if (record.allergies.isNotEmpty)
                 _AllergySection(allergies: record.allergies),
             ],
+    );
+  }
+}
+
+// ─── Documents administratifs (#116) ─────────────────────────────────────────
+
+class _DocumentsSection extends StatelessWidget {
+  const _DocumentsSection({
+    required this.documents,
+    this.backendUrl,
+    this.onWillPauseForPicker,
+    this.onAddDocument,
+    this.onRemoveDocument,
+  });
+
+  final List<PatientDocument> documents;
+  final String? backendUrl;
+  final VoidCallback? onWillPauseForPicker;
+  final Future<void> Function(PatientDocument)? onAddDocument;
+  final Future<void> Function(PatientDocument)? onRemoveDocument;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return _sectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: _SectionHeader(
+                  icon: Symbols.folder_shared_rounded,
+                  title: 'Mes documents',
+                ),
+              ),
+              if (onAddDocument != null)
+                TextButton.icon(
+                  onPressed: () => _showAddDocumentSheet(
+                    context,
+                    onAdd: onAddDocument!,
+                    onWillPauseForPicker: onWillPauseForPicker,
+                  ),
+                  icon: const Icon(Symbols.add_rounded, size: 18),
+                  label: const Text('Ajouter'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary700,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
+          ),
+          if (documents.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(
+                  top: AppSpacing.sm, bottom: AppSpacing.xs),
+              child: Text(
+                'Aucun document ajouté',
+                style: tt.bodyMedium?.copyWith(color: AppColors.neutral500),
+              ),
+            )
+          else
+            ...documents.map(
+              (doc) => _DocumentRow(
+                document: doc,
+                onRemove: onRemoveDocument != null
+                    ? () => onRemoveDocument!(doc)
+                    : null,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocumentRow extends StatelessWidget {
+  const _DocumentRow({required this.document, this.onRemove});
+
+  final PatientDocument document;
+  final VoidCallback? onRemove;
+
+  IconData _icon() => switch (document.type) {
+        DocumentType.cmuCard => Symbols.badge_rounded,
+        DocumentType.insuranceCard => Symbols.health_and_safety_rounded,
+        DocumentType.other => Symbols.description_rounded,
+      };
+
+  void _viewDocument(BuildContext context) {
+    if (document.media.url == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _DocumentViewerPage(descriptor: document.media),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final hasMedia = document.media.url != null;
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 0, vertical: AppSpacing.xs),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.primary100,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        child: Icon(_icon(), size: 18, color: AppColors.primary700),
+      ),
+      title: Text(document.label,
+          style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+      subtitle: Text(document.type.label,
+          style: tt.bodySmall?.copyWith(color: AppColors.neutral500)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasMedia)
+            IconButton(
+              icon: const Icon(Symbols.open_in_full_rounded, size: 20),
+              color: AppColors.primary700,
+              tooltip: 'Voir',
+              onPressed: () => _viewDocument(context),
+            ),
+          if (onRemove != null)
+            IconButton(
+              icon: const Icon(Symbols.delete_rounded, size: 20),
+              color: AppColors.error,
+              tooltip: 'Supprimer',
+              onPressed: onRemove,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+void _showAddDocumentSheet(
+  BuildContext context, {
+  required Future<void> Function(PatientDocument) onAdd,
+  VoidCallback? onWillPauseForPicker,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+    ),
+    builder: (ctx) => _AddDocumentSheet(
+      onAdd: onAdd,
+      onWillPauseForPicker: onWillPauseForPicker,
+    ),
+  );
+}
+
+class _AddDocumentSheet extends StatefulWidget {
+  const _AddDocumentSheet({required this.onAdd, this.onWillPauseForPicker});
+
+  final Future<void> Function(PatientDocument) onAdd;
+  final VoidCallback? onWillPauseForPicker;
+
+  @override
+  State<_AddDocumentSheet> createState() => _AddDocumentSheetState();
+}
+
+class _AddDocumentSheetState extends State<_AddDocumentSheet> {
+  final _labelCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  DocumentType _type = DocumentType.cmuCard;
+  MediaDescriptor? _photoDescriptor;
+  _UploadStatus _photoStatus = _UploadStatus.idle;
+  String? _photoError;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _labelCtrl.text = _type.label;
+  }
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onTypeChanged(DocumentType? t) {
+    if (t == null) return;
+    setState(() {
+      _type = t;
+      if (t != DocumentType.other) _labelCtrl.text = t.label;
+    });
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      setState(() {
+        _photoStatus = _UploadStatus.picking;
+        _photoError = null;
+      });
+      widget.onWillPauseForPicker?.call();
+      picked = await picker.pickImage(
+          source: source, imageQuality: 60, maxWidth: 1280);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = 'Accès refusé ou appareil indisponible : $e';
+        });
+      }
+      return;
+    }
+    if (picked == null) {
+      if (mounted) setState(() => _photoStatus = _UploadStatus.idle);
+      return;
+    }
+    setState(() => _photoStatus = _UploadStatus.uploading);
+    try {
+      final bytes = await picked.readAsBytes();
+      // Dev stub: XOR 0x5A — NOT a cipher. TODO(#102): replace with MediaCipher(FrbCryptoCore).encrypt().
+      final cipher = Uint8List(bytes.length);
+      for (var i = 0; i < bytes.length; i++) {
+        cipher[i] = bytes[i] ^ 0x5A;
+      }
+      final uuid = _genUuid();
+      final hash = sha256.convert(bytes).toString();
+      final dir = await getApplicationDocumentsDirectory();
+      final localFile = File('${dir.path}/media_$uuid.jpg');
+      await localFile.writeAsBytes(cipher, flush: true);
+      final descriptor = MediaDescriptor(
+        uuid: uuid,
+        contentKey: base64Encode(Uint8List(32)), // stub — TODO(#102)
+        contentHash: hash,
+        mime: 'image/jpeg',
+        sizeBytes: bytes.length,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+        url: 'file://${localFile.path}',
+      );
+      if (mounted) {
+        setState(() {
+          _photoDescriptor = descriptor;
+          _photoStatus = _UploadStatus.idle;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _photoStatus = _UploadStatus.error;
+          _photoError = e.toString();
+        });
+      }
+    }
+  }
+
+  void _showPhotoPicker(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary700),
+              title: const Text('Depuis la galerie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickPhoto(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_photoDescriptor == null) return;
+    setState(() => _saving = true);
+    try {
+      final doc = PatientDocument(
+        id: _genUuid(),
+        type: _type,
+        label: _labelCtrl.text.trim(),
+        media: _photoDescriptor!,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
+      );
+      await widget.onAdd(doc);
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text('Ajouter un document',
+                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: AppSpacing.md),
+            // Type selector
+            SegmentedButton<DocumentType>(
+              segments: const [
+                ButtonSegment(
+                    value: DocumentType.cmuCard,
+                    label: Text('CMU'),
+                    icon: Icon(Symbols.badge_rounded)),
+                ButtonSegment(
+                    value: DocumentType.insuranceCard,
+                    label: Text('Assurance'),
+                    icon: Icon(Symbols.health_and_safety_rounded)),
+                ButtonSegment(
+                    value: DocumentType.other,
+                    label: Text('Autre'),
+                    icon: Icon(Symbols.description_rounded)),
+              ],
+              selected: {_type},
+              onSelectionChanged: (s) => _onTypeChanged(s.firstOrNull),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            // Label field (free-text for "other", pre-filled for known types)
+            TextFormField(
+              controller: _labelCtrl,
+              decoration: const InputDecoration(labelText: 'Libellé'),
+              readOnly: _type != DocumentType.other,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Requis' : null,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            // Photo picker
+            OutlinedButton.icon(
+              onPressed: _photoStatus == _UploadStatus.picking ||
+                      _photoStatus == _UploadStatus.uploading
+                  ? null
+                  : () => _showPhotoPicker(context),
+              icon: _photoStatus == _UploadStatus.picking ||
+                      _photoStatus == _UploadStatus.uploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_photoDescriptor != null
+                      ? Symbols.check_circle_rounded
+                      : Symbols.photo_camera_rounded),
+              label: Text(_photoDescriptor != null
+                  ? 'Photo ajoutée — changer'
+                  : 'Ajouter une photo'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _photoDescriptor != null
+                    ? AppColors.success
+                    : AppColors.primary700,
+              ),
+            ),
+            if (_photoError != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(_photoError!,
+                  style: tt.bodySmall?.copyWith(color: AppColors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: (_saving || _photoDescriptor == null) ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3067,6 +3532,67 @@ class _DecryptedImageTileState extends State<_DecryptedImageTile> {
             ),
         ],
       ),
+    );
+  }
+}
+
+// Loads, XOR-decrypts (stub — TODO #102), and displays a document full-screen.
+class _DocumentViewerPage extends StatefulWidget {
+  const _DocumentViewerPage({required this.descriptor});
+  final MediaDescriptor descriptor;
+
+  @override
+  State<_DocumentViewerPage> createState() => _DocumentViewerPageState();
+}
+
+class _DocumentViewerPageState extends State<_DocumentViewerPage> {
+  Uint8List? _bytes;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final url = widget.descriptor.url;
+    if (url == null) {
+      setState(() => _error = 'Document non disponible localement');
+      return;
+    }
+    try {
+      final ciphertext =
+          await File(url.replaceFirst('file://', '')).readAsBytes();
+      // Dev stub: XOR 0x5A — NOT a cipher. TODO(#102): replace with FrbCryptoCore decrypt.
+      final plain = Uint8List(ciphertext.length);
+      for (var i = 0; i < ciphertext.length; i++) {
+        plain[i] = ciphertext[i] ^ 0x5A;
+      }
+      if (mounted) setState(() => _bytes = plain);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: _error != null
+          ? Center(
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.white),
+                  textAlign: TextAlign.center))
+          : _bytes != null
+              ? InteractiveViewer(child: Center(child: Image.memory(_bytes!)))
+              : const Center(
+                  child: CircularProgressIndicator(color: Colors.white)),
     );
   }
 }
