@@ -258,6 +258,11 @@ class AccessTokenService {
         cc.documents.where((d) => d.url?.startsWith('file://') ?? false),
       );
     }
+    for (final doc in record.documents) {
+      if (doc.media.url?.startsWith('file://') ?? false) {
+        result.add(doc.media);
+      }
+    }
     return result;
   }
 
@@ -334,9 +339,22 @@ class AccessTokenService {
       );
     }).toList();
 
+    // Patient administrative documents (#116): strip or null local media URLs.
+    // When removeDescriptors=true the whole document entry is removed (patient
+    // refused sharing — doctor must not call requestAccess on local-only UUIDs).
+    final sanitisedDocuments = record.documents
+        .map((doc) {
+          if (!isDirty(doc.media)) return doc;
+          if (removeDescriptors) return null;
+          return doc.copyWithMedia(nullUrl(doc.media));
+        })
+        .whereType<PatientDocument>()
+        .toList();
+
     return record.copyWith(
       consultations: sanitisedConsultations,
       chronicConditions: sanitisedConditions,
+      documents: sanitisedDocuments,
     );
   }
 

@@ -34,6 +34,8 @@ class MainShell extends StatefulWidget {
     this.onDeleteAccount,
     this.autoShareMedia = false,
     this.onAutoShareMediaChanged,
+    this.onAddDocument,
+    this.onRemoveDocument,
   });
 
   final MedicalRecord record;
@@ -54,6 +56,8 @@ class MainShell extends StatefulWidget {
   final Future<void> Function()? onDeleteAccount;
   final bool autoShareMedia;
   final Future<void> Function(bool)? onAutoShareMediaChanged;
+  final Future<void> Function(PatientDocument)? onAddDocument;
+  final Future<void> Function(PatientDocument)? onRemoveDocument;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -197,6 +201,8 @@ class _MainShellState extends State<MainShell> {
                 return widget.onUpdateRecord!(updated);
               }
             : null,
+        onAddDocument: widget.onAddDocument,
+        onRemoveDocument: widget.onRemoveDocument,
       ),
       SettingsScreen(
         record: widget.record,

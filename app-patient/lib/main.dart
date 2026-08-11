@@ -485,6 +485,19 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           onDeleteAccount: _onDeleteAccount,
           autoShareMedia: _autoShareMedia,
           onAutoShareMediaChanged: _onAutoShareMediaChanged,
+          onAddDocument: (doc) => _onUpdateRecord(
+            _record!.copyWith(
+              documents: [..._record!.documents, doc],
+              updatedAt: DateTime.now().toUtc().toIso8601String(),
+            ),
+          ),
+          onRemoveDocument: (doc) => _onUpdateRecord(
+            _record!.copyWith(
+              documents:
+                  _record!.documents.where((d) => d.id != doc.id).toList(),
+              updatedAt: DateTime.now().toUtc().toIso8601String(),
+            ),
+          ),
         ),
       _Phase.invalidated => _InvalidatedScreen(
           error: _loadError,
