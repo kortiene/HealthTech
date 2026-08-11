@@ -269,9 +269,8 @@ class _ProfilTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = record.allergies.isEmpty &&
-        !_hasStableData &&
-        record.documents.isEmpty;
+    final isEmpty =
+        record.allergies.isEmpty && !_hasStableData && record.documents.isEmpty;
     return _TabScrollView(
       children: isEmpty
           ? [
@@ -401,8 +400,8 @@ class _DocumentRow extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final hasMedia = document.media.url != null;
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-          horizontal: 0, vertical: AppSpacing.xs),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 0, vertical: AppSpacing.xs),
       leading: Container(
         width: 36,
         height: 36,
