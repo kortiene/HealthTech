@@ -88,6 +88,7 @@ class _MainShellState extends State<MainShell> {
         onShowQr: _showQr,
         onScan: _showScan,
         lastSyncedAt: widget.lastSyncedAt,
+        onEditProfile: () => setState(() => _tab = 2),
       ),
       PatientRecordScreen(
         record: widget.record,
