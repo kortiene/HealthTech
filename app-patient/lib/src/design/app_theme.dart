@@ -1,16 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Palette de marque active. Changer ici pour basculer toute l'UI (#136).
+///   BrandPalette.green → teal-vert (défaut)
+///   BrandPalette.blue  → bleu médical (OMS / hôpitaux)
+enum BrandPalette { green, blue }
+
+const kBrandPalette = BrandPalette.green;
+
 /// Système de design HealthTech — palette, typographie et composants
 /// partagés. Source de vérité : Design Brief HealthTech v1.0 — Juillet 2026.
 class AppColors {
   AppColors._();
 
-  static const primary900 = Color(0xFF003D39);
-  static const primary700 = Color(0xFF006C67);
-  static const primary500 = Color(0xFF00A89E);
-  static const primary100 = Color(0xFFE0F5F4);
-  static const primary50 = Color(0xFFF0FAFA);
+  // Famille primary — évaluée à la compilation selon kBrandPalette.
+  // Tous les tokens restent `const` : aucun widget à modifier.
+  static const primary900 = kBrandPalette == BrandPalette.blue
+      ? Color(0xFF0B2D6B) // bleu marine profond
+      : Color(0xFF003D39); // teal foncé
+  static const primary700 = kBrandPalette == BrandPalette.blue
+      ? Color(0xFF1655A3) // bleu médical (CTAs, icônes)
+      : Color(0xFF006C67); // teal principal
+  static const primary500 = kBrandPalette == BrandPalette.blue
+      ? Color(0xFF2D8EE3) // bleu clair (accents)
+      : Color(0xFF00A89E); // teal clair
+  static const primary100 = kBrandPalette == BrandPalette.blue
+      ? Color(0xFFDBEAFE) // fond bleu pâle
+      : Color(0xFFE0F5F4); // fond teal pâle
+  static const primary50 = kBrandPalette == BrandPalette.blue
+      ? Color(0xFFEFF6FF) // scaffold bleu très pâle
+      : Color(0xFFF0FAFA); // scaffold teal très pâle
 
   static const neutral900 = Color(0xFF1A1A1A);
   static const neutral700 = Color(0xFF3D3D3D);
