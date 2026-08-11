@@ -17,6 +17,7 @@ class PatientHeroAppBar extends StatelessWidget {
     this.actions,
     this.expandedHeight = 200,
     this.showAllergie = true,
+    this.bottom,
   });
 
   final MedicalRecord record;
@@ -26,6 +27,7 @@ class PatientHeroAppBar extends StatelessWidget {
   final List<Widget>? actions;
   final double expandedHeight;
   final bool showAllergie;
+  final PreferredSizeWidget? bottom;
 
   String get _greeting {
     final h = TimeOfDay.now().hour;
@@ -57,6 +59,7 @@ class PatientHeroAppBar extends StatelessWidget {
             ?.copyWith(color: AppColors.white),
       ),
       actions: actions,
+      bottom: bottom,
       flexibleSpace: FlexibleSpaceBar(
         stretchModes: const [StretchMode.zoomBackground],
         background: _HeroBackground(
