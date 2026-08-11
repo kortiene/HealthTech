@@ -299,12 +299,34 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          // Always read from local cache at startup — the cloud may have a
-          // session-key blob (from a QR session) which XOR-0x5A would silently
-          // "decrypt" and corrupt _record (removing file:// media URLs).
-          // _onQrClosed restores the canonical master-key blob after each
-          // session, so the local cache is always consistent.
-          _record = await _recordStore.read(handle, _account!.anonymousUuid);
+          // Read local first — always safe (canonical, file:// URLs intact).
+          final local =
+              await _recordStore.read(handle, _account!.anonymousUuid);
+          // Best-effort cloud merge: catches doctor notes written after the
+          // patient closed QR early (before _onQrClosed could pull them).
+          // XOR-0x5A stub: cloud read always succeeds regardless of key.
+          var merged = local;
+          try {
+            final cloud = await _recordStore.read(
+              handle,
+              _account!.anonymousUuid,
+              forceCloud: true,
+            );
+            merged = _mergeSessionIntoLocal(local, cloud);
+            if (!identical(merged, local)) {
+              try {
+                await _recordStore.write(
+                    merged, handle, _account!.anonymousUuid);
+              } on BackendUnavailable {
+                // Local cache already updated by _recordStore.read above.
+              }
+            }
+          } on BackendUnavailable {
+            // Offline — local record is authoritative.
+          } catch (_) {
+            // Prod: DecryptError or other issue — local record is fine.
+          }
+          _record = merged;
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(
