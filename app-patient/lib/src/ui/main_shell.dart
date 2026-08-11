@@ -32,6 +32,8 @@ class MainShell extends StatefulWidget {
     this.lastSyncedAt,
     this.onManualSync,
     this.onDeleteAccount,
+    this.autoShareMedia = false,
+    this.onAutoShareMediaChanged,
   });
 
   final MedicalRecord record;
@@ -50,6 +52,8 @@ class MainShell extends StatefulWidget {
   final String? lastSyncedAt;
   final Future<void> Function()? onManualSync;
   final Future<void> Function()? onDeleteAccount;
+  final bool autoShareMedia;
+  final Future<void> Function(bool)? onAutoShareMediaChanged;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -64,6 +68,7 @@ class _MainShellState extends State<MainShell> {
         builder: (_) => QrScreen(
           controller: widget.qrController,
           record: widget.record,
+          autoShareMedia: widget.autoShareMedia,
         ),
       ),
     );
@@ -205,6 +210,8 @@ class _MainShellState extends State<MainShell> {
         lastSyncedAt: widget.lastSyncedAt,
         onManualSync: widget.onManualSync,
         onDeleteAccount: widget.onDeleteAccount,
+        autoShareMedia: widget.autoShareMedia,
+        onAutoShareMediaChanged: widget.onAutoShareMediaChanged,
       ),
     ];
 

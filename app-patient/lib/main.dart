@@ -37,6 +37,7 @@ import 'src/ui/splash_screen.dart';
 const String _kBackendBaseUrl = 'https://api.healthtech.ci';
 const String _kPinKey = 'patient_pin';
 const String _kLastSyncKey = 'last_sync_at';
+const String _kAutoShareMediaKey = 'auto_share_media';
 const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
@@ -90,6 +91,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   final _biometricService = BiometricService();
   bool _biometricEnabled = false;
   String? _lastSyncedAt;
+  bool _autoShareMedia = false;
 
   final _masterKey = const MasterKeyService();
   late final PatientAccountStore _accountStore;
@@ -157,6 +159,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           final pin = await _storage.read(key: _kPinKey);
           _biometricEnabled = await _biometricService.isEnabled();
           _lastSyncedAt = await _storage.read(key: _kLastSyncKey);
+          _autoShareMedia =
+              await _storage.read(key: _kAutoShareMediaKey) == 'true';
           if (!mounted) return;
           if (pin != null && pin.isNotEmpty) {
             _storedPin = pin;
@@ -200,12 +204,36 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       try {
         _account = await _accountStore.read(handle);
         if (await _recordStore.exists()) {
-          // Always read from local cache at startup — the cloud may have a
-          // session-key blob (from a QR session) which cannot be decrypted
-          // with the master key and would silently corrupt _record in dev.
-          // _onQrClosed restores the canonical master-key blob after each
-          // session, so the local cache is always consistent.
-          _record = await _recordStore.read(handle, _account!.anonymousUuid);
+          // Read local first — always safe (canonical, file:// URLs intact).
+          final local =
+              await _recordStore.read(handle, _account!.anonymousUuid);
+          // Best-effort cloud merge: catches doctor notes written after the
+          // patient closed QR early (before _onQrClosed could pull them).
+          // Dev (XOR-0x5A): cloud read always succeeds.
+          // Prod (AES-GCM): DecryptError if session blob still live → ignore.
+          var merged = local;
+          try {
+            final cloud = await _recordStore.read(
+              handle,
+              _account!.anonymousUuid,
+              forceCloud: true,
+            );
+            merged = _mergeSessionIntoLocal(local, cloud);
+            if (!identical(merged, local)) {
+              // Persist merged record so next restart reads it locally.
+              try {
+                await _recordStore.write(
+                    merged, handle, _account!.anonymousUuid);
+              } on BackendUnavailable {
+                // Local cache already updated by _recordStore.read above.
+              }
+            }
+          } on BackendUnavailable {
+            // Offline — local record is authoritative.
+          } catch (_) {
+            // Prod: DecryptError or other issue — local record is fine.
+          }
+          _record = merged;
         } else {
           final now = DateTime.now().toUtc().toIso8601String();
           final empty = MedicalRecord(
@@ -243,21 +271,67 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     _storedPin = newPin;
   }
 
+  // Merges doctor additions (new consultations / treatment changes) from the
+  // session blob into the patient's local record, without touching media URLs.
+  // The session blob's URLs are all null (sanitised by AccessTokenService) —
+  // [local] is always used as the base to preserve file:// references.
+  MedicalRecord _mergeSessionIntoLocal(
+    MedicalRecord local,
+    MedicalRecord session,
+  ) {
+    final localIds = {for (final c in local.consultations) c.id};
+    final newConsults =
+        session.consultations.where((c) => !localIds.contains(c.id)).toList();
+
+    final localTreatMap = {for (final t in local.treatments) t.id: t};
+    final mergedTreatments = local.treatments.map((t) {
+      final s = session.treatments.where((x) => x.id == t.id).firstOrNull;
+      return s == null ? t : t.copyWith(status: s.status, endedAt: s.endedAt);
+    }).toList()
+      ..addAll(
+        session.treatments.where((t) => !localTreatMap.containsKey(t.id)),
+      );
+
+    if (newConsults.isEmpty &&
+        !session.treatments.any((t) => !localTreatMap.containsKey(t.id))) {
+      return local;
+    }
+    return local.copyWith(
+      consultations: [...local.consultations, ...newConsults],
+      treatments: mergedTreatments,
+      updatedAt: DateTime.now().toUtc().toIso8601String(),
+    );
+  }
+
   Future<void> _onQrClosed() async {
     final savedRecord = _record;
     if (savedRecord == null || _account == null) return;
     final handle = await _masterKey.unsealForUse();
     try {
-      // Re-encrypt with master key to restore the canonical blob on the backend.
-      // During QR generation AccessTokenService uploaded a session-key-encrypted
-      // blob; this write takes back ownership so subsequent reads and new-device
-      // restores always get the master-key version with file:// media intact.
-      // We do NOT attempt forceCloud: in production the session blob is
-      // AES-GCM-encrypted with the ephemeral session key (DecryptError with the
-      // master key); in dev the XOR-0x5A stub is symmetric and would silently
-      // return the sanitised record (url: null), permanently losing file:// URLs.
+      // Try to pick up doctor additions from the session blob.
+      // Base is always savedRecord to preserve file:// media URLs —
+      // the session blob has null URLs (sanitised for the doctor).
+      // In dev (XOR-0x5A key-agnostic): decrypt succeeds → merge applied.
+      // In prod (AES-GCM): decrypt throws with wrong key → fallback to local.
+      var toWrite = savedRecord;
       try {
-        await _recordStore.write(savedRecord, handle, _account!.anonymousUuid);
+        final fromCloud = await _recordStore.read(
+          handle,
+          _account!.anonymousUuid,
+          forceCloud: true,
+        );
+        toWrite = _mergeSessionIntoLocal(savedRecord, fromCloud);
+      } on BackendUnavailable {
+        // Offline — write savedRecord back as-is.
+      } catch (_) {
+        // Prod decrypt error → write savedRecord back as-is.
+      }
+      if (!identical(toWrite, savedRecord) && mounted) {
+        setState(() => _record = toWrite);
+      }
+      // Restore canonical master-key blob on the backend.
+      try {
+        await _recordStore.write(toWrite, handle, _account!.anonymousUuid);
         final now = DateTime.now().toUtc().toIso8601String();
         await _storage.write(key: _kLastSyncKey, value: now);
         if (mounted) setState(() => _lastSyncedAt = now);
@@ -267,6 +341,14 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     } finally {
       await _masterKey.wipeHandle(handle);
     }
+  }
+
+  Future<void> _onAutoShareMediaChanged(bool value) async {
+    setState(() => _autoShareMedia = value);
+    await _storage.write(
+      key: _kAutoShareMediaKey,
+      value: value ? 'true' : 'false',
+    );
   }
 
   Future<void> _onUpdateRecord(MedicalRecord record) async {
@@ -401,6 +483,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           lastSyncedAt: _lastSyncedAt,
           onManualSync: _onManualSync,
           onDeleteAccount: _onDeleteAccount,
+          autoShareMedia: _autoShareMedia,
+          onAutoShareMediaChanged: _onAutoShareMediaChanged,
         ),
       _Phase.invalidated => _InvalidatedScreen(
           error: _loadError,
