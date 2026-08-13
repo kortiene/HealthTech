@@ -68,7 +68,9 @@
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.1s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.1s ease;
 }
 .btn:active {
   transform: scale(0.98);
@@ -163,4 +165,38 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ── Layout global — image de fond + colonne centrée (sauf ScanScreen) ── */
+body {
+  min-height: 100vh;
+  background-color: #d4ebe9;
+  background-image:
+    radial-gradient(
+      ellipse at 15% 15%,
+      rgba(0, 168, 158, 0.3) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse at 85% 80%,
+      rgba(0, 108, 103, 0.22) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(255, 255, 255, 0.1) 0%,
+      transparent 70%
+    );
+  background-attachment: fixed;
+}
+
+.page-frame {
+  max-width: 880px;
+  margin: 0 auto;
+  background: var(--color-white);
+  min-height: 100vh;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.1),
+    0 32px 80px rgba(0, 0, 0, 0.14);
 }
