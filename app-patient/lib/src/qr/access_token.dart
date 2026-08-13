@@ -336,6 +336,8 @@ class AccessTokenService {
         icd10: cc.icd10,
         since: cc.since,
         documents: handle(cc.documents),
+        severity: cc.severity,
+        addedAt: cc.addedAt,
       );
     }).toList();
 

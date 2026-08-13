@@ -894,6 +894,8 @@ class _TabScrollView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Builder(
       builder: (ctx) => CustomScrollView(
+        // Prevents _StretchController from firing setState() during NestedScrollView layout (→ "Build scheduled during frame").
+        physics: const ClampingScrollPhysics(),
         slivers: [
           SliverOverlapInjector(
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(ctx),
