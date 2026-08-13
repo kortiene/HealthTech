@@ -45,7 +45,7 @@ export function App() {
         ? {
             media: consultation.media.map((m) => ({
               uuid: m.mediaId,
-              url: m.url,
+              url: null,
               content_key: m.contentKey,
               content_hash: m.contentHash,
               alg: "A256GCM",
