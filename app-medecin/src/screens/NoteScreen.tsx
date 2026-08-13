@@ -382,8 +382,8 @@ export function NoteScreen({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: "100%", paddingBottom: mode === "written" ? "var(--space-xl)" : 0 }}>
-      <AppBar title="Nouvelle note">
+    <div style={{ minHeight: "100%", paddingBottom: 80 }}>
+      <AppBar title={mode === "written" ? "Note écrite" : "Note vocale"}>
         <button
           type="button"
           className="btn-icon"
@@ -431,42 +431,37 @@ export function NoteScreen({
         </p>
       </div>
 
-      {/* Mode toggle */}
-      <div
-        style={{
-          display: "flex",
-          gap: "var(--space-xs)",
-          padding: "var(--space-md)",
-          borderBottom: "1px solid var(--color-neutral-200)",
-        }}
-      >
+      {/* FAB — basculer entre note écrite et note vocale */}
+      {phase !== "recording" && !isSaving && (
         <button
           type="button"
-          className={mode === "written" ? "btn btn-filled" : "btn btn-outline"}
-          style={{ flex: 1, gap: "var(--space-xs)" }}
-          onClick={() => setMode("written")}
+          onClick={() => setMode(mode === "written" ? "voice" : "written")}
+          aria-label={mode === "written" ? "Passer en note vocale" : "Passer en note écrite"}
+          title={mode === "written" ? "Note vocale" : "Note écrite"}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 200,
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "var(--color-primary-700)",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 16px rgba(21,101,192,0.35)",
+          }}
         >
           <Icon
-            name="edit_note"
-            size={18}
-            color={mode === "written" ? "var(--color-white)" : "var(--color-primary-700)"}
+            name={mode === "written" ? "mic" : "edit_note"}
+            size={26}
+            color="var(--color-white)"
           />
-          Note écrite
         </button>
-        <button
-          type="button"
-          className={mode === "voice" ? "btn btn-filled" : "btn btn-outline"}
-          style={{ flex: 1, gap: "var(--space-xs)" }}
-          onClick={() => setMode("voice")}
-        >
-          <Icon
-            name="mic"
-            size={18}
-            color={mode === "voice" ? "var(--color-white)" : "var(--color-primary-700)"}
-          />
-          Note vocale
-        </button>
-      </div>
+      )}
 
       {/* ── Written mode ─────────────────────────────────────────────────── */}
       {mode === "written" && (
