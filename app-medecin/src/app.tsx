@@ -62,6 +62,16 @@ export function App() {
           : []),
       ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
+      chronic_conditions: [
+        ...(rawFlutter.chronic_conditions ?? rawFlutter.chronicConditions ?? []),
+        ...consultation.newConditions.map((c) => ({
+          name: c.name,
+          severity: c.severity,
+          ...(c.icd10 ? { icd10: c.icd10 } : {}),
+          ...(c.since ? { since: c.since } : {}),
+          added_at: now,
+        })),
+      ],
       updated_at: now,
     };
 
@@ -122,6 +132,16 @@ export function App() {
                       ? "modérée"
                       : "légère",
                 notedAt: new Date().toISOString().slice(0, 10),
+              })),
+            ],
+            chronicConditions: [
+              ...prev.chronicConditions,
+              ...consultation.newConditions.map((c) => ({
+                name: c.name,
+                icd10: c.icd10 ?? "",
+                since: c.since,
+                severity: c.severity,
+                addedAt: now,
               })),
             ],
           }
