@@ -32,6 +32,8 @@ export interface NewCondition {
   name: string;
   icd10?: string;
   since?: string;
+  /** 1 (légère) – 5 (critique). */
+  severity: number;
 }
 
 export interface NewConsultation {
@@ -117,6 +119,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   const [conditionName, setConditionName] = useState("");
   const [conditionIcd10, setConditionIcd10] = useState("");
   const [conditionSince, setConditionSince] = useState("");
+  const [conditionSeverity, setConditionSeverity] = useState(1);
   const [newConditions, setNewConditions] = useState<NewCondition[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,11 +154,13 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
         name: n,
         icd10: conditionIcd10.trim() || undefined,
         since: conditionSince.trim() || undefined,
+        severity: conditionSeverity,
       },
     ]);
     setConditionName("");
     setConditionIcd10("");
     setConditionSince("");
+    setConditionSeverity(1);
   }
 
   function removeCondition(i: number) {
@@ -238,6 +243,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             name: pendingConditionName,
             icd10: conditionIcd10.trim() || undefined,
             since: conditionSince.trim() || undefined,
+            severity: conditionSeverity,
           },
         ]
       : newConditions;
@@ -899,6 +905,12 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                     >
                       {c.name}
                     </span>
+                    <span
+                      className="text-label"
+                      style={{ marginLeft: "var(--space-sm)", color: "var(--color-neutral-600)" }}
+                    >
+                      {["Légère","Modérée","Importante","Sévère","Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
+                    </span>
                     {c.icd10 && (
                       <span
                         className="text-label"
@@ -1012,6 +1024,21 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                     }
                   }}
                 />
+                <select
+                  className="field-input"
+                  value={conditionSeverity}
+                  onChange={(e) =>
+                    setConditionSeverity(
+                      Number((e.target as HTMLSelectElement).value),
+                    )
+                  }
+                >
+                  <option value={1}>1 — Légère</option>
+                  <option value={2}>2 — Modérée</option>
+                  <option value={3}>3 — Importante</option>
+                  <option value={4}>4 — Sévère</option>
+                  <option value={5}>5 — Critique</option>
+                </select>
                 <input
                   className="field-input"
                   placeholder="Code ICD-10 (optionnel)"
