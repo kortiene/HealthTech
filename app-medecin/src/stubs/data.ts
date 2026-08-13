@@ -128,7 +128,7 @@ export const previewRecord: MedicalRecord = {
       severity: 3,
       since: "2021",
       addedAt: "2024-03-15T10:30:00.000Z",
-      documents: [],
+      documents: [{ uuid: "demo-doc-001", mime: "image/jpeg" }],
     },
   ],
   medications: [

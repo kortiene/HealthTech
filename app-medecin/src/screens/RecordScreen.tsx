@@ -168,9 +168,6 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "var(--space-sm)",
         padding: "10px var(--space-sm)",
         borderLeft: "3px solid var(--color-primary-500)",
         background: "var(--color-primary-50)",
@@ -178,70 +175,11 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      {/* Name + since */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p
-          className="text-body-lg"
-          style={{ margin: 0, fontWeight: 500 }}
-        >
+      {/* Ligne 1 : nom + ICD-10 */}
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+        <p className="text-body-lg" style={{ flex: 1, margin: 0, fontWeight: 500 }}>
           {condition.name}
         </p>
-        {condition.since && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: 12,
-              color: "var(--color-neutral-500)",
-            }}
-          >
-            Depuis {condition.since}
-          </p>
-        )}
-      </div>
-      {/* Badges */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-xs)",
-          flexShrink: 0,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
-        {docCount > 0 && (
-          <span
-            style={{
-              padding: "2px 7px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--color-neutral-100)",
-              border: "1px solid var(--color-neutral-200)",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-neutral-500)",
-              display: "flex",
-              alignItems: "center",
-              gap: 3,
-            }}
-          >
-            📎 {docCount}
-          </span>
-        )}
-        {sev !== undefined && (
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: "var(--radius-pill)",
-              background: SEVERITY_COLOR[sev] + "1A",
-              border: `1px solid ${SEVERITY_COLOR[sev]}`,
-              fontSize: 11,
-              fontWeight: 700,
-              color: SEVERITY_COLOR[sev],
-            }}
-          >
-            {SEVERITY_LABEL[sev] ?? `Sévérité ${sev}`}
-          </span>
-        )}
         {condition.icd10 && (
           <span
             style={{
@@ -254,12 +192,67 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
               color: "var(--color-neutral-500)",
               fontFamily: "monospace",
               letterSpacing: "0.04em",
+              flexShrink: 0,
             }}
           >
             {condition.icd10}
           </span>
         )}
       </div>
+      {/* Ligne 2 : depuis + badges sévérité + pièces jointes */}
+      {(condition.since || sev !== undefined || docCount > 0) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-xs)",
+            marginTop: 4,
+          }}
+        >
+          <p
+            style={{
+              flex: 1,
+              margin: 0,
+              fontSize: 12,
+              color: "var(--color-neutral-500)",
+            }}
+          >
+            {condition.since ? `Depuis ${condition.since}` : ""}
+          </p>
+          {sev !== undefined && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "var(--radius-pill)",
+                background: SEVERITY_COLOR[sev] + "1A",
+                border: `1px solid ${SEVERITY_COLOR[sev]}`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: SEVERITY_COLOR[sev],
+                flexShrink: 0,
+              }}
+            >
+              {SEVERITY_LABEL[sev] ?? `Sévérité ${sev}`}
+            </span>
+          )}
+          {docCount > 0 && (
+            <span
+              style={{
+                padding: "2px 7px",
+                borderRadius: "var(--radius-pill)",
+                background: "var(--color-neutral-100)",
+                border: "1px solid var(--color-neutral-200)",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--color-neutral-500)",
+                flexShrink: 0,
+              }}
+            >
+              📎 {docCount}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
