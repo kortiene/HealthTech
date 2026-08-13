@@ -28,10 +28,17 @@ export interface NewAllergy {
   severity: "mild" | "moderate" | "severe";
 }
 
+export interface NewCondition {
+  name: string;
+  icd10?: string;
+  since?: string;
+}
+
 export interface NewConsultation {
   summary: string;
   doctorName: string;
   newAllergies: NewAllergy[];
+  newConditions: NewCondition[];
   /** Ordonnances written at this consultation. */
   ordonnances: OrdonnanceJson[];
   /** Non-null only when the doctor starts a new global treatment at this visit. */
@@ -104,6 +111,13 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
   const [allergySeverity, setAllergySeverity] =
     useState<NewAllergy["severity"]>("mild");
   const [newAllergies, setNewAllergies] = useState<NewAllergy[]>([]);
+  const [conditionType, setConditionType] = useState<"allergy" | "condition">(
+    "allergy",
+  );
+  const [conditionName, setConditionName] = useState("");
+  const [conditionIcd10, setConditionIcd10] = useState("");
+  const [conditionSince, setConditionSince] = useState("");
+  const [newConditions, setNewConditions] = useState<NewCondition[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,6 +140,26 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
 
   function removeAllergy(i: number) {
     setNewAllergies((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function addCondition() {
+    const n = conditionName.trim();
+    if (!n) return;
+    setNewConditions((prev) => [
+      ...prev,
+      {
+        name: n,
+        icd10: conditionIcd10.trim() || undefined,
+        since: conditionSince.trim() || undefined,
+      },
+    ]);
+    setConditionName("");
+    setConditionIcd10("");
+    setConditionSince("");
+  }
+
+  function removeCondition(i: number) {
+    setNewConditions((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   // ── Ordonnance helpers ───────────────────────────────────────────────────
@@ -196,6 +230,18 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
       ? [...newAllergies, { substance: pendingSubstance, severity: allergySeverity }]
       : newAllergies;
 
+    const pendingConditionName = conditionName.trim();
+    const finalConditions: typeof newConditions = pendingConditionName
+      ? [
+          ...newConditions,
+          {
+            name: pendingConditionName,
+            icd10: conditionIcd10.trim() || undefined,
+            since: conditionSince.trim() || undefined,
+          },
+        ]
+      : newConditions;
+
     const headerParts: string[] = [];
     if (hospital.trim()) headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
     if (contact.trim()) headerParts.push(`Contact : ${contact.trim()}`);
@@ -234,6 +280,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
         summary,
         doctorName: doctorName.trim(),
         newAllergies: finalAllergies,
+        newConditions: finalConditions,
         ordonnances: builtOrdonnances,
         newTreatment,
         closedTreatmentId,
@@ -736,7 +783,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
           </button>
         </div>
 
-        {/* Allergies */}
+        {/* Conditions médicales (allergies + antécédents) */}
         <div>
           <div
             style={{
@@ -754,14 +801,14 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                 height: 32,
               }}
             >
-              <Icon name="warning" size={16} color="var(--color-allergy)" />
+              <Icon name="monitor_heart" size={16} color="var(--color-allergy)" />
             </span>
             <h2 className="text-title-sm" style={{ margin: 0 }}>
-              Allergies à noter
+              Conditions médicales
             </h2>
           </div>
 
-          {newAllergies.length > 0 && (
+          {(newAllergies.length > 0 || newConditions.length > 0) && (
             <div
               style={{
                 display: "flex",
@@ -772,7 +819,7 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
             >
               {newAllergies.map((a, i) => (
                 <div
-                  key={i}
+                  key={`allergy-${i}`}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -784,6 +831,12 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                   }}
                 >
                   <div>
+                    <span
+                      className="text-label"
+                      style={{ color: "var(--color-neutral-600)", marginRight: "var(--space-xs)" }}
+                    >
+                      Allergie
+                    </span>
                     <span
                       className="text-body"
                       style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}
@@ -820,6 +873,52 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
                   </button>
                 </div>
               ))}
+              {newConditions.map((c, i) => (
+                <div
+                  key={`cond-${i}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "var(--space-sm) var(--space-md)",
+                    background: "var(--color-primary-50)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-primary-200)",
+                  }}
+                >
+                  <div>
+                    <span
+                      className="text-label"
+                      style={{ color: "var(--color-neutral-600)", marginRight: "var(--space-xs)" }}
+                    >
+                      Antécédent
+                    </span>
+                    <span
+                      className="text-body"
+                      style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}
+                    >
+                      {c.name}
+                    </span>
+                    {c.icd10 && (
+                      <span
+                        className="text-label"
+                        style={{ marginLeft: "var(--space-sm)", color: "var(--color-neutral-600)" }}
+                      >
+                        {c.icd10}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={() => removeCondition(i)}
+                    aria-label={`Retirer ${c.name}`}
+                    style={{ color: "var(--color-neutral-500)" }}
+                  >
+                    <Icon name="close" size={18} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -834,46 +933,112 @@ export function EditScreen({ record, onSaved, onCancel }: EditScreenProps) {
               gap: "var(--space-sm)",
             }}
           >
-            <input
-              className="field-input"
-              placeholder="Substance ou allergène"
-              value={allergySubstance}
-              onInput={(e) =>
-                setAllergySubstance((e.target as HTMLInputElement).value)
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addAllergy();
-                }
-              }}
-            />
-            <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
-              <select
-                className="field-input"
-                value={allergySeverity}
-                onChange={(e) =>
-                  setAllergySeverity(
-                    (e.target as HTMLSelectElement)
-                      .value as NewAllergy["severity"],
-                  )
-                }
-                style={{ flex: 1 }}
-              >
-                <option value="mild">Légère</option>
-                <option value="moderate">Modérée</option>
-                <option value="severe">Sévère</option>
-              </select>
+            {/* Type toggle */}
+            <div style={{ display: "flex", gap: "var(--space-xs)" }}>
               <button
                 type="button"
-                className="btn btn-outline"
-                style={{ gap: "var(--space-xs)", flexShrink: 0 }}
-                onClick={addAllergy}
+                className={conditionType === "allergy" ? "btn btn-filled" : "btn btn-outline"}
+                style={{ flex: 1 }}
+                onClick={() => setConditionType("allergy")}
               >
-                <Icon name="add" size={18} color="var(--color-primary-700)" />
-                Ajouter
+                Allergie
+              </button>
+              <button
+                type="button"
+                className={conditionType === "condition" ? "btn btn-filled" : "btn btn-outline"}
+                style={{ flex: 1 }}
+                onClick={() => setConditionType("condition")}
+              >
+                Antécédent
               </button>
             </div>
+
+            {conditionType === "allergy" ? (
+              <>
+                <input
+                  className="field-input"
+                  placeholder="Substance ou allergène"
+                  value={allergySubstance}
+                  onInput={(e) =>
+                    setAllergySubstance((e.target as HTMLInputElement).value)
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addAllergy();
+                    }
+                  }}
+                />
+                <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+                  <select
+                    className="field-input"
+                    value={allergySeverity}
+                    onChange={(e) =>
+                      setAllergySeverity(
+                        (e.target as HTMLSelectElement)
+                          .value as NewAllergy["severity"],
+                      )
+                    }
+                    style={{ flex: 1 }}
+                  >
+                    <option value="mild">Légère</option>
+                    <option value="moderate">Modérée</option>
+                    <option value="severe">Sévère</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ gap: "var(--space-xs)", flexShrink: 0 }}
+                    onClick={addAllergy}
+                  >
+                    <Icon name="add" size={18} color="var(--color-primary-700)" />
+                    Ajouter
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  className="field-input"
+                  placeholder="Nom de la pathologie"
+                  value={conditionName}
+                  onInput={(e) =>
+                    setConditionName((e.target as HTMLInputElement).value)
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCondition();
+                    }
+                  }}
+                />
+                <input
+                  className="field-input"
+                  placeholder="Code ICD-10 (optionnel)"
+                  value={conditionIcd10}
+                  onInput={(e) =>
+                    setConditionIcd10((e.target as HTMLInputElement).value)
+                  }
+                />
+                <input
+                  className="field-input"
+                  placeholder="Depuis (ex : 2020, optionnel)"
+                  value={conditionSince}
+                  onInput={(e) =>
+                    setConditionSince((e.target as HTMLInputElement).value)
+                  }
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ gap: "var(--space-xs)", alignSelf: "flex-end" }}
+                  onClick={addCondition}
+                >
+                  <Icon name="add" size={18} color="var(--color-primary-700)" />
+                  Ajouter
+                </button>
+              </>
+            )}
           </div>
         </div>
 

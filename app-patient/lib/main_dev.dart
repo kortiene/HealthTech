@@ -422,13 +422,31 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         session.treatments.where((t) => !localTreatMap.containsKey(t.id)),
       );
 
+    final localAllergyKeys = {
+      for (final a in local.allergies) a.substance.toLowerCase(),
+    };
+    final newAllergies = session.allergies
+        .where((a) => !localAllergyKeys.contains(a.substance.toLowerCase()))
+        .toList();
+
+    final localConditionKeys = {
+      for (final c in local.chronicConditions) c.name.toLowerCase(),
+    };
+    final newConditions = session.chronicConditions
+        .where((c) => !localConditionKeys.contains(c.name.toLowerCase()))
+        .toList();
+
     if (newConsults.isEmpty &&
-        !session.treatments.any((t) => !localTreatMap.containsKey(t.id))) {
+        !session.treatments.any((t) => !localTreatMap.containsKey(t.id)) &&
+        newAllergies.isEmpty &&
+        newConditions.isEmpty) {
       return local;
     }
     return local.copyWith(
       consultations: [...local.consultations, ...newConsults],
       treatments: mergedTreatments,
+      allergies: [...local.allergies, ...newAllergies],
+      chronicConditions: [...local.chronicConditions, ...newConditions],
       updatedAt: DateTime.now().toUtc().toIso8601String(),
     );
   }
