@@ -201,6 +201,17 @@ class _MainShellState extends State<MainShell> {
                 return widget.onUpdateRecord!(updated);
               }
             : null,
+        onRemoveCondition: widget.onUpdateRecord != null
+            ? (index) {
+                final conditions = List.of(widget.record.chronicConditions)
+                  ..removeAt(index);
+                final updated = widget.record.copyWith(
+                  chronicConditions: conditions,
+                  updatedAt: DateTime.now().toIso8601String(),
+                );
+                return widget.onUpdateRecord!(updated);
+              }
+            : null,
         onAddDocument: widget.onAddDocument,
         onRemoveDocument: widget.onRemoveDocument,
       ),

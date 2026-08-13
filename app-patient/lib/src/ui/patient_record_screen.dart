@@ -30,6 +30,7 @@ class PatientRecordScreen extends StatelessWidget {
     this.onRemoveConsultationMedia,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onAddDocument,
     this.onRemoveDocument,
   });
@@ -68,6 +69,9 @@ class PatientRecordScreen extends StatelessWidget {
   /// Called when a document is added to condition at [index] (#115).
   /// Args: (index in chronicConditions, updated condition with new doc appended).
   final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+
+  /// Called when the patient deletes a chronic condition at [index].
+  final Future<void> Function(int index)? onRemoveCondition;
 
   /// Called when the patient adds a new administrative document (#116).
   final Future<void> Function(PatientDocument)? onAddDocument;
@@ -127,6 +131,7 @@ class PatientRecordScreen extends StatelessWidget {
                 backendUrl: backendUrl,
                 onAddCondition: onAddCondition,
                 onUpdateCondition: onUpdateCondition,
+                onRemoveCondition: onRemoveCondition,
                 onWillPauseForPicker: onWillPauseForPicker,
               ),
               _ProfilTab(
@@ -215,6 +220,7 @@ class _AntecedintsTab extends StatelessWidget {
     this.backendUrl,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onWillPauseForPicker,
   });
 
@@ -222,6 +228,7 @@ class _AntecedintsTab extends StatelessWidget {
   final String? backendUrl;
   final Future<void> Function(ChronicCondition)? onAddCondition;
   final Future<void> Function(int, ChronicCondition)? onUpdateCondition;
+  final Future<void> Function(int)? onRemoveCondition;
   final VoidCallback? onWillPauseForPicker;
 
   @override
@@ -233,6 +240,7 @@ class _AntecedintsTab extends StatelessWidget {
           backendUrl: backendUrl,
           onAddCondition: onAddCondition,
           onUpdateCondition: onUpdateCondition,
+          onRemoveCondition: onRemoveCondition,
           onWillPauseForPicker: onWillPauseForPicker,
         ),
       ],
@@ -1497,6 +1505,7 @@ void _showConditionDetailSheet(
   Future<void> Function(MediaDescriptor)? onAddDocument,
   Future<void> Function(MediaDescriptor)? onRemoveDocument,
   Future<void> Function(int)? onSeverityChanged,
+  Future<void> Function()? onRemoveCondition,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -1512,6 +1521,7 @@ void _showConditionDetailSheet(
       onAddDocument: onAddDocument,
       onRemoveDocument: onRemoveDocument,
       onSeverityChanged: onSeverityChanged,
+      onRemoveCondition: onRemoveCondition,
     ),
   );
 }
@@ -1524,6 +1534,7 @@ class _ConditionDetailSheet extends StatefulWidget {
     this.onAddDocument,
     this.onRemoveDocument,
     this.onSeverityChanged,
+    this.onRemoveCondition,
   });
 
   final ChronicCondition condition;
@@ -1539,6 +1550,9 @@ class _ConditionDetailSheet extends StatefulWidget {
 
   /// Called when the patient changes the severity slider. Null = read-only.
   final Future<void> Function(int)? onSeverityChanged;
+
+  /// Called when the patient confirms deletion of this condition. Null = no delete button.
+  final Future<void> Function()? onRemoveCondition;
 
   @override
   State<_ConditionDetailSheet> createState() => _ConditionDetailSheetState();
@@ -1888,6 +1902,51 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
               ),
             ),
           ],
+          // ── Supprimer la pathologie ──────────────────────────────────────
+          if (widget.onRemoveCondition != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            const Divider(),
+            const SizedBox(height: AppSpacing.xs),
+            TextButton.icon(
+              onPressed: () async {
+                final nav = Navigator.of(context);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Supprimer cette pathologie ?'),
+                    content: Text(
+                      'La pathologie « ${widget.condition.name} » '
+                      'sera retirée de votre dossier.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Annuler'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: const Text('Supprimer'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true && mounted) {
+                  await widget.onRemoveCondition!();
+                  nav.pop();
+                }
+              },
+              icon: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.error, size: 18),
+              label: const Text('Supprimer cette pathologie'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.error,
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1985,6 +2044,7 @@ class _ConditionsSection extends StatelessWidget {
     this.backendUrl,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onWillPauseForPicker,
   });
 
@@ -1992,6 +2052,7 @@ class _ConditionsSection extends StatelessWidget {
   final String? backendUrl;
   final Future<void> Function(ChronicCondition)? onAddCondition;
   final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+  final Future<void> Function(int index)? onRemoveCondition;
   final VoidCallback? onWillPauseForPicker;
 
   @override
@@ -2093,6 +2154,9 @@ class _ConditionsSection extends StatelessWidget {
                   onSeverityChanged: onUpdateCondition != null
                       ? (sev) =>
                           onUpdateCondition!(i, c.copyWith(severity: sev))
+                      : null,
+                  onRemoveCondition: onRemoveCondition != null
+                      ? () => onRemoveCondition!(i)
                       : null,
                 ),
               );
