@@ -147,7 +147,23 @@ function HeroChip({
 
 // ─── Pathologies ─────────────────────────────────────────────────────────────
 
+const SEVERITY_LABEL: Record<number, string> = {
+  1: "Légère",
+  2: "Modérée",
+  3: "Importante",
+  4: "Sévère",
+  5: "Critique",
+};
+const SEVERITY_COLOR: Record<number, string> = {
+  1: "#059669",
+  2: "#84CC16",
+  3: "#F59E0B",
+  4: "#F97316",
+  5: "#DC2626",
+};
+
 function ConditionRow({ condition }: { condition: ChronicCondition }) {
+  const sev = condition.severity;
   return (
     <div
       style={{
@@ -167,6 +183,21 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
       >
         {condition.name}
       </p>
+      {sev !== undefined && (
+        <span
+          style={{
+            padding: "2px 8px",
+            borderRadius: "var(--radius-pill)",
+            background: SEVERITY_COLOR[sev] + "1A",
+            border: `1px solid ${SEVERITY_COLOR[sev]}`,
+            fontSize: 11,
+            fontWeight: 700,
+            color: SEVERITY_COLOR[sev],
+          }}
+        >
+          {SEVERITY_LABEL[sev] ?? `Sévérité ${sev}`}
+        </span>
+      )}
       <span
         style={{
           padding: "2px 8px",

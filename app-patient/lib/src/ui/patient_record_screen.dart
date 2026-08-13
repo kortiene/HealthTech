@@ -1037,6 +1037,58 @@ Widget _sectionCard({required Widget child}) {
   );
 }
 
+// ─── Severity helpers (#138) ──────────────────────────────────────────────────
+
+String _severityLabel(int s) => switch (s) {
+      1 => 'Légère',
+      2 => 'Modérée',
+      3 => 'Importante',
+      4 => 'Sévère',
+      _ => 'Critique',
+    };
+
+Color _severityColor(int s) => switch (s) {
+      1 => AppColors.success,
+      2 => const Color(0xFF84CC16),
+      3 => AppColors.warning,
+      4 => const Color(0xFFF97316),
+      _ => AppColors.error,
+    };
+
+class _SeverityDots extends StatelessWidget {
+  const _SeverityDots(this.severity);
+  final int severity;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _severityColor(severity);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 1; i <= 5; i++)
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i <= severity ? color : AppColors.neutral200,
+            ),
+          ),
+        const SizedBox(width: 4),
+        Text(
+          _severityLabel(severity),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── Add condition sheet (#115) ───────────────────────────────────────────────
 
 void _showAddConditionSheet(
@@ -1081,6 +1133,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
   _UploadStatus _photoStatus = _UploadStatus.idle;
   String? _photoError;
   bool _saving = false;
+  int _severity = 1;
 
   @override
   void dispose() {
@@ -1207,6 +1260,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
         icd10: _icdCtrl.text.trim().isEmpty ? null : _icdCtrl.text.trim(),
         since: _sinceCtrl.text.trim().isEmpty ? null : _sinceCtrl.text.trim(),
         documents: [if (_photoDescriptor != null) _photoDescriptor!],
+        severity: _severity,
       );
       await widget.onAdd(condition);
       if (mounted) Navigator.of(context).pop();
@@ -1311,6 +1365,37 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
                     isDense: true,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.md),
+                // ── Sévérité (#138) ─────────────────────────────────────────
+                Row(
+                  children: [
+                    Text(
+                      'Sévérité',
+                      style:
+                          tt.labelMedium?.copyWith(color: AppColors.neutral500),
+                    ),
+                    const Spacer(),
+                    _SeverityDots(_severity),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SliderTheme(
+                  data: SliderThemeData(
+                    thumbColor: _severityColor(_severity),
+                    activeTrackColor: _severityColor(_severity),
+                    inactiveTrackColor: AppColors.neutral200,
+                    overlayColor:
+                        _severityColor(_severity).withValues(alpha: 0.15),
+                    trackHeight: 4,
+                  ),
+                  child: Slider(
+                    value: _severity.toDouble(),
+                    min: 1,
+                    max: 5,
+                    divisions: 4,
+                    onChanged: (v) => setState(() => _severity = v.round()),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 // ── Justificatif photo ──────────────────────────────────────
                 if (_photoDescriptor != null) ...[
@@ -1411,6 +1496,7 @@ void _showConditionDetailSheet(
   VoidCallback? onWillPauseForPicker,
   Future<void> Function(MediaDescriptor)? onAddDocument,
   Future<void> Function(MediaDescriptor)? onRemoveDocument,
+  Future<void> Function(int)? onSeverityChanged,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -1425,6 +1511,7 @@ void _showConditionDetailSheet(
       onWillPauseForPicker: onWillPauseForPicker,
       onAddDocument: onAddDocument,
       onRemoveDocument: onRemoveDocument,
+      onSeverityChanged: onSeverityChanged,
     ),
   );
 }
@@ -1436,6 +1523,7 @@ class _ConditionDetailSheet extends StatefulWidget {
     this.onWillPauseForPicker,
     this.onAddDocument,
     this.onRemoveDocument,
+    this.onSeverityChanged,
   });
 
   final ChronicCondition condition;
@@ -1449,6 +1537,9 @@ class _ConditionDetailSheet extends StatefulWidget {
   /// from the record and persists. Null = delete button hidden.
   final Future<void> Function(MediaDescriptor)? onRemoveDocument;
 
+  /// Called when the patient changes the severity slider. Null = read-only.
+  final Future<void> Function(int)? onSeverityChanged;
+
   @override
   State<_ConditionDetailSheet> createState() => _ConditionDetailSheetState();
 }
@@ -1456,11 +1547,18 @@ class _ConditionDetailSheet extends StatefulWidget {
 class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
   _UploadStatus _uploadStatus = _UploadStatus.idle;
   String? _uploadError;
+  late int _severity;
 
   // Optimistic: descriptors added this session, not yet in widget.condition.documents
   final List<MediaDescriptor> _localDocs = [];
   // Optimistic: UUIDs removed this session, pending parent record update
   final Set<String> _removedUuids = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _severity = widget.condition.severity ?? 1;
+  }
 
   List<MediaDescriptor> get _allDocs => [
         ...widget.condition.documents
@@ -1683,6 +1781,36 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
                   ),
                 ),
               ],
+            ),
+          ],
+          // Sévérité (#138)
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Text('Sévérité',
+                  style: tt.labelLarge?.copyWith(color: AppColors.neutral500)),
+              const Spacer(),
+              _SeverityDots(_severity),
+            ],
+          ),
+          if (widget.onSeverityChanged != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            SliderTheme(
+              data: SliderThemeData(
+                thumbColor: _severityColor(_severity),
+                activeTrackColor: _severityColor(_severity),
+                inactiveTrackColor: AppColors.neutral200,
+                overlayColor: _severityColor(_severity).withValues(alpha: 0.15),
+                trackHeight: 4,
+              ),
+              child: Slider(
+                value: _severity.toDouble(),
+                min: 1,
+                max: 5,
+                divisions: 4,
+                onChanged: (v) => setState(() => _severity = v.round()),
+                onChangeEnd: (v) => widget.onSeverityChanged!(v.round()),
+              ),
             ),
           ],
           // Justificatifs
@@ -1953,17 +2081,18 @@ class _ConditionsSection extends StatelessWidget {
                           onUpdateCondition!(i, c.copyWithDocument(descriptor))
                       : null,
                   onRemoveDocument: onUpdateCondition != null
-                      ? (descriptor) {
-                          final updated = ChronicCondition(
-                            name: c.name,
-                            icd10: c.icd10,
-                            since: c.since,
-                            documents: c.documents
-                                .where((d) => d.uuid != descriptor.uuid)
-                                .toList(),
-                          );
-                          return onUpdateCondition!(i, updated);
-                        }
+                      ? (descriptor) => onUpdateCondition!(
+                            i,
+                            c.copyWith(
+                              documents: c.documents
+                                  .where((d) => d.uuid != descriptor.uuid)
+                                  .toList(),
+                            ),
+                          )
+                      : null,
+                  onSeverityChanged: onUpdateCondition != null
+                      ? (sev) =>
+                          onUpdateCondition!(i, c.copyWith(severity: sev))
                       : null,
                 ),
               );
@@ -2019,6 +2148,10 @@ class _ConditionRow extends StatelessWidget {
                           style: tt.bodySmall
                               ?.copyWith(color: AppColors.neutral500),
                         ),
+                      if (condition.severity != null) ...[
+                        const SizedBox(height: 3),
+                        _SeverityDots(condition.severity!),
+                      ],
                     ],
                   ),
                 ),

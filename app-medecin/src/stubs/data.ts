@@ -6,6 +6,8 @@ export interface Allergy {
 export interface ChronicCondition {
   name: string;
   icd10: string;
+  /** 1 (légère) – 5 (critique). Absent on pre-#138 records. */
+  severity?: number;
 }
 
 export interface Medication {

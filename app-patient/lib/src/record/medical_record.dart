@@ -138,6 +138,7 @@ class ChronicCondition {
     this.icd10,
     this.since,
     this.documents = const [],
+    this.severity,
   });
 
   factory ChronicCondition.fromJson(Map<String, Object?> json) {
@@ -150,6 +151,7 @@ class ChronicCondition {
               ?.map((e) => MediaDescriptor.fromJson(e as Map<String, Object?>))
               .toList() ??
           const [],
+      severity: json['severity'] as int?,
     );
   }
 
@@ -163,12 +165,27 @@ class ChronicCondition {
   /// as Consultation.media: bytes live at file:// on-device, synced on QR share.
   final List<MediaDescriptor> documents;
 
-  ChronicCondition copyWithDocument(MediaDescriptor d) => ChronicCondition(
-        name: name,
-        icd10: icd10,
-        since: since,
-        documents: [...documents, d],
+  /// Condition severity on a 1–5 scale: 1 = légère, 5 = critique (#138).
+  /// Absent on records written before #138 — treated as unset in the UI.
+  final int? severity;
+
+  ChronicCondition copyWith({
+    String? name,
+    String? icd10,
+    String? since,
+    List<MediaDescriptor>? documents,
+    int? severity,
+  }) =>
+      ChronicCondition(
+        name: name ?? this.name,
+        icd10: icd10 ?? this.icd10,
+        since: since ?? this.since,
+        documents: documents ?? this.documents,
+        severity: severity ?? this.severity,
       );
+
+  ChronicCondition copyWithDocument(MediaDescriptor d) =>
+      copyWith(documents: [...documents, d]);
 
   Map<String, Object?> toJson() => {
         'name': name,
@@ -176,6 +193,7 @@ class ChronicCondition {
         if (since != null) 'since': since,
         if (documents.isNotEmpty)
           'documents': documents.map((d) => d.toJson()).toList(),
+        if (severity != null) 'severity': severity,
       };
 
   @override
@@ -184,11 +202,12 @@ class ChronicCondition {
       other.name == name &&
       other.icd10 == icd10 &&
       other.since == since &&
-      _listEq(other.documents, documents);
+      _listEq(other.documents, documents) &&
+      other.severity == severity;
 
   @override
   int get hashCode =>
-      Object.hash(name, icd10, since, Object.hashAll(documents));
+      Object.hash(name, icd10, since, Object.hashAll(documents), severity);
 }
 
 class Medication {
