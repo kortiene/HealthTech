@@ -41,6 +41,20 @@ export function App() {
       ...(consultation.ordonnances.length > 0
         ? { ordonnances: consultation.ordonnances }
         : {}),
+      ...(consultation.media && consultation.media.length > 0
+        ? {
+            media: consultation.media.map((m) => ({
+              uuid: m.mediaId,
+              url: m.url,
+              content_key: m.contentKey,
+              content_hash: m.contentHash,
+              alg: "A256GCM",
+              mime: m.mime,
+              size_bytes: m.sizeBytes ?? 0,
+              added_at: now,
+            })),
+          }
+        : {}),
     };
 
     const newAllergiesFlutter = consultation.newAllergies.map((a) => ({
@@ -116,6 +130,9 @@ export function App() {
                 summary: consultation.summary,
                 ...(consultation.ordonnances.length > 0
                   ? { ordonnances: consultation.ordonnances }
+                  : {}),
+                ...(consultation.media && consultation.media.length > 0
+                  ? { media: consultation.media }
                   : {}),
               },
             ],
