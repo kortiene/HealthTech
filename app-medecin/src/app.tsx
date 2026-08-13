@@ -1,15 +1,12 @@
 import { useState } from "preact/hooks";
 import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
 import { RecordScreen } from "./screens/RecordScreen";
-import { NoteChoiceScreen } from "./screens/NoteChoiceScreen";
-import { EditScreen, type NewConsultation } from "./screens/EditScreen";
-import {
-  VoiceNoteScreen,
-  type NewVoiceConsultation,
-} from "./screens/VoiceNoteScreen";
+import { NoteScreen } from "./screens/NoteScreen";
+import type { NewConsultation } from "./screens/EditScreen";
+import type { NewVoiceConsultation } from "./screens/VoiceNoteScreen";
 import { type MedicalRecord } from "./stubs/data";
 
-type Screen = "scan" | "record" | "note-choice" | "edit" | "voice-note";
+type Screen = "scan" | "record" | "note";
 
 function xorBytes(data: Uint8Array): Uint8Array {
   const out = new Uint8Array(data.length);
@@ -240,33 +237,15 @@ export function App() {
     );
   }
 
-  if (screen === "note-choice") {
+  if (screen === "note") {
     return (
-      <NoteChoiceScreen
-        onWritten={() => setScreen("edit")}
-        onVoice={() => setScreen("voice-note")}
-        onCancel={() => setScreen("record")}
-      />
-    );
-  }
-
-  if (screen === "edit") {
-    return (
-      <EditScreen
+      <NoteScreen
         record={scannedRecord!}
-        onSaved={handleConsultationSaved}
-        onCancel={() => setScreen("note-choice")}
-      />
-    );
-  }
-
-  if (screen === "voice-note") {
-    return (
-      <VoiceNoteScreen
         backendUrl={qrPayload?.url ?? ""}
         writeToken={qrPayload?.wt}
-        onSaved={handleVoiceConsultationSaved}
-        onCancel={() => setScreen("note-choice")}
+        onWrittenSaved={handleConsultationSaved}
+        onVoiceSaved={handleVoiceConsultationSaved}
+        onCancel={() => setScreen("record")}
       />
     );
   }
@@ -278,7 +257,7 @@ export function App() {
       readOnly={!qrPayload?.wt}
       backendUrl={qrPayload?.url ?? ""}
       onSynced={() => setPendingCount(0)}
-      onAddNote={() => setScreen("note-choice")}
+      onAddNote={() => setScreen("note")}
       onTerminated={() => {
         setPendingCount(0);
         setScannedRecord(null);
