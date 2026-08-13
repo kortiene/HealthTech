@@ -7,7 +7,7 @@ import type {
   OrdonnanceJson,
   TreatmentJson,
 } from "../stubs/data";
-import type { NewConsultation, NewAllergy, NewCondition } from "./EditScreen";
+import type { NewAllergy, NewCondition, NewConsultation } from "./EditScreen";
 import type { NewVoiceConsultation } from "./VoiceNoteScreen";
 
 // ── Local types (UI-only, not serialised) ────────────────────────────────────
@@ -32,14 +32,23 @@ type Phase = "idle" | "recording" | "preview";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function newLine(): MedLine {
-  return { id: crypto.randomUUID(), medication: "", dose: "", frequency: "", durationDays: "" };
+  return {
+    id: crypto.randomUUID(),
+    medication: "",
+    dose: "",
+    frequency: "",
+    durationDays: "",
+  };
 }
 
 function newOrdonnance(): LocalOrdonnance {
   return { id: crypto.randomUUID(), label: "", lines: [newLine()] };
 }
 
-function buildOrdonnances(local: LocalOrdonnance[], treatmentId?: string): OrdonnanceJson[] {
+function buildOrdonnances(
+  local: LocalOrdonnance[],
+  treatmentId?: string,
+): OrdonnanceJson[] {
   return local
     .map((o) => {
       const filled = o.lines.filter((l) => l.medication.trim());
@@ -52,7 +61,9 @@ function buildOrdonnances(local: LocalOrdonnance[], treatmentId?: string): Ordon
           medication: l.medication.trim(),
           ...(l.dose.trim() ? { dose: l.dose.trim() } : {}),
           ...(l.frequency.trim() ? { frequency: l.frequency.trim() } : {}),
-          ...(l.durationDays.trim() ? { duration_days: parseInt(l.durationDays, 10) } : {}),
+          ...(l.durationDays.trim()
+            ? { duration_days: parseInt(l.durationDays, 10) }
+            : {}),
         })),
       } satisfies OrdonnanceJson;
     })
@@ -97,14 +108,21 @@ export function NoteScreen({
   const [note, setNote] = useState("");
   const [hospital, setHospital] = useState("");
   const [contact, setContact] = useState("");
-  const [treatmentMode, setTreatmentMode] = useState<"none" | "new" | string>("none");
+  const [treatmentMode, setTreatmentMode] = useState<"none" | "new" | string>(
+    "none",
+  );
   const [newDiagnosis, setNewDiagnosis] = useState("");
   const [closeTreatment, setCloseTreatment] = useState(false);
-  const [ordonnances, setOrdonnances] = useState<LocalOrdonnance[]>([newOrdonnance()]);
+  const [ordonnances, setOrdonnances] = useState<LocalOrdonnance[]>([
+    newOrdonnance(),
+  ]);
   const [allergySubstance, setAllergySubstance] = useState("");
-  const [allergySeverity, setAllergySeverity] = useState<NewAllergy["severity"]>("mild");
+  const [allergySeverity, setAllergySeverity] =
+    useState<NewAllergy["severity"]>("mild");
   const [newAllergies, setNewAllergies] = useState<NewAllergy[]>([]);
-  const [conditionType, setConditionType] = useState<"allergy" | "condition">("allergy");
+  const [conditionType, setConditionType] = useState<"allergy" | "condition">(
+    "allergy",
+  );
   const [conditionName, setConditionName] = useState("");
   const [conditionIcd10, setConditionIcd10] = useState("");
   const [conditionSince, setConditionSince] = useState("");
@@ -131,14 +149,19 @@ export function NoteScreen({
     };
   }, []);
 
-  const activeExistingTreatments = record.treatments.filter((t) => t.status === "active");
+  const activeExistingTreatments = record.treatments.filter(
+    (t) => t.status === "active",
+  );
 
   // ── Written mode helpers ─────────────────────────────────────────────────
 
   function addAllergy() {
     const s = allergySubstance.trim();
     if (!s) return;
-    setNewAllergies((prev) => [...prev, { substance: s, severity: allergySeverity }]);
+    setNewAllergies((prev) => [
+      ...prev,
+      { substance: s, severity: allergySeverity },
+    ]);
     setAllergySubstance("");
     setAllergySeverity("mild");
   }
@@ -169,11 +192,21 @@ export function NoteScreen({
     setNewConditions((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function updateLine(ordId: string, lineId: string, field: keyof MedLine, value: string) {
+  function updateLine(
+    ordId: string,
+    lineId: string,
+    field: keyof MedLine,
+    value: string,
+  ) {
     setOrdonnances((prev) =>
       prev.map((o) =>
         o.id === ordId
-          ? { ...o, lines: o.lines.map((l) => (l.id === lineId ? { ...l, [field]: value } : l)) }
+          ? {
+              ...o,
+              lines: o.lines.map((l) =>
+                l.id === lineId ? { ...l, [field]: value } : l,
+              ),
+            }
           : o,
       ),
     );
@@ -183,7 +216,13 @@ export function NoteScreen({
     setOrdonnances((prev) =>
       prev.map((o) =>
         o.id === ordId
-          ? { ...o, lines: o.lines.length > 1 ? o.lines.filter((l) => l.id !== lineId) : o.lines }
+          ? {
+              ...o,
+              lines:
+                o.lines.length > 1
+                  ? o.lines.filter((l) => l.id !== lineId)
+                  : o.lines,
+            }
           : o,
       ),
     );
@@ -191,16 +230,22 @@ export function NoteScreen({
 
   function addLine(ordId: string) {
     setOrdonnances((prev) =>
-      prev.map((o) => (o.id === ordId ? { ...o, lines: [...o.lines, newLine()] } : o)),
+      prev.map((o) =>
+        o.id === ordId ? { ...o, lines: [...o.lines, newLine()] } : o,
+      ),
     );
   }
 
   function updateLabel(ordId: string, label: string) {
-    setOrdonnances((prev) => prev.map((o) => (o.id === ordId ? { ...o, label } : o)));
+    setOrdonnances((prev) =>
+      prev.map((o) => (o.id === ordId ? { ...o, label } : o)),
+    );
   }
 
   function removeOrdonnance(ordId: string) {
-    setOrdonnances((prev) => (prev.length > 1 ? prev.filter((o) => o.id !== ordId) : prev));
+    setOrdonnances((prev) =>
+      prev.length > 1 ? prev.filter((o) => o.id !== ordId) : prev,
+    );
   }
 
   // ── Voice mode helpers ────────────────────────────────────────────────────
@@ -266,7 +311,10 @@ export function NoteScreen({
 
     const pendingSubstance = allergySubstance.trim();
     const finalAllergies: typeof newAllergies = pendingSubstance
-      ? [...newAllergies, { substance: pendingSubstance, severity: allergySeverity }]
+      ? [
+          ...newAllergies,
+          { substance: pendingSubstance, severity: allergySeverity },
+        ]
       : newAllergies;
 
     const pendingConditionName = conditionName.trim();
@@ -283,7 +331,8 @@ export function NoteScreen({
       : newConditions;
 
     const headerParts: string[] = [];
-    if (hospital.trim()) headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
+    if (hospital.trim())
+      headerParts.push(`Hôpital / Clinique : ${hospital.trim()}`);
     if (contact.trim()) headerParts.push(`Contact : ${contact.trim()}`);
     const summary = headerParts.length
       ? `${headerParts.join("\n")}\n\n${note.trim()}`
@@ -326,7 +375,11 @@ export function NoteScreen({
       });
     } catch (e) {
       setIsSaving(false);
-      setError(e instanceof Error ? e.message : "Échec de l'enregistrement — réessayez.");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Échec de l'enregistrement — réessayez.",
+      );
     }
   }
 
@@ -337,10 +390,13 @@ export function NoteScreen({
     try {
       const plainBytes = new Uint8Array(await audioBlob.arrayBuffer());
       const hashBuffer = await crypto.subtle.digest("SHA-256", plainBytes);
-      const contentHash = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+      const contentHash = btoa(
+        String.fromCharCode(...new Uint8Array(hashBuffer)),
+      );
       // XOR 0x5A stub encrypt — WASM AES-256-GCM when #17 lands
       const encrypted = new Uint8Array(plainBytes.length);
-      for (let i = 0; i < plainBytes.length; i++) encrypted[i] = plainBytes[i] ^ 0x5a;
+      for (let i = 0; i < plainBytes.length; i++)
+        encrypted[i] = plainBytes[i] ^ 0x5a;
       const mediaId = crypto.randomUUID();
       const res = await fetch(`${backendUrl}/media/${mediaId}`, {
         method: "PUT",
@@ -374,7 +430,9 @@ export function NoteScreen({
         ],
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue — réessayez.");
+      setError(
+        err instanceof Error ? err.message : "Erreur inconnue — réessayez.",
+      );
       setIsSaving(false);
     }
   }
@@ -424,7 +482,9 @@ export function NoteScreen({
         </div>
         <p className="text-label" style={{ color: "var(--color-neutral-700)" }}>
           Consultation pour{" "}
-          <strong style={{ color: "var(--color-neutral-900)" }}>{record.givenName}</strong>
+          <strong style={{ color: "var(--color-neutral-900)" }}>
+            {record.givenName}
+          </strong>
           {record.birthYear
             ? ` — ${new Date().getFullYear() - record.birthYear} ans · ${record.sex}`
             : ""}
@@ -436,7 +496,11 @@ export function NoteScreen({
         <button
           type="button"
           onClick={() => setMode(mode === "written" ? "voice" : "written")}
-          aria-label={mode === "written" ? "Passer en note vocale" : "Passer en note écrite"}
+          aria-label={
+            mode === "written"
+              ? "Passer en note vocale"
+              : "Passer en note écrite"
+          }
           style={{
             position: "fixed",
             bottom: 24,
@@ -496,7 +560,9 @@ export function NoteScreen({
                 className="field-input"
                 placeholder="Dr. Nom Prénom"
                 value={doctorName}
-                onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
+                onInput={(e) =>
+                  setDoctorName((e.target as HTMLInputElement).value)
+                }
               />
             </div>
             <div>
@@ -505,7 +571,9 @@ export function NoteScreen({
                 style={{ display: "block", marginBottom: "var(--space-sm)" }}
               >
                 Établissement{" "}
-                <span style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}>
+                <span
+                  style={{ fontWeight: 400, color: "var(--color-neutral-400)" }}
+                >
                   (optionnel)
                 </span>
               </label>
@@ -513,7 +581,9 @@ export function NoteScreen({
                 className="field-input"
                 placeholder="Hôpital / Clinique"
                 value={hospital}
-                onInput={(e) => setHospital((e.target as HTMLInputElement).value)}
+                onInput={(e) =>
+                  setHospital((e.target as HTMLInputElement).value)
+                }
               />
             </div>
             <div>
@@ -527,7 +597,9 @@ export function NoteScreen({
                 className="field-input"
                 placeholder="Tél. ou e-mail"
                 value={contact}
-                onInput={(e) => setContact((e.target as HTMLInputElement).value)}
+                onInput={(e) =>
+                  setContact((e.target as HTMLInputElement).value)
+                }
               />
             </div>
           </div>
@@ -544,11 +616,23 @@ export function NoteScreen({
             >
               <span
                 className="icon-badge"
-                style={{ background: "var(--color-primary-100)", width: 32, height: 32 }}
+                style={{
+                  background: "var(--color-primary-100)",
+                  width: 32,
+                  height: 32,
+                }}
               >
-                <Icon name="edit_note" size={16} color="var(--color-primary-700)" />
+                <Icon
+                  name="edit_note"
+                  size={16}
+                  color="var(--color-primary-700)"
+                />
               </span>
-              <label className="text-title-sm field-label" htmlFor="note" style={{ margin: 0 }}>
+              <label
+                className="text-title-sm field-label"
+                htmlFor="note"
+                style={{ margin: 0 }}
+              >
                 Note de consultation
               </label>
             </div>
@@ -573,9 +657,17 @@ export function NoteScreen({
             >
               <span
                 className="icon-badge"
-                style={{ background: "var(--color-primary-100)", width: 32, height: 32 }}
+                style={{
+                  background: "var(--color-primary-100)",
+                  width: 32,
+                  height: 32,
+                }}
               >
-                <Icon name="medical_services" size={16} color="var(--color-primary-700)" />
+                <Icon
+                  name="medical_services"
+                  size={16}
+                  color="var(--color-primary-700)"
+                />
               </span>
               <h2 className="text-title-sm" style={{ margin: 0 }}>
                 Traitement
@@ -596,7 +688,11 @@ export function NoteScreen({
                   setTreatmentMode("none");
                   setCloseTreatment(false);
                 }}
-                className={treatmentMode === "none" ? "btn btn-filled" : "btn btn-outline"}
+                className={
+                  treatmentMode === "none"
+                    ? "btn btn-filled"
+                    : "btn btn-outline"
+                }
                 style={{ fontSize: 13 }}
               >
                 Aucun traitement
@@ -607,13 +703,19 @@ export function NoteScreen({
                   setTreatmentMode("new");
                   setCloseTreatment(false);
                 }}
-                className={treatmentMode === "new" ? "btn btn-filled" : "btn btn-outline"}
+                className={
+                  treatmentMode === "new" ? "btn btn-filled" : "btn btn-outline"
+                }
                 style={{ fontSize: 13 }}
               >
                 <Icon
                   name="add"
                   size={16}
-                  color={treatmentMode === "new" ? "var(--color-white)" : "var(--color-primary-700)"}
+                  color={
+                    treatmentMode === "new"
+                      ? "var(--color-white)"
+                      : "var(--color-primary-700)"
+                  }
                 />
                 Nouveau traitement
               </button>
@@ -625,12 +727,18 @@ export function NoteScreen({
                     setTreatmentMode(t.id);
                     setCloseTreatment(false);
                   }}
-                  className={treatmentMode === t.id ? "btn btn-filled" : "btn btn-outline"}
+                  className={
+                    treatmentMode === t.id
+                      ? "btn btn-filled"
+                      : "btn btn-outline"
+                  }
                   style={{ fontSize: 13 }}
                 >
                   {t.diagnosis}
                   {t.doctor_ref && (
-                    <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6 }}>
+                    <span
+                      style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6 }}
+                    >
                       · {t.doctor_ref}
                     </span>
                   )}
@@ -650,7 +758,9 @@ export function NoteScreen({
                   className="field-input"
                   placeholder="Ex. Paludisme simple, Asthme bronchique…"
                   value={newDiagnosis}
-                  onInput={(e) => setNewDiagnosis((e.target as HTMLInputElement).value)}
+                  onInput={(e) =>
+                    setNewDiagnosis((e.target as HTMLInputElement).value)
+                  }
                 />
               </div>
             )}
@@ -673,9 +783,13 @@ export function NoteScreen({
                 <input
                   type="checkbox"
                   checked={closeTreatment}
-                  onChange={(e) => setCloseTreatment((e.target as HTMLInputElement).checked)}
+                  onChange={(e) =>
+                    setCloseTreatment((e.target as HTMLInputElement).checked)
+                  }
                 />
-                <span className="text-body">Clore ce traitement à cette consultation</span>
+                <span className="text-body">
+                  Clore ce traitement à cette consultation
+                </span>
               </label>
             )}
           </div>
@@ -692,16 +806,30 @@ export function NoteScreen({
             >
               <span
                 className="icon-badge"
-                style={{ background: "var(--color-primary-100)", width: 32, height: 32 }}
+                style={{
+                  background: "var(--color-primary-100)",
+                  width: 32,
+                  height: 32,
+                }}
               >
-                <Icon name="medication" size={16} color="var(--color-primary-700)" />
+                <Icon
+                  name="medication"
+                  size={16}
+                  color="var(--color-primary-700)"
+                />
               </span>
               <h2 className="text-title-sm" style={{ margin: 0 }}>
                 Ordonnance{ordonnances.length > 1 ? "s" : ""}
               </h2>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-md)",
+              }}
+            >
               {ordonnances.map((ord, ordIdx) => (
                 <div
                   key={ord.id}
@@ -736,7 +864,12 @@ export function NoteScreen({
                       className="field-input"
                       placeholder="Libellé (optionnel) — ex. Médicaments, Examens bio…"
                       value={ord.label}
-                      onInput={(e) => updateLabel(ord.id, (e.target as HTMLInputElement).value)}
+                      onInput={(e) =>
+                        updateLabel(
+                          ord.id,
+                          (e.target as HTMLInputElement).value,
+                        )
+                      }
                       style={{ flex: 1, fontSize: 13 }}
                     />
                     {ordonnances.length > 1 && (
@@ -745,14 +878,23 @@ export function NoteScreen({
                         className="btn-icon"
                         onClick={() => removeOrdonnance(ord.id)}
                         aria-label="Supprimer cette ordonnance"
-                        style={{ color: "var(--color-neutral-500)", flexShrink: 0 }}
+                        style={{
+                          color: "var(--color-neutral-500)",
+                          flexShrink: 0,
+                        }}
                       >
                         <Icon name="delete" size={18} />
                       </button>
                     )}
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "var(--space-xs)",
+                    }}
+                  >
                     {ord.lines.map((line) => (
                       <div
                         key={line.id}
@@ -776,7 +918,12 @@ export function NoteScreen({
                             placeholder="Médicament"
                             value={line.medication}
                             onInput={(e) =>
-                              updateLine(ord.id, line.id, "medication", (e.target as HTMLInputElement).value)
+                              updateLine(
+                                ord.id,
+                                line.id,
+                                "medication",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                           {ord.lines.length > 1 && (
@@ -785,7 +932,10 @@ export function NoteScreen({
                               className="btn-icon"
                               onClick={() => removeLine(ord.id, line.id)}
                               aria-label="Retirer ce médicament"
-                              style={{ flexShrink: 0, color: "var(--color-neutral-500)" }}
+                              style={{
+                                flexShrink: 0,
+                                color: "var(--color-neutral-500)",
+                              }}
                             >
                               <Icon name="close" size={18} />
                             </button>
@@ -803,7 +953,12 @@ export function NoteScreen({
                             placeholder="Dose"
                             value={line.dose}
                             onInput={(e) =>
-                              updateLine(ord.id, line.id, "dose", (e.target as HTMLInputElement).value)
+                              updateLine(
+                                ord.id,
+                                line.id,
+                                "dose",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                           <input
@@ -811,7 +966,12 @@ export function NoteScreen({
                             placeholder="Fréquence"
                             value={line.frequency}
                             onInput={(e) =>
-                              updateLine(ord.id, line.id, "frequency", (e.target as HTMLInputElement).value)
+                              updateLine(
+                                ord.id,
+                                line.id,
+                                "frequency",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                           <input
@@ -820,7 +980,12 @@ export function NoteScreen({
                             placeholder="Jours"
                             value={line.durationDays}
                             onInput={(e) =>
-                              updateLine(ord.id, line.id, "durationDays", (e.target as HTMLInputElement).value)
+                              updateLine(
+                                ord.id,
+                                line.id,
+                                "durationDays",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                         </div>
@@ -831,10 +996,18 @@ export function NoteScreen({
                   <button
                     type="button"
                     className="btn btn-outline"
-                    style={{ marginTop: "var(--space-sm)", gap: "var(--space-xs)", fontSize: 13 }}
+                    style={{
+                      marginTop: "var(--space-sm)",
+                      gap: "var(--space-xs)",
+                      fontSize: 13,
+                    }}
                     onClick={() => addLine(ord.id)}
                   >
-                    <Icon name="add" size={16} color="var(--color-primary-700)" />
+                    <Icon
+                      name="add"
+                      size={16}
+                      color="var(--color-primary-700)"
+                    />
                     Ajouter un médicament
                   </button>
                 </div>
@@ -845,7 +1018,9 @@ export function NoteScreen({
               type="button"
               className="btn btn-outline"
               style={{ marginTop: "var(--space-sm)", gap: "var(--space-xs)" }}
-              onClick={() => setOrdonnances((prev) => [...prev, newOrdonnance()])}
+              onClick={() =>
+                setOrdonnances((prev) => [...prev, newOrdonnance()])
+              }
             >
               <Icon name="add" size={18} color="var(--color-primary-700)" />
               Ajouter une ordonnance
@@ -864,9 +1039,17 @@ export function NoteScreen({
             >
               <span
                 className="icon-badge"
-                style={{ background: "var(--color-allergy-bg)", width: 32, height: 32 }}
+                style={{
+                  background: "var(--color-allergy-bg)",
+                  width: 32,
+                  height: 32,
+                }}
               >
-                <Icon name="monitor_heart" size={16} color="var(--color-allergy)" />
+                <Icon
+                  name="monitor_heart"
+                  size={16}
+                  color="var(--color-allergy)"
+                />
               </span>
               <h2 className="text-title-sm" style={{ margin: 0 }}>
                 Conditions médicales
@@ -896,51 +1079,22 @@ export function NoteScreen({
                       border: "1.5px solid var(--color-allergy)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: 1 }}>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: "0.05em",
-                          color: "var(--color-allergy)",
-                          textTransform: "uppercase",
-                          flexShrink: 0,
-                        }}
-                      >
+                    <p style={{ flex: 1, margin: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <strong style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", color: "var(--color-allergy)", textTransform: "uppercase" }}>
                         Allergie
+                      </strong>
+                      {" "}
+                      <strong style={{ color: "var(--color-neutral-900)" }}>{a.substance}</strong>
+                      {" · "}
+                      <span style={{ color: a.severity === "severe" ? "var(--color-error)" : a.severity === "moderate" ? "var(--color-allergy)" : "var(--color-neutral-600)" }}>
+                        {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
                       </span>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-neutral-900)" }}>
-                        {a.substance}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color:
-                            a.severity === "severe"
-                              ? "var(--color-error)"
-                              : a.severity === "moderate"
-                                ? "var(--color-allergy)"
-                                : "var(--color-neutral-600)",
-                        }}
-                      >
-                        · {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
-                      </span>
-                    </div>
+                    </p>
                     <button
                       type="button"
                       onClick={() => removeAllergy(i)}
                       aria-label={`Retirer ${a.substance}`}
-                      style={{
-                        flexShrink: 0,
-                        marginLeft: 8,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        color: "var(--color-neutral-400)",
-                      }}
+                      style={{ flexShrink: 0, marginLeft: 8, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "var(--color-neutral-400)" }}
                     >
                       <Icon name="close" size={16} />
                     </button>
@@ -959,51 +1113,24 @@ export function NoteScreen({
                       border: "1.5px solid var(--color-primary-200)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: 1 }}>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: "0.05em",
-                          color: "var(--color-primary-700)",
-                          textTransform: "uppercase",
-                          flexShrink: 0,
-                        }}
-                      >
+                    <p style={{ flex: 1, margin: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <strong style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", color: "var(--color-primary-700)", textTransform: "uppercase" }}>
                         Antécédent
+                      </strong>
+                      {" "}
+                      <strong style={{ color: "var(--color-neutral-900)" }}>{c.name}</strong>
+                      {" · "}
+                      <span style={{ color: "var(--color-neutral-600)" }}>
+                        {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
                       </span>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-neutral-900)" }}>
-                        {c.name}
-                      </span>
-                      <span style={{ fontSize: 12, color: "var(--color-neutral-600)" }}>
-                        · {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
-                      </span>
-                      {c.icd10 && (
-                        <span style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
-                          · {c.icd10}
-                        </span>
-                      )}
-                      {c.since && (
-                        <span style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
-                          · depuis {c.since}
-                        </span>
-                      )}
-                    </div>
+                      {c.icd10 && <span style={{ color: "var(--color-neutral-500)" }}>{" · "}{c.icd10}</span>}
+                      {c.since && <span style={{ color: "var(--color-neutral-500)" }}>{" · depuis "}{c.since}</span>}
+                    </p>
                     <button
                       type="button"
                       onClick={() => removeCondition(i)}
                       aria-label={`Retirer ${c.name}`}
-                      style={{
-                        flexShrink: 0,
-                        marginLeft: 8,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        color: "var(--color-neutral-400)",
-                      }}
+                      style={{ flexShrink: 0, marginLeft: 8, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "var(--color-neutral-400)" }}
                     >
                       <Icon name="close" size={16} />
                     </button>
@@ -1026,26 +1153,44 @@ export function NoteScreen({
             >
               <div style={{ display: "flex", gap: "var(--space-lg)" }}>
                 <label
-                  style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", cursor: "pointer" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-xs)",
+                    cursor: "pointer",
+                  }}
                 >
                   <input
                     type="radio"
                     name="cond-type"
                     checked={conditionType === "allergy"}
                     onChange={() => setConditionType("allergy")}
-                    style={{ accentColor: "var(--color-allergy)", width: 15, height: 15 }}
+                    style={{
+                      accentColor: "var(--color-allergy)",
+                      width: 15,
+                      height: 15,
+                    }}
                   />
                   <span className="text-body">Allergie</span>
                 </label>
                 <label
-                  style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", cursor: "pointer" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-xs)",
+                    cursor: "pointer",
+                  }}
                 >
                   <input
                     type="radio"
                     name="cond-type"
                     checked={conditionType === "condition"}
                     onChange={() => setConditionType("condition")}
-                    style={{ accentColor: "var(--color-primary-700)", width: 15, height: 15 }}
+                    style={{
+                      accentColor: "var(--color-primary-700)",
+                      width: 15,
+                      height: 15,
+                    }}
                   />
                   <span className="text-body">Antécédent</span>
                 </label>
@@ -1066,10 +1211,16 @@ export function NoteScreen({
                       ? "Substance ou allergène — ↵ pour ajouter"
                       : "Nom de la pathologie"
                   }
-                  value={conditionType === "allergy" ? allergySubstance : conditionName}
+                  value={
+                    conditionType === "allergy"
+                      ? allergySubstance
+                      : conditionName
+                  }
                   onInput={(e) => {
                     const val = (e.target as HTMLInputElement).value;
-                    conditionType === "allergy" ? setAllergySubstance(val) : setConditionName(val);
+                    conditionType === "allergy"
+                      ? setAllergySubstance(val)
+                      : setConditionName(val);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -1086,7 +1237,8 @@ export function NoteScreen({
                     value={allergySeverity}
                     onChange={(e) =>
                       setAllergySeverity(
-                        (e.target as HTMLSelectElement).value as NewAllergy["severity"],
+                        (e.target as HTMLSelectElement)
+                          .value as NewAllergy["severity"],
                       )
                     }
                     style={{ width: "auto" }}
@@ -1100,7 +1252,9 @@ export function NoteScreen({
                     className="field-input"
                     value={conditionSeverity}
                     onChange={(e) =>
-                      setConditionSeverity(Number((e.target as HTMLSelectElement).value))
+                      setConditionSeverity(
+                        Number((e.target as HTMLSelectElement).value),
+                      )
                     }
                     style={{ width: "auto" }}
                   >
@@ -1126,18 +1280,28 @@ export function NoteScreen({
                     className="field-input"
                     placeholder="Code ICD-10 (optionnel)"
                     value={conditionIcd10}
-                    onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      setConditionIcd10((e.target as HTMLInputElement).value)
+                    }
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); addCondition(); }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCondition();
+                      }
                     }}
                   />
                   <input
                     className="field-input"
                     placeholder="Depuis (ex : 2020) — ↵ pour ajouter"
                     value={conditionSince}
-                    onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
+                    onInput={(e) =>
+                      setConditionSince((e.target as HTMLInputElement).value)
+                    }
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); addCondition(); }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCondition();
+                      }
                     }}
                   />
                 </div>
@@ -1159,7 +1323,10 @@ export function NoteScreen({
               }}
             >
               <Icon name="error" size={20} color="var(--color-error)" />
-              <p className="text-body" style={{ color: "var(--color-error)", margin: 0 }}>
+              <p
+                className="text-body"
+                style={{ color: "var(--color-error)", margin: 0 }}
+              >
                 {error}
               </p>
             </div>
@@ -1189,7 +1356,13 @@ export function NoteScreen({
           }}
         >
           {/* Doctor name */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-xs)",
+            }}
+          >
             <label
               htmlFor="voice-doctor-name"
               className="text-caption"
@@ -1201,7 +1374,9 @@ export function NoteScreen({
               id="voice-doctor-name"
               type="text"
               value={doctorName}
-              onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
+              onInput={(e) =>
+                setDoctorName((e.target as HTMLInputElement).value)
+              }
               placeholder="Dr. Nom Prénom"
               disabled={isSaving}
               style={{
@@ -1245,7 +1420,10 @@ export function NoteScreen({
               >
                 <Icon name="mic" size={36} color="var(--color-white)" />
               </button>
-              <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: 0 }}>
+              <p
+                className="text-caption"
+                style={{ color: "var(--color-neutral-500)", margin: 0 }}
+              >
                 Appuyer pour enregistrer
               </p>
             </div>
@@ -1309,7 +1487,10 @@ export function NoteScreen({
               >
                 <Icon name="stop" size={36} color="var(--color-white)" />
               </button>
-              <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: 0 }}>
+              <p
+                className="text-caption"
+                style={{ color: "var(--color-neutral-500)", margin: 0 }}
+              >
                 Appuyer pour arrêter
               </p>
             </div>
@@ -1317,7 +1498,13 @@ export function NoteScreen({
 
           {/* Phase: preview */}
           {phase === "preview" && audioUrl && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-md)",
+              }}
+            >
               <div
                 style={{
                   background: "var(--color-white)",
@@ -1329,14 +1516,27 @@ export function NoteScreen({
                   gap: "var(--space-sm)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-sm)",
+                  }}
+                >
                   <Icon name="mic" size={18} color="var(--color-primary-700)" />
-                  <p className="text-caption" style={{ margin: 0, color: "var(--color-neutral-500)" }}>
+                  <p
+                    className="text-caption"
+                    style={{ margin: 0, color: "var(--color-neutral-500)" }}
+                  >
                     {formatDuration(durationMs)} · aperçu
                   </p>
                 </div>
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <audio controls src={audioUrl} style={{ width: "100%", height: 36 }} />
+                <audio
+                  controls
+                  src={audioUrl}
+                  style={{ width: "100%", height: 36 }}
+                />
               </div>
 
               <div style={{ display: "flex", gap: "var(--space-md)" }}>
@@ -1357,7 +1557,11 @@ export function NoteScreen({
                     gap: "var(--space-xs)",
                   }}
                 >
-                  <Icon name="refresh" size={18} color="var(--color-neutral-700)" />
+                  <Icon
+                    name="refresh"
+                    size={18}
+                    color="var(--color-neutral-700)"
+                  />
                   <span className="text-body" style={{ fontWeight: 600 }}>
                     Recommencer
                   </span>
@@ -1378,7 +1582,10 @@ export function NoteScreen({
                         ? "var(--color-neutral-300)"
                         : "var(--color-primary-700)",
                     color: "var(--color-white)",
-                    cursor: isSaving || !doctorName.trim() ? "not-allowed" : "pointer",
+                    cursor:
+                      isSaving || !doctorName.trim()
+                        ? "not-allowed"
+                        : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1397,7 +1604,11 @@ export function NoteScreen({
       )}
 
       {mode === "voice" && error && (
-        <SnackBar message={error} tone="error" onDismiss={() => setError(null)} />
+        <SnackBar
+          message={error}
+          tone="error"
+          onDismiss={() => setError(null)}
+        />
       )}
 
       <style>{`
