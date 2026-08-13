@@ -873,64 +873,66 @@ export function NoteScreen({
               </h2>
             </div>
 
-            {/* Chips — conditions et allergies déjà ajoutées */}
+            {/* Items ajoutés — une ligne encadrée par entrée */}
             {(newAllergies.length > 0 || newConditions.length > 0) && (
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
+                  flexDirection: "column",
+                  gap: "var(--space-xs)",
                   marginBottom: "var(--space-sm)",
                 }}
               >
                 {newAllergies.map((a, i) => (
-                  <span
+                  <div
                     key={`a-${i}`}
                     style={{
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      gap: 4,
-                      padding: "4px 6px 4px 10px",
-                      borderRadius: 99,
+                      justifyContent: "space-between",
+                      padding: "8px 10px 8px 12px",
+                      borderRadius: "var(--radius-sm)",
                       background: "var(--color-allergy-bg)",
-                      border: "1px solid var(--color-allergy)",
-                      fontSize: 13,
+                      border: "1.5px solid var(--color-allergy)",
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        color: "var(--color-allergy)",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Allergie
-                    </span>
-                    <span style={{ fontWeight: 600, color: "var(--color-neutral-900)", marginLeft: 2 }}>
-                      {a.substance}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        marginLeft: 2,
-                        color:
-                          a.severity === "severe"
-                            ? "var(--color-error)"
-                            : a.severity === "moderate"
-                              ? "var(--color-allergy)"
-                              : "var(--color-neutral-600)",
-                      }}
-                    >
-                      · {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          color: "var(--color-allergy)",
+                          textTransform: "uppercase",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Allergie
+                      </span>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-neutral-900)" }}>
+                        {a.substance}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color:
+                            a.severity === "severe"
+                              ? "var(--color-error)"
+                              : a.severity === "moderate"
+                                ? "var(--color-allergy)"
+                                : "var(--color-neutral-600)",
+                        }}
+                      >
+                        · {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeAllergy(i)}
                       aria-label={`Retirer ${a.substance}`}
                       style={{
-                        marginLeft: 2,
+                        flexShrink: 0,
+                        marginLeft: 8,
                         background: "none",
                         border: "none",
                         cursor: "pointer",
@@ -940,57 +942,60 @@ export function NoteScreen({
                         color: "var(--color-neutral-400)",
                       }}
                     >
-                      <Icon name="close" size={14} />
+                      <Icon name="close" size={16} />
                     </button>
-                  </span>
+                  </div>
                 ))}
                 {newConditions.map((c, i) => (
-                  <span
+                  <div
                     key={`c-${i}`}
                     style={{
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      gap: 4,
-                      padding: "4px 6px 4px 10px",
-                      borderRadius: 99,
+                      justifyContent: "space-between",
+                      padding: "8px 10px 8px 12px",
+                      borderRadius: "var(--radius-sm)",
                       background: "var(--color-primary-50)",
-                      border: "1px solid var(--color-primary-200)",
-                      fontSize: 13,
+                      border: "1.5px solid var(--color-primary-200)",
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        color: "var(--color-primary-700)",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Antécédent
-                    </span>
-                    <span style={{ fontWeight: 600, color: "var(--color-neutral-900)", marginLeft: 2 }}>
-                      {c.name}
-                    </span>
-                    <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-600)" }}>
-                      · {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
-                    </span>
-                    {c.icd10 && (
-                      <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-500)" }}>
-                        · {c.icd10}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          color: "var(--color-primary-700)",
+                          textTransform: "uppercase",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Antécédent
                       </span>
-                    )}
-                    {c.since && (
-                      <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-500)" }}>
-                        · depuis {c.since}
+                      <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-neutral-900)" }}>
+                        {c.name}
                       </span>
-                    )}
+                      <span style={{ fontSize: 12, color: "var(--color-neutral-600)" }}>
+                        · {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
+                      </span>
+                      {c.icd10 && (
+                        <span style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
+                          · {c.icd10}
+                        </span>
+                      )}
+                      {c.since && (
+                        <span style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
+                          · depuis {c.since}
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeCondition(i)}
                       aria-label={`Retirer ${c.name}`}
                       style={{
-                        marginLeft: 2,
+                        flexShrink: 0,
+                        marginLeft: 8,
                         background: "none",
                         border: "none",
                         cursor: "pointer",
@@ -1000,9 +1005,9 @@ export function NoteScreen({
                         color: "var(--color-neutral-400)",
                       }}
                     >
-                      <Icon name="close" size={14} />
+                      <Icon name="close" size={16} />
                     </button>
-                  </span>
+                  </div>
                 ))}
               </div>
             )}
