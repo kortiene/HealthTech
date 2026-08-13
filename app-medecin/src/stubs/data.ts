@@ -206,6 +206,7 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
     chronicConditions: (raw.chronic_conditions ?? raw.chronicConditions ?? []).map((c: any) => ({
       name: c.name,
       icd10: c.icd10 ?? "",
+      severity: c.severity as number | undefined,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     medications: (raw.medications ?? []).map((m: any) => ({
