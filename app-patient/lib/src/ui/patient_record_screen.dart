@@ -1573,6 +1573,13 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
   void initState() {
     super.initState();
     _severity = widget.condition.severity ?? 1;
+    // If this condition has never had severity set, persist the displayed
+    // default (1 = Légère) immediately so the doctor's QR always shows a badge.
+    if (widget.condition.severity == null && widget.onSeverityChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onSeverityChanged!(_severity);
+      });
+    }
   }
 
   List<MediaDescriptor> get _allDocs => [
