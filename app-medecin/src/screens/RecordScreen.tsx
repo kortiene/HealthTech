@@ -164,11 +164,12 @@ const SEVERITY_COLOR: Record<number, string> = {
 
 function ConditionRow({ condition }: { condition: ChronicCondition }) {
   const sev = condition.severity;
+  const docCount = condition.documents?.length ?? 0;
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: "var(--space-sm)",
         padding: "10px var(--space-sm)",
         borderLeft: "3px solid var(--color-primary-500)",
@@ -177,42 +178,88 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      <p
-        className="text-body-lg"
-        style={{ flex: 1, margin: 0, fontWeight: 500 }}
-      >
-        {condition.name}
-      </p>
-      {sev !== undefined && (
-        <span
-          style={{
-            padding: "2px 8px",
-            borderRadius: "var(--radius-pill)",
-            background: SEVERITY_COLOR[sev] + "1A",
-            border: `1px solid ${SEVERITY_COLOR[sev]}`,
-            fontSize: 11,
-            fontWeight: 700,
-            color: SEVERITY_COLOR[sev],
-          }}
+      {/* Name + since */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          className="text-body-lg"
+          style={{ margin: 0, fontWeight: 500 }}
         >
-          {SEVERITY_LABEL[sev] ?? `Sévérité ${sev}`}
-        </span>
-      )}
-      <span
+          {condition.name}
+        </p>
+        {condition.since && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: "var(--color-neutral-500)",
+            }}
+          >
+            Depuis {condition.since}
+          </p>
+        )}
+      </div>
+      {/* Badges */}
+      <div
         style={{
-          padding: "2px 8px",
-          borderRadius: "var(--radius-pill)",
-          background: "var(--color-neutral-100)",
-          border: "1px solid var(--color-neutral-200)",
-          fontSize: 11,
-          fontWeight: 700,
-          color: "var(--color-neutral-500)",
-          fontFamily: "monospace",
-          letterSpacing: "0.04em",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-xs)",
+          flexShrink: 0,
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
         }}
       >
-        {condition.icd10}
-      </span>
+        {docCount > 0 && (
+          <span
+            style={{
+              padding: "2px 7px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--color-neutral-100)",
+              border: "1px solid var(--color-neutral-200)",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-neutral-500)",
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+            }}
+          >
+            📎 {docCount}
+          </span>
+        )}
+        {sev !== undefined && (
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: "var(--radius-pill)",
+              background: SEVERITY_COLOR[sev] + "1A",
+              border: `1px solid ${SEVERITY_COLOR[sev]}`,
+              fontSize: 11,
+              fontWeight: 700,
+              color: SEVERITY_COLOR[sev],
+            }}
+          >
+            {SEVERITY_LABEL[sev] ?? `Sévérité ${sev}`}
+          </span>
+        )}
+        {condition.icd10 && (
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--color-neutral-100)",
+              border: "1px solid var(--color-neutral-200)",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--color-neutral-500)",
+              fontFamily: "monospace",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {condition.icd10}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -791,9 +838,13 @@ export function RecordScreen({
 
         {record.chronicConditions.length > 0 && (
           <SectionCard title="Pathologies chroniques" icon="history">
-            {record.chronicConditions.map((c) => (
-              <ConditionRow key={c.icd10} condition={c} />
-            ))}
+            {[...record.chronicConditions]
+              .sort((a, b) =>
+                (b.addedAt ?? "").localeCompare(a.addedAt ?? ""),
+              )
+              .map((c) => (
+                <ConditionRow key={c.icd10 || c.name} condition={c} />
+              ))}
           </SectionCard>
         )}
 

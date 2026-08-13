@@ -1269,6 +1269,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
         since: _sinceCtrl.text.trim().isEmpty ? null : _sinceCtrl.text.trim(),
         documents: [if (_photoDescriptor != null) _photoDescriptor!],
         severity: _severity,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
       );
       await widget.onAdd(condition);
       if (mounted) Navigator.of(context).pop();
@@ -2128,39 +2129,48 @@ class _ConditionsSection extends StatelessWidget {
               ),
             )
           else
-            ...List.generate(conditions.length, (i) {
-              final c = conditions[i];
-              return _ConditionRow(
-                condition: c,
-                onTap: () => _showConditionDetailSheet(
-                  context,
+            ...(() {
+              // Sort by addedAt descending (newest first). Conditions without
+              // addedAt (pre-#138) sort to the bottom.
+              final sortedIdx = List.generate(conditions.length, (i) => i)
+                ..sort(
+                  (a, b) => (conditions[b].addedAt ?? '')
+                      .compareTo(conditions[a].addedAt ?? ''),
+                );
+              return sortedIdx.map((i) {
+                final c = conditions[i];
+                return _ConditionRow(
                   condition: c,
-                  backendUrl: backendUrl,
-                  onWillPauseForPicker: onWillPauseForPicker,
-                  onAddDocument: onUpdateCondition != null
-                      ? (descriptor) =>
-                          onUpdateCondition!(i, c.copyWithDocument(descriptor))
-                      : null,
-                  onRemoveDocument: onUpdateCondition != null
-                      ? (descriptor) => onUpdateCondition!(
-                            i,
-                            c.copyWith(
-                              documents: c.documents
-                                  .where((d) => d.uuid != descriptor.uuid)
-                                  .toList(),
-                            ),
-                          )
-                      : null,
-                  onSeverityChanged: onUpdateCondition != null
-                      ? (sev) =>
-                          onUpdateCondition!(i, c.copyWith(severity: sev))
-                      : null,
-                  onRemoveCondition: onRemoveCondition != null
-                      ? () => onRemoveCondition!(i)
-                      : null,
-                ),
-              );
-            }),
+                  onTap: () => _showConditionDetailSheet(
+                    context,
+                    condition: c,
+                    backendUrl: backendUrl,
+                    onWillPauseForPicker: onWillPauseForPicker,
+                    onAddDocument: onUpdateCondition != null
+                        ? (descriptor) => onUpdateCondition!(
+                            i, c.copyWithDocument(descriptor))
+                        : null,
+                    onRemoveDocument: onUpdateCondition != null
+                        ? (descriptor) => onUpdateCondition!(
+                              i,
+                              c.copyWith(
+                                documents: c.documents
+                                    .where((d) => d.uuid != descriptor.uuid)
+                                    .toList(),
+                              ),
+                            )
+                        : null,
+                    onSeverityChanged: onUpdateCondition != null
+                        ? (sev) =>
+                            onUpdateCondition!(i, c.copyWith(severity: sev))
+                        : null,
+                    onRemoveCondition: onRemoveCondition != null
+                        ? () => onRemoveCondition!(i)
+                        : null,
+                  ),
+                );
+              }).toList();
+            })()
         ],
       ),
     );

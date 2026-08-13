@@ -139,6 +139,7 @@ class ChronicCondition {
     this.since,
     this.documents = const [],
     this.severity,
+    this.addedAt,
   });
 
   factory ChronicCondition.fromJson(Map<String, Object?> json) {
@@ -152,6 +153,7 @@ class ChronicCondition {
               .toList() ??
           const [],
       severity: json['severity'] as int?,
+      addedAt: (json['added_at'] ?? json['addedAt']) as String?,
     );
   }
 
@@ -169,12 +171,17 @@ class ChronicCondition {
   /// Absent on records written before #138 — treated as unset in the UI.
   final int? severity;
 
+  /// ISO-8601 UTC timestamp when the patient added this condition (#138).
+  /// Absent on pre-#138 records — those sort after newer ones.
+  final String? addedAt;
+
   ChronicCondition copyWith({
     String? name,
     String? icd10,
     String? since,
     List<MediaDescriptor>? documents,
     int? severity,
+    String? addedAt,
   }) =>
       ChronicCondition(
         name: name ?? this.name,
@@ -182,6 +189,7 @@ class ChronicCondition {
         since: since ?? this.since,
         documents: documents ?? this.documents,
         severity: severity ?? this.severity,
+        addedAt: addedAt ?? this.addedAt,
       );
 
   ChronicCondition copyWithDocument(MediaDescriptor d) =>
@@ -194,6 +202,7 @@ class ChronicCondition {
         if (documents.isNotEmpty)
           'documents': documents.map((d) => d.toJson()).toList(),
         if (severity != null) 'severity': severity,
+        if (addedAt != null) 'added_at': addedAt,
       };
 
   @override
@@ -203,11 +212,18 @@ class ChronicCondition {
       other.icd10 == icd10 &&
       other.since == since &&
       _listEq(other.documents, documents) &&
-      other.severity == severity;
+      other.severity == severity &&
+      other.addedAt == addedAt;
 
   @override
-  int get hashCode =>
-      Object.hash(name, icd10, since, Object.hashAll(documents), severity);
+  int get hashCode => Object.hash(
+        name,
+        icd10,
+        since,
+        Object.hashAll(documents),
+        severity,
+        addedAt,
+      );
 }
 
 class Medication {

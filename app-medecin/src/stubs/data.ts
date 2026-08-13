@@ -3,11 +3,23 @@ export interface Allergy {
   severity: string;
 }
 
+export interface ConditionDocument {
+  uuid: string;
+  url?: string | null;
+  mime?: string;
+}
+
 export interface ChronicCondition {
   name: string;
   icd10: string;
   /** 1 (légère) – 5 (critique). Absent on pre-#138 records. */
   severity?: number;
+  /** Year the condition started, e.g. "2021". */
+  since?: string;
+  /** ISO-8601 UTC timestamp when the patient added this condition. */
+  addedAt?: string;
+  /** Justificatif documents (ordonnance scans, etc.). */
+  documents?: ConditionDocument[];
 }
 
 export interface Medication {
@@ -109,7 +121,16 @@ export const previewRecord: MedicalRecord = {
     { substance: "Piqûre d'abeille", severity: "sévère" },
     { substance: "Arachides", severity: "modérée" },
   ],
-  chronicConditions: [{ name: "Asthme bronchique", icd10: "J45", severity: 3 }],
+  chronicConditions: [
+    {
+      name: "Asthme bronchique",
+      icd10: "J45",
+      severity: 3,
+      since: "2021",
+      addedAt: "2024-03-15T10:30:00.000Z",
+      documents: [],
+    },
+  ],
   medications: [
     { name: "Salbutamol", dose: "100 µg", frequency: "2×/jour si besoin" },
     { name: "Prednisolone", dose: "5 mg", frequency: "1×/jour le matin" },
@@ -203,10 +224,18 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       severity: severityLabel(a.severity),
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     chronicConditions: (raw.chronic_conditions ?? raw.chronicConditions ?? []).map((c: any) => ({
       name: c.name,
       icd10: c.icd10 ?? "",
       severity: c.severity as number | undefined,
+      since: c.since as string | undefined,
+      addedAt: (c.added_at ?? c.addedAt) as string | undefined,
+      documents: ((c.documents ?? []) as any[]).map((d: any) => ({
+        uuid: d.uuid ?? "",
+        url: d.url as string | null | undefined,
+        mime: d.mime as string | undefined,
+      })),
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     medications: (raw.medications ?? []).map((m: any) => ({
