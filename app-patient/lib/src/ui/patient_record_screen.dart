@@ -2039,7 +2039,7 @@ class _AllergyPill extends StatelessWidget {
 
 // ─── Antécédents (#115) ───────────────────────────────────────────────────────
 
-class _ConditionsSection extends StatelessWidget {
+class _ConditionsSection extends StatefulWidget {
   const _ConditionsSection({
     required this.conditions,
     this.backendUrl,
@@ -2056,6 +2056,11 @@ class _ConditionsSection extends StatelessWidget {
   final Future<void> Function(int index)? onRemoveCondition;
   final VoidCallback? onWillPauseForPicker;
 
+  @override
+  State<_ConditionsSection> createState() => _ConditionsSectionState();
+}
+
+class _ConditionsSectionState extends State<_ConditionsSection> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
@@ -2080,7 +2085,7 @@ class _ConditionsSection extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text('Antécédents', style: tt.titleSmall),
-                if (conditions.isNotEmpty) ...[
+                if (widget.conditions.isNotEmpty) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Container(
                     padding:
@@ -2090,7 +2095,7 @@ class _ConditionsSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadii.pill),
                     ),
                     child: Text(
-                      '${conditions.length}',
+                      '${widget.conditions.length}',
                       style: tt.bodySmall?.copyWith(
                         color: AppColors.primary700,
                         fontWeight: FontWeight.w600,
@@ -2099,12 +2104,12 @@ class _ConditionsSection extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                if (onAddCondition != null)
+                if (widget.onAddCondition != null)
                   OutlinedButton.icon(
                     onPressed: () => _showAddConditionSheet(
                       context,
-                      onAdd: onAddCondition!,
-                      onWillPauseForPicker: onWillPauseForPicker,
+                      onAdd: widget.onAddCondition!,
+                      onWillPauseForPicker: widget.onWillPauseForPicker,
                     ),
                     icon: const Icon(Icons.add, size: 13),
                     label: const Text('Ajouter'),
@@ -2120,7 +2125,7 @@ class _ConditionsSection extends StatelessWidget {
               ],
             ),
           ),
-          if (conditions.isEmpty)
+          if (widget.conditions.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: Text(
@@ -2132,6 +2137,7 @@ class _ConditionsSection extends StatelessWidget {
             ...(() {
               // Sort by addedAt descending (newest first). Conditions without
               // addedAt (pre-#138) sort to the bottom.
+              final conditions = widget.conditions;
               final sortedIdx = List.generate(conditions.length, (i) => i)
                 ..sort(
                   (a, b) => (conditions[b].addedAt ?? '')
@@ -2144,28 +2150,34 @@ class _ConditionsSection extends StatelessWidget {
                   onTap: () => _showConditionDetailSheet(
                     context,
                     condition: c,
-                    backendUrl: backendUrl,
-                    onWillPauseForPicker: onWillPauseForPicker,
-                    onAddDocument: onUpdateCondition != null
-                        ? (descriptor) => onUpdateCondition!(
-                            i, c.copyWithDocument(descriptor))
+                    backendUrl: widget.backendUrl,
+                    onWillPauseForPicker: widget.onWillPauseForPicker,
+                    // Callbacks read widget.conditions[i] at call time, NOT
+                    // the stale `c` from build(). State.widget is always
+                    // updated by Flutter on parent rebuild (didUpdateWidget),
+                    // so these closures are never stale even if the bottom
+                    // sheet stays open across parent rebuilds.
+                    onAddDocument: widget.onUpdateCondition != null
+                        ? (descriptor) => widget.onUpdateCondition!(
+                            i, widget.conditions[i].copyWithDocument(descriptor))
                         : null,
-                    onRemoveDocument: onUpdateCondition != null
-                        ? (descriptor) => onUpdateCondition!(
+                    onRemoveDocument: widget.onUpdateCondition != null
+                        ? (descriptor) => widget.onUpdateCondition!(
                               i,
-                              c.copyWith(
-                                documents: c.documents
+                              widget.conditions[i].copyWith(
+                                documents: widget.conditions[i]
+                                    .documents
                                     .where((d) => d.uuid != descriptor.uuid)
                                     .toList(),
                               ),
                             )
                         : null,
-                    onSeverityChanged: onUpdateCondition != null
-                        ? (sev) =>
-                            onUpdateCondition!(i, c.copyWith(severity: sev))
+                    onSeverityChanged: widget.onUpdateCondition != null
+                        ? (sev) => widget.onUpdateCondition!(
+                            i, widget.conditions[i].copyWith(severity: sev))
                         : null,
-                    onRemoveCondition: onRemoveCondition != null
-                        ? () => onRemoveCondition!(i)
+                    onRemoveCondition: widget.onRemoveCondition != null
+                        ? () => widget.onRemoveCondition!(i)
                         : null,
                   ),
                 );
