@@ -438,6 +438,7 @@ class Ordonnance {
     required this.id,
     this.treatmentId,
     this.label,
+    this.createdAt,
     this.lines = const <OrdonnanceLine>[],
   });
 
@@ -447,6 +448,7 @@ class Ordonnance {
       id: (json['id'] ?? '') as String,
       treatmentId: (json['treatment_id'] ?? json['treatmentId']) as String?,
       label: json['label'] as String?,
+      createdAt: (json['created_at'] ?? json['createdAt']) as String?,
       lines: rawLines
               ?.map((e) => OrdonnanceLine.fromJson(e as Map<String, Object?>))
               .toList() ??
@@ -464,12 +466,17 @@ class Ordonnance {
   /// `"Examens biologiques"`.
   final String? label;
 
+  /// ISO-8601 UTC timestamp when the doctor created this ordonnance.
+  /// Absent on pre-#139 records — fall back to parent consultation date for sorting.
+  final String? createdAt;
+
   final List<OrdonnanceLine> lines;
 
   Map<String, Object?> toJson() => {
         'id': id,
         if (treatmentId != null) 'treatment_id': treatmentId,
         if (label != null) 'label': label,
+        if (createdAt != null) 'created_at': createdAt,
         'lines': lines.map((l) => l.toJson()).toList(),
       };
 
@@ -479,11 +486,12 @@ class Ordonnance {
       other.id == id &&
       other.treatmentId == treatmentId &&
       other.label == label &&
+      other.createdAt == createdAt &&
       _listEq(other.lines, lines);
 
   @override
   int get hashCode =>
-      Object.hash(id, treatmentId, label, Object.hashAll(lines));
+      Object.hash(id, treatmentId, label, createdAt, Object.hashAll(lines));
 }
 
 /// A global treatment record that may span multiple consultations (#121).
@@ -499,6 +507,7 @@ class Treatment {
     this.doctorRef,
     this.endedAt,
     this.status = 'active',
+    this.createdAt,
   });
 
   factory Treatment.fromJson(Map<String, Object?> json) {
@@ -509,6 +518,7 @@ class Treatment {
       doctorRef: (json['doctor_ref'] ?? json['doctorRef']) as String?,
       endedAt: (json['ended_at'] ?? json['endedAt']) as String?,
       status: (json['status'] ?? 'active') as String,
+      createdAt: (json['created_at'] ?? json['createdAt']) as String?,
     );
   }
 
@@ -525,6 +535,10 @@ class Treatment {
   /// `active` | `completed` | `discontinued`
   final String status;
 
+  /// ISO-8601 UTC timestamp when the doctor initiated this treatment.
+  /// Absent on pre-#139 records — fall back to [startedAt] for sorting.
+  final String? createdAt;
+
   Treatment copyWith({String? status, String? endedAt}) {
     return Treatment(
       id: id,
@@ -533,6 +547,7 @@ class Treatment {
       doctorRef: doctorRef,
       endedAt: endedAt ?? this.endedAt,
       status: status ?? this.status,
+      createdAt: createdAt,
     );
   }
 
@@ -543,6 +558,7 @@ class Treatment {
         if (doctorRef != null) 'doctor_ref': doctorRef,
         if (endedAt != null) 'ended_at': endedAt,
         'status': status,
+        if (createdAt != null) 'created_at': createdAt,
       };
 
   @override
@@ -553,11 +569,12 @@ class Treatment {
       other.startedAt == startedAt &&
       other.doctorRef == doctorRef &&
       other.endedAt == endedAt &&
-      other.status == status;
+      other.status == status &&
+      other.createdAt == createdAt;
 
   @override
-  int get hashCode =>
-      Object.hash(id, diagnosis, startedAt, doctorRef, endedAt, status);
+  int get hashCode => Object.hash(
+      id, diagnosis, startedAt, doctorRef, endedAt, status, createdAt);
 }
 
 /// A single consultation record. Binary images are NEVER stored here — heavy media
@@ -572,6 +589,7 @@ class Consultation {
     this.ordonnances = const <Ordonnance>[],
     this.imageUrls = const [],
     this.media = const [],
+    this.createdAt,
   });
 
   factory Consultation.fromJson(Map<String, Object?> json) {
@@ -613,6 +631,7 @@ class Consultation {
       ordonnances: ordonnances,
       imageUrls: urls,
       media: media,
+      createdAt: (json['created_at'] ?? json['createdAt']) as String?,
     );
   }
 
@@ -642,11 +661,16 @@ class Consultation {
   /// binary data, no baked-in URL — only an anonymous UUID + per-media content key.
   final List<MediaDescriptor> media;
 
+  /// ISO-8601 UTC timestamp when the doctor created this consultation entry.
+  /// Absent on pre-#139 records — fall back to [date] for sorting.
+  final String? createdAt;
+
   Map<String, Object?> toJson() => {
         'id': id,
         'date': date,
         'practitioner_ref': practitionerRef,
         'summary': summary,
+        if (createdAt != null) 'created_at': createdAt,
         if (ordonnances.isNotEmpty)
           'ordonnances': ordonnances.map((o) => o.toJson()).toList()
         else if (prescription != null)
@@ -664,6 +688,7 @@ class Consultation {
         ordonnances: ordonnances,
         imageUrls: imageUrls,
         media: [...media, descriptor],
+        createdAt: createdAt,
       );
 
   @override
@@ -674,6 +699,7 @@ class Consultation {
       other.practitionerRef == practitionerRef &&
       other.summary == summary &&
       other.prescription == prescription &&
+      other.createdAt == createdAt &&
       _listEq(other.ordonnances, ordonnances) &&
       _listEq(other.imageUrls, imageUrls) &&
       _listEq(other.media, media);
@@ -685,6 +711,7 @@ class Consultation {
         practitionerRef,
         summary,
         prescription,
+        createdAt,
         Object.hashAll(ordonnances),
         Object.hashAll(imageUrls),
         Object.hashAll(media),

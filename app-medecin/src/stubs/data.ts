@@ -63,6 +63,8 @@ export interface OrdonnanceJson {
   /** Optional label, e.g. "Médicaments", "Examens biologiques". */
   label?: string;
   lines: OrdonnanceLineJson[];
+  /** ISO-8601 UTC — absent on pre-#139 records. */
+  createdAt?: string;
 }
 
 /** A global treatment record spanning one or more consultations (#121). */
@@ -75,10 +77,14 @@ export interface TreatmentJson {
   ended_at?: string;
   /** "active" | "completed" | "discontinued" */
   status: string;
+  /** ISO-8601 UTC — absent on pre-#139 records. */
+  createdAt?: string;
 }
 
 export interface Consultation {
-  date: string; // ISO
+  date: string; // ISO yyyy-MM-dd
+  /** ISO-8601 UTC with time — absent on pre-#139 records. */
+  createdAt?: string;
   doctorName?: string;
   summary: string;
   /** @deprecated Pre-#121 records only. Use `ordonnances` for new records. */
@@ -251,10 +257,12 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
       doctor_ref: t.doctor_ref ?? t.doctorRef,
       ended_at: t.ended_at ?? t.endedAt,
       status: t.status ?? "active",
+      createdAt: (t.created_at ?? t.createdAt) as string | undefined,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     consultations: (raw.consultations ?? []).map((c: any) => ({
       date: c.date,
+      createdAt: (c.created_at ?? c.createdAt) as string | undefined,
       doctorName: c.practitioner_ref ?? c.practitionerRef ?? c.doctor_name ?? c.doctorName,
       summary: c.summary,
       prescription: c.prescription, // legacy — pre-#121 records only
@@ -263,6 +271,7 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
         id: o.id ?? "",
         treatment_id: o.treatment_id ?? o.treatmentId,
         label: o.label,
+        createdAt: (o.created_at ?? o.createdAt) as string | undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         lines: (o.lines ?? []).map((l: any) => ({
           medication: l.medication ?? "",

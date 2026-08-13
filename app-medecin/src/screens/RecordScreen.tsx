@@ -405,9 +405,11 @@ function ConsultationTimeline({
   consultations: Consultation[];
   backendUrl?: string;
 }) {
-  const sorted = [...consultations].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-  );
+  const sorted = [...consultations].sort((a, b) => {
+    const ka = a.createdAt ?? a.date;
+    const kb = b.createdAt ?? b.date;
+    return kb.localeCompare(ka);
+  });
   const last = sorted.length - 1;
 
   return (

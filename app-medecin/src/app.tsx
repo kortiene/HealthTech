@@ -28,10 +28,12 @@ export function App() {
   async function handleConsultationSaved(consultation: NewConsultation): Promise<void> {
     if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
 
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
     const newEntry = {
       id: crypto.randomUUID(),
       date: today,
+      created_at: now,
       practitioner_ref: consultation.doctorName || "",
       summary: consultation.summary,
       ...(consultation.ordonnances.length > 0
@@ -55,10 +57,12 @@ export function App() {
             ? { ...t, status: "completed", ended_at: today }
             : t,
         ),
-        ...(consultation.newTreatment ? [consultation.newTreatment] : []),
+        ...(consultation.newTreatment
+          ? [{ ...consultation.newTreatment, created_at: now }]
+          : []),
       ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
 
     // XOR 0x5A re-encrypt and PUT back to backend.
@@ -135,6 +139,7 @@ export function App() {
     const newEntry = {
       id: crypto.randomUUID(),
       date: addedAt.slice(0, 10),
+      created_at: addedAt,
       practitioner_ref: consultation.doctorName,
       summary: consultation.summary,
       // Snake_case keys match Flutter MediaDescriptor.fromJson expectations.

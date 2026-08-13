@@ -2417,7 +2417,9 @@ class _ConsultationsSection extends StatelessWidget {
     final indexed = List<MapEntry<int, Consultation>>.generate(
         consultations.length, (i) => MapEntry(i, consultations[i]));
     indexed.sort((a, b) {
-      final cmp = b.value.date.compareTo(a.value.date);
+      final ka = a.value.createdAt ?? a.value.date;
+      final kb = b.value.createdAt ?? b.value.date;
+      final cmp = kb.compareTo(ka);
       return cmp != 0 ? cmp : b.key - a.key;
     });
     final sorted = indexed.map((e) => e.value).toList();
@@ -3055,9 +3057,9 @@ class _TreatmentsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final indexed = record.treatments.asMap().entries.toList()
       ..sort((a, b) {
-        final da = DateTime.tryParse(a.value.startedAt) ?? DateTime(0);
-        final db = DateTime.tryParse(b.value.startedAt) ?? DateTime(0);
-        final cmp = db.compareTo(da);
+        final ka = a.value.createdAt ?? a.value.startedAt;
+        final kb = b.value.createdAt ?? b.value.startedAt;
+        final cmp = kb.compareTo(ka);
         return cmp != 0 ? cmp : b.key.compareTo(a.key);
       });
     final sorted = indexed.map((e) => e.value).toList();
