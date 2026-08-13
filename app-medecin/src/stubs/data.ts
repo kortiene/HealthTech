@@ -109,7 +109,7 @@ export const previewRecord: MedicalRecord = {
     { substance: "Piqûre d'abeille", severity: "sévère" },
     { substance: "Arachides", severity: "modérée" },
   ],
-  chronicConditions: [{ name: "Asthme bronchique", icd10: "J45" }],
+  chronicConditions: [{ name: "Asthme bronchique", icd10: "J45", severity: 3 }],
   medications: [
     { name: "Salbutamol", dose: "100 µg", frequency: "2×/jour si besoin" },
     { name: "Prednisolone", dose: "5 mg", frequency: "1×/jour le matin" },
