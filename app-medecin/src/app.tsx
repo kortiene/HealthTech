@@ -95,6 +95,7 @@ export function App() {
               ...prev.consultations,
               {
                 date: newEntry.date,
+                createdAt: now,
                 doctorName: consultation.doctorName || undefined,
                 summary: consultation.summary,
                 ...(consultation.ordonnances.length > 0
@@ -192,6 +193,7 @@ export function App() {
               ...prev.consultations,
               {
                 date: newEntry.date,
+                createdAt: addedAt,
                 doctorName: consultation.doctorName,
                 summary: consultation.summary,
                 media: consultation.media,
