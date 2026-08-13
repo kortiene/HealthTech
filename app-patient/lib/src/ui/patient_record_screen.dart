@@ -3080,8 +3080,11 @@ class _TreatmentsSection extends StatelessWidget {
                       .map((o) => (consultation: c, ordonnance: o)),
                 )
                 .toList()
-              ..sort(
-                  (a, b) => a.consultation.date.compareTo(b.consultation.date));
+              ..sort((a, b) {
+                final ka = a.consultation.createdAt ?? a.consultation.date;
+                final kb = b.consultation.createdAt ?? b.consultation.date;
+                return kb.compareTo(ka);
+              });
             return _TreatmentCard(
               treatment: t,
               linked: linked,
