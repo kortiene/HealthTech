@@ -444,13 +444,13 @@ export function NoteScreen({
             zIndex: 200,
             padding: "13px 22px",
             borderRadius: 28,
-            background: "#0d9488",
+            background: "#ea580c",
             border: "none",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: 8,
-            boxShadow: "0 4px 20px rgba(13,148,136,0.45)",
+            boxShadow: "0 4px 20px rgba(234,88,12,0.40)",
             color: "#fff",
           }}
         >
@@ -476,8 +476,14 @@ export function NoteScreen({
           }}
         >
           {/* Médecin + Établissement + Contact */}
-          <div style={{ display: "flex", gap: "var(--space-md)" }}>
-            <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "var(--space-md)",
+            }}
+          >
+            <div>
               <label
                 className="text-title-sm field-label"
                 htmlFor="doctor-name"
@@ -493,7 +499,7 @@ export function NoteScreen({
                 onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
               />
             </div>
-            <div style={{ flex: 1 }}>
+            <div>
               <label
                 className="text-title-sm field-label"
                 style={{ display: "block", marginBottom: "var(--space-sm)" }}
@@ -510,7 +516,7 @@ export function NoteScreen({
                 onInput={(e) => setHospital((e.target as HTMLInputElement).value)}
               />
             </div>
-            <div style={{ flex: 1 }}>
+            <div>
               <label
                 className="text-title-sm field-label"
                 style={{ display: "block", marginBottom: "var(--space-sm)" }}
