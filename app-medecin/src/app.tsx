@@ -1,8 +1,8 @@
 import { useState } from "preact/hooks";
-import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
-import { RecordScreen } from "./screens/RecordScreen";
-import { NoteScreen } from "./screens/NoteScreen";
 import type { NewConsultation } from "./screens/EditScreen";
+import { NoteScreen } from "./screens/NoteScreen";
+import { RecordScreen } from "./screens/RecordScreen";
+import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
 import type { NewVoiceConsultation } from "./screens/VoiceNoteScreen";
 import { type MedicalRecord } from "./stubs/data";
 
@@ -17,13 +17,18 @@ function xorBytes(data: Uint8Array): Uint8Array {
 export function App() {
   const [screen, setScreen] = useState<Screen>("scan");
   const [pendingCount, setPendingCount] = useState(0);
-  const [scannedRecord, setScannedRecord] = useState<MedicalRecord | null>(null);
+  const [scannedRecord, setScannedRecord] = useState<MedicalRecord | null>(
+    null,
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rawFlutter, setRawFlutter] = useState<any>(null);
   const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
 
-  async function handleConsultationSaved(consultation: NewConsultation): Promise<void> {
-    if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
+  async function handleConsultationSaved(
+    consultation: NewConsultation,
+  ): Promise<void> {
+    if (!qrPayload || !rawFlutter)
+      throw new Error("Session expirée — rescannez le QR.");
 
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
@@ -60,7 +65,9 @@ export function App() {
       ],
       allergies: [...(rawFlutter.allergies ?? []), ...newAllergiesFlutter],
       chronic_conditions: [
-        ...(rawFlutter.chronic_conditions ?? rawFlutter.chronicConditions ?? []),
+        ...(rawFlutter.chronic_conditions ??
+          rawFlutter.chronicConditions ??
+          []),
         ...consultation.newConditions.map((c) => ({
           name: c.name,
           severity: c.severity,
@@ -75,7 +82,9 @@ export function App() {
     // XOR 0x5A re-encrypt and PUT back to backend.
     // Use the write token (wt) as the Bearer — the backend enforces read-only
     // sessions by rejecting PUTs when wt is absent (#118).
-    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const encrypted = xorBytes(
+      new TextEncoder().encode(JSON.stringify(updatedRaw)),
+    );
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
       method: "PUT",
       headers: {
@@ -151,7 +160,8 @@ export function App() {
   async function handleVoiceConsultationSaved(
     consultation: NewVoiceConsultation,
   ): Promise<void> {
-    if (!qrPayload || !rawFlutter) throw new Error("Session expirée — rescannez le QR.");
+    if (!qrPayload || !rawFlutter)
+      throw new Error("Session expirée — rescannez le QR.");
 
     const addedAt = new Date().toISOString();
     const newEntry = {
@@ -183,7 +193,9 @@ export function App() {
     };
 
     // PUT updated blob (media is already on /media endpoint; this blob carries the reference)
-    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const encrypted = xorBytes(
+      new TextEncoder().encode(JSON.stringify(updatedRaw)),
+    );
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
       method: "PUT",
       headers: {
@@ -239,32 +251,36 @@ export function App() {
 
   if (screen === "note") {
     return (
-      <NoteScreen
-        record={scannedRecord!}
-        backendUrl={qrPayload?.url ?? ""}
-        writeToken={qrPayload?.wt}
-        onWrittenSaved={handleConsultationSaved}
-        onVoiceSaved={handleVoiceConsultationSaved}
-        onCancel={() => setScreen("record")}
-      />
+      <div class="page-frame">
+        <NoteScreen
+          record={scannedRecord!}
+          backendUrl={qrPayload?.url ?? ""}
+          writeToken={qrPayload?.wt}
+          onWrittenSaved={handleConsultationSaved}
+          onVoiceSaved={handleVoiceConsultationSaved}
+          onCancel={() => setScreen("record")}
+        />
+      </div>
     );
   }
 
   return (
-    <RecordScreen
-      record={scannedRecord}
-      pendingCount={pendingCount}
-      readOnly={!qrPayload?.wt}
-      backendUrl={qrPayload?.url ?? ""}
-      onSynced={() => setPendingCount(0)}
-      onAddNote={() => setScreen("note")}
-      onTerminated={() => {
-        setPendingCount(0);
-        setScannedRecord(null);
-        setRawFlutter(null);
-        setQrPayload(null);
-        setScreen("scan");
-      }}
-    />
+    <div class="page-frame">
+      <RecordScreen
+        record={scannedRecord}
+        pendingCount={pendingCount}
+        readOnly={!qrPayload?.wt}
+        backendUrl={qrPayload?.url ?? ""}
+        onSynced={() => setPendingCount(0)}
+        onAddNote={() => setScreen("note")}
+        onTerminated={() => {
+          setPendingCount(0);
+          setScannedRecord(null);
+          setRawFlutter(null);
+          setQrPayload(null);
+          setScreen("scan");
+        }}
+      />
+    </div>
   );
 }

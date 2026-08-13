@@ -1062,7 +1062,7 @@ export function NoteScreen({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "var(--space-xs)",
+                  gap: 4,
                   marginBottom: "var(--space-sm)",
                 }}
               >
@@ -1072,29 +1072,71 @@ export function NoteScreen({
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 10px 8px 12px",
                       borderRadius: "var(--radius-sm)",
-                      background: "var(--color-allergy-bg)",
-                      border: "1.5px solid var(--color-allergy)",
+                      background: "var(--color-neutral-50)",
                     }}
                   >
-                    <p style={{ flex: 1, margin: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <strong style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", color: "var(--color-allergy)", textTransform: "uppercase" }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: "block",
+                        padding: "8px 8px 8px 10px",
+                        fontSize: 13,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        lineHeight: "18px",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          color: "#b91c1c",
+                          textTransform: "uppercase",
+                          marginRight: 5,
+                        }}
+                      >
                         Allergie
                       </strong>
-                      {" "}
-                      <strong style={{ color: "var(--color-neutral-900)" }}>{a.substance}</strong>
-                      {" · "}
-                      <span style={{ color: a.severity === "severe" ? "var(--color-error)" : a.severity === "moderate" ? "var(--color-allergy)" : "var(--color-neutral-600)" }}>
-                        {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
+                      <strong style={{ color: "var(--color-neutral-900)" }}>
+                        {a.substance}
+                      </strong>
+                      <span
+                        style={{
+                          color:
+                            a.severity === "severe"
+                              ? "#b91c1c"
+                              : a.severity === "moderate"
+                                ? "#c2410c"
+                                : "var(--color-neutral-500)",
+                        }}
+                      >
+                        {" · "}
+                        {a.severity === "severe"
+                          ? "Sévère"
+                          : a.severity === "moderate"
+                            ? "Modérée"
+                            : "Légère"}
                       </span>
-                    </p>
+                    </span>
                     <button
                       type="button"
                       onClick={() => removeAllergy(i)}
                       aria-label={`Retirer ${a.substance}`}
-                      style={{ flexShrink: 0, marginLeft: 8, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "var(--color-neutral-400)" }}
+                      style={{
+                        flexShrink: 0,
+                        padding: "0 10px",
+                        alignSelf: "stretch",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--color-neutral-400)",
+                      }}
                     >
                       <Icon name="close" size={16} />
                     </button>
@@ -1106,31 +1148,76 @@ export function NoteScreen({
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 10px 8px 12px",
                       borderRadius: "var(--radius-sm)",
-                      background: "var(--color-primary-50)",
-                      border: "1.5px solid var(--color-primary-200)",
+                      background: "var(--color-neutral-50)",
                     }}
                   >
-                    <p style={{ flex: 1, margin: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <strong style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", color: "var(--color-primary-700)", textTransform: "uppercase" }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: "block",
+                        padding: "8px 8px 8px 10px",
+                        fontSize: 13,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        lineHeight: "18px",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          color: "#006c67",
+                          textTransform: "uppercase",
+                          marginRight: 5,
+                        }}
+                      >
                         Antécédent
                       </strong>
-                      {" "}
-                      <strong style={{ color: "var(--color-neutral-900)" }}>{c.name}</strong>
-                      {" · "}
-                      <span style={{ color: "var(--color-neutral-600)" }}>
-                        {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
+                      <strong style={{ color: "var(--color-neutral-900)" }}>
+                        {c.name}
+                      </strong>
+                      <span style={{ color: "var(--color-neutral-500)" }}>
+                        {" · "}
+                        {[
+                          "Légère",
+                          "Modérée",
+                          "Importante",
+                          "Sévère",
+                          "Critique",
+                        ][c.severity - 1] ?? `Sév. ${c.severity}`}
                       </span>
-                      {c.icd10 && <span style={{ color: "var(--color-neutral-500)" }}>{" · "}{c.icd10}</span>}
-                      {c.since && <span style={{ color: "var(--color-neutral-500)" }}>{" · depuis "}{c.since}</span>}
-                    </p>
+                      {c.icd10 && (
+                        <span style={{ color: "var(--color-neutral-400)" }}>
+                          {" · "}
+                          {c.icd10}
+                        </span>
+                      )}
+                      {c.since && (
+                        <span style={{ color: "var(--color-neutral-400)" }}>
+                          {" · depuis "}
+                          {c.since}
+                        </span>
+                      )}
+                    </span>
                     <button
                       type="button"
                       onClick={() => removeCondition(i)}
                       aria-label={`Retirer ${c.name}`}
-                      style={{ flexShrink: 0, marginLeft: 8, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "var(--color-neutral-400)" }}
+                      style={{
+                        flexShrink: 0,
+                        padding: "0 10px",
+                        alignSelf: "stretch",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--color-neutral-400)",
+                      }}
                     >
                       <Icon name="close" size={16} />
                     </button>
