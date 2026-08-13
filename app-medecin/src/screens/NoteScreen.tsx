@@ -1049,7 +1049,7 @@ export function NoteScreen({
                   placeholder={
                     conditionType === "allergy"
                       ? "Substance ou allergène — ↵ pour ajouter"
-                      : "Nom de la pathologie — ↵ pour ajouter"
+                      : "Nom de la pathologie"
                   }
                   value={conditionType === "allergy" ? allergySubstance : conditionName}
                   onInput={(e) => {
@@ -1059,7 +1059,9 @@ export function NoteScreen({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      conditionType === "allergy" ? addAllergy() : addCondition();
+                      if (conditionType === "allergy") addAllergy();
+                      // Antécédent : Entrée depuis le nom ne déclenche pas encore l'ajout
+                      // car ICD-10 / Depuis peuvent encore être remplis
                     }
                   }}
                 />
@@ -1110,12 +1112,18 @@ export function NoteScreen({
                     placeholder="Code ICD-10 (optionnel)"
                     value={conditionIcd10}
                     onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); addCondition(); }
+                    }}
                   />
                   <input
                     className="field-input"
-                    placeholder="Depuis (ex : 2020, optionnel)"
+                    placeholder="Depuis (ex : 2020) — ↵ pour ajouter"
                     value={conditionSince}
                     onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); addCondition(); }
+                    }}
                   />
                 </div>
               )}
