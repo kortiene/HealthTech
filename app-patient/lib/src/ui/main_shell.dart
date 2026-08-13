@@ -208,10 +208,10 @@ class _MainShellState extends State<MainShell> {
                   since: updatedCondition.since ?? current.since,
                   severity: updatedCondition.severity ?? current.severity,
                   addedAt: updatedCondition.addedAt ?? current.addedAt,
-                  documents: listEquals(
-                          updatedCondition.documents, current.documents)
-                      ? current.documents
-                      : updatedCondition.documents,
+                  documents:
+                      listEquals(updatedCondition.documents, current.documents)
+                          ? current.documents
+                          : updatedCondition.documents,
                 );
                 final updated = widget.record.copyWith(
                   chronicConditions: conditions,

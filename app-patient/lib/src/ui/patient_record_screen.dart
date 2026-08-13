@@ -2167,15 +2167,14 @@ class _ConditionsSectionState extends State<_ConditionsSection> {
                     // so these closures are never stale even if the bottom
                     // sheet stays open across parent rebuilds.
                     onAddDocument: widget.onUpdateCondition != null
-                        ? (descriptor) => widget.onUpdateCondition!(
-                            i, widget.conditions[i].copyWithDocument(descriptor))
+                        ? (descriptor) => widget.onUpdateCondition!(i,
+                            widget.conditions[i].copyWithDocument(descriptor))
                         : null,
                     onRemoveDocument: widget.onUpdateCondition != null
                         ? (descriptor) => widget.onUpdateCondition!(
                               i,
                               widget.conditions[i].copyWith(
-                                documents: widget.conditions[i]
-                                    .documents
+                                documents: widget.conditions[i].documents
                                     .where((d) => d.uuid != descriptor.uuid)
                                     .toList(),
                               ),
