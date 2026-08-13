@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -193,7 +194,25 @@ class _MainShellState extends State<MainShell> {
         onUpdateCondition: widget.onUpdateRecord != null
             ? (index, updatedCondition) {
                 final conditions = List.of(widget.record.chronicConditions);
-                conditions[index] = updatedCondition;
+                final current = conditions[index];
+                // Merge with the CURRENT condition to survive stale-closure updates.
+                // The sheet may have been opened before a previous update (e.g. severity
+                // changed, then a document was added from the same still-open sheet).
+                // Rule: prefer updatedCondition's field when it is non-null; fall back to
+                // current for null fields. For documents, prefer the list that actually
+                // changed (different from current), because "same list" means the field
+                // was carried unchanged from a stale base condition.
+                conditions[index] = current.copyWith(
+                  name: updatedCondition.name,
+                  icd10: updatedCondition.icd10,
+                  since: updatedCondition.since ?? current.since,
+                  severity: updatedCondition.severity ?? current.severity,
+                  addedAt: updatedCondition.addedAt ?? current.addedAt,
+                  documents: listEquals(
+                          updatedCondition.documents, current.documents)
+                      ? current.documents
+                      : updatedCondition.documents,
+                );
                 final updated = widget.record.copyWith(
                   chronicConditions: conditions,
                   updatedAt: DateTime.now().toIso8601String(),
