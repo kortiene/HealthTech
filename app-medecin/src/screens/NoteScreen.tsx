@@ -1095,6 +1095,30 @@ export function NoteScreen({
                   </select>
                 )}
               </div>
+
+              {/* ICD-10 + Depuis — antécédent uniquement */}
+              {conditionType === "condition" && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: "var(--space-sm)",
+                  }}
+                >
+                  <input
+                    className="field-input"
+                    placeholder="Code ICD-10 (optionnel)"
+                    value={conditionIcd10}
+                    onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
+                  />
+                  <input
+                    className="field-input"
+                    placeholder="Depuis (ex : 2020, optionnel)"
+                    value={conditionSince}
+                    onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
