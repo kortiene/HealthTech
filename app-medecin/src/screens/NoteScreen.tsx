@@ -437,29 +437,31 @@ export function NoteScreen({
           type="button"
           onClick={() => setMode(mode === "written" ? "voice" : "written")}
           aria-label={mode === "written" ? "Passer en note vocale" : "Passer en note écrite"}
-          title={mode === "written" ? "Note vocale" : "Note écrite"}
           style={{
             position: "fixed",
             bottom: 24,
-            right: 24,
+            right: 20,
             zIndex: 200,
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            background: "var(--color-primary-700)",
+            padding: "13px 22px",
+            borderRadius: 28,
+            background: "#0d9488",
             border: "none",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(21,101,192,0.35)",
+            gap: 8,
+            boxShadow: "0 4px 20px rgba(13,148,136,0.45)",
+            color: "#fff",
           }}
         >
           <Icon
             name={mode === "written" ? "mic" : "edit_note"}
-            size={26}
-            color="var(--color-white)"
+            size={20}
+            color="#fff"
           />
+          <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap" }}>
+            {mode === "written" ? "Note vocale" : "Note écrite"}
+          </span>
         </button>
       )}
 
@@ -1018,19 +1020,26 @@ export function NoteScreen({
 
               {conditionType === "allergy" ? (
                 <>
-                  <input
-                    className="field-input"
-                    placeholder="Substance ou allergène"
-                    value={allergySubstance}
-                    onInput={(e) => setAllergySubstance((e.target as HTMLInputElement).value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addAllergy();
-                      }
+                  {/* Ligne 1 : substance + sévérité */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: "var(--space-sm)",
                     }}
-                  />
-                  <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+                  >
+                    <input
+                      className="field-input"
+                      placeholder="Substance ou allergène"
+                      value={allergySubstance}
+                      onInput={(e) => setAllergySubstance((e.target as HTMLInputElement).value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addAllergy();
+                        }
+                      }}
+                    />
                     <select
                       className="field-input"
                       value={allergySeverity}
@@ -1039,62 +1048,79 @@ export function NoteScreen({
                           (e.target as HTMLSelectElement).value as NewAllergy["severity"],
                         )
                       }
-                      style={{ flex: 1 }}
                     >
                       <option value="mild">Légère</option>
                       <option value="moderate">Modérée</option>
                       <option value="severe">Sévère</option>
                     </select>
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      style={{ gap: "var(--space-xs)", flexShrink: 0 }}
-                      onClick={addAllergy}
-                    >
-                      <Icon name="add" size={18} color="var(--color-primary-700)" />
-                      Ajouter
-                    </button>
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ gap: "var(--space-xs)", alignSelf: "flex-end" }}
+                    onClick={addAllergy}
+                  >
+                    <Icon name="add" size={18} color="var(--color-primary-700)" />
+                    Ajouter
+                  </button>
                 </>
               ) : (
                 <>
-                  <input
-                    className="field-input"
-                    placeholder="Nom de la pathologie"
-                    value={conditionName}
-                    onInput={(e) => setConditionName((e.target as HTMLInputElement).value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addCondition();
-                      }
+                  {/* Ligne 1 : nom + sévérité */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: "var(--space-sm)",
                     }}
-                  />
-                  <select
-                    className="field-input"
-                    value={conditionSeverity}
-                    onChange={(e) =>
-                      setConditionSeverity(Number((e.target as HTMLSelectElement).value))
-                    }
                   >
-                    <option value={1}>1 — Légère</option>
-                    <option value={2}>2 — Modérée</option>
-                    <option value={3}>3 — Importante</option>
-                    <option value={4}>4 — Sévère</option>
-                    <option value={5}>5 — Critique</option>
-                  </select>
-                  <input
-                    className="field-input"
-                    placeholder="Code ICD-10 (optionnel)"
-                    value={conditionIcd10}
-                    onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
-                  />
-                  <input
-                    className="field-input"
-                    placeholder="Depuis (ex : 2020, optionnel)"
-                    value={conditionSince}
-                    onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
-                  />
+                    <input
+                      className="field-input"
+                      placeholder="Nom de la pathologie"
+                      value={conditionName}
+                      onInput={(e) => setConditionName((e.target as HTMLInputElement).value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCondition();
+                        }
+                      }}
+                    />
+                    <select
+                      className="field-input"
+                      value={conditionSeverity}
+                      onChange={(e) =>
+                        setConditionSeverity(Number((e.target as HTMLSelectElement).value))
+                      }
+                    >
+                      <option value={1}>1 — Légère</option>
+                      <option value={2}>2 — Modérée</option>
+                      <option value={3}>3 — Importante</option>
+                      <option value={4}>4 — Sévère</option>
+                      <option value={5}>5 — Critique</option>
+                    </select>
+                  </div>
+                  {/* Ligne 2 : ICD-10 + depuis */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: "var(--space-sm)",
+                    }}
+                  >
+                    <input
+                      className="field-input"
+                      placeholder="Code ICD-10 (optionnel)"
+                      value={conditionIcd10}
+                      onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
+                    />
+                    <input
+                      className="field-input"
+                      placeholder="Depuis (ex : 2020, optionnel)"
+                      value={conditionSince}
+                      onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
+                    />
+                  </div>
                   <button
                     type="button"
                     className="btn btn-outline"
