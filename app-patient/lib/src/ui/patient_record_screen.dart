@@ -30,6 +30,7 @@ class PatientRecordScreen extends StatelessWidget {
     this.onRemoveConsultationMedia,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onAddDocument,
     this.onRemoveDocument,
   });
@@ -68,6 +69,9 @@ class PatientRecordScreen extends StatelessWidget {
   /// Called when a document is added to condition at [index] (#115).
   /// Args: (index in chronicConditions, updated condition with new doc appended).
   final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+
+  /// Called when the patient deletes a chronic condition at [index].
+  final Future<void> Function(int index)? onRemoveCondition;
 
   /// Called when the patient adds a new administrative document (#116).
   final Future<void> Function(PatientDocument)? onAddDocument;
@@ -127,6 +131,7 @@ class PatientRecordScreen extends StatelessWidget {
                 backendUrl: backendUrl,
                 onAddCondition: onAddCondition,
                 onUpdateCondition: onUpdateCondition,
+                onRemoveCondition: onRemoveCondition,
                 onWillPauseForPicker: onWillPauseForPicker,
               ),
               _ProfilTab(
@@ -215,6 +220,7 @@ class _AntecedintsTab extends StatelessWidget {
     this.backendUrl,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onWillPauseForPicker,
   });
 
@@ -222,6 +228,7 @@ class _AntecedintsTab extends StatelessWidget {
   final String? backendUrl;
   final Future<void> Function(ChronicCondition)? onAddCondition;
   final Future<void> Function(int, ChronicCondition)? onUpdateCondition;
+  final Future<void> Function(int)? onRemoveCondition;
   final VoidCallback? onWillPauseForPicker;
 
   @override
@@ -233,6 +240,7 @@ class _AntecedintsTab extends StatelessWidget {
           backendUrl: backendUrl,
           onAddCondition: onAddCondition,
           onUpdateCondition: onUpdateCondition,
+          onRemoveCondition: onRemoveCondition,
           onWillPauseForPicker: onWillPauseForPicker,
         ),
       ],
@@ -886,6 +894,8 @@ class _TabScrollView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Builder(
       builder: (ctx) => CustomScrollView(
+        // Prevents _StretchController from firing setState() during NestedScrollView layout (→ "Build scheduled during frame").
+        physics: const ClampingScrollPhysics(),
         slivers: [
           SliverOverlapInjector(
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(ctx),
@@ -1037,6 +1047,58 @@ Widget _sectionCard({required Widget child}) {
   );
 }
 
+// ─── Severity helpers (#138) ──────────────────────────────────────────────────
+
+String _severityLabel(int s) => switch (s) {
+      1 => 'Légère',
+      2 => 'Modérée',
+      3 => 'Importante',
+      4 => 'Sévère',
+      _ => 'Critique',
+    };
+
+Color _severityColor(int s) => switch (s) {
+      1 => AppColors.success,
+      2 => const Color(0xFF84CC16),
+      3 => AppColors.warning,
+      4 => const Color(0xFFF97316),
+      _ => AppColors.error,
+    };
+
+class _SeverityDots extends StatelessWidget {
+  const _SeverityDots(this.severity);
+  final int severity;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _severityColor(severity);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 1; i <= 5; i++)
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i <= severity ? color : AppColors.neutral200,
+            ),
+          ),
+        const SizedBox(width: 4),
+        Text(
+          _severityLabel(severity),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── Add condition sheet (#115) ───────────────────────────────────────────────
 
 void _showAddConditionSheet(
@@ -1081,6 +1143,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
   _UploadStatus _photoStatus = _UploadStatus.idle;
   String? _photoError;
   bool _saving = false;
+  int _severity = 1;
 
   @override
   void dispose() {
@@ -1207,6 +1270,8 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
         icd10: _icdCtrl.text.trim().isEmpty ? null : _icdCtrl.text.trim(),
         since: _sinceCtrl.text.trim().isEmpty ? null : _sinceCtrl.text.trim(),
         documents: [if (_photoDescriptor != null) _photoDescriptor!],
+        severity: _severity,
+        addedAt: DateTime.now().toUtc().toIso8601String(),
       );
       await widget.onAdd(condition);
       if (mounted) Navigator.of(context).pop();
@@ -1311,6 +1376,37 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
                     isDense: true,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.md),
+                // ── Sévérité (#138) ─────────────────────────────────────────
+                Row(
+                  children: [
+                    Text(
+                      'Sévérité',
+                      style:
+                          tt.labelMedium?.copyWith(color: AppColors.neutral500),
+                    ),
+                    const Spacer(),
+                    _SeverityDots(_severity),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SliderTheme(
+                  data: SliderThemeData(
+                    thumbColor: _severityColor(_severity),
+                    activeTrackColor: _severityColor(_severity),
+                    inactiveTrackColor: AppColors.neutral200,
+                    overlayColor:
+                        _severityColor(_severity).withValues(alpha: 0.15),
+                    trackHeight: 4,
+                  ),
+                  child: Slider(
+                    value: _severity.toDouble(),
+                    min: 1,
+                    max: 5,
+                    divisions: 4,
+                    onChanged: (v) => setState(() => _severity = v.round()),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 // ── Justificatif photo ──────────────────────────────────────
                 if (_photoDescriptor != null) ...[
@@ -1411,6 +1507,8 @@ void _showConditionDetailSheet(
   VoidCallback? onWillPauseForPicker,
   Future<void> Function(MediaDescriptor)? onAddDocument,
   Future<void> Function(MediaDescriptor)? onRemoveDocument,
+  Future<void> Function(int)? onSeverityChanged,
+  Future<void> Function()? onRemoveCondition,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -1425,6 +1523,8 @@ void _showConditionDetailSheet(
       onWillPauseForPicker: onWillPauseForPicker,
       onAddDocument: onAddDocument,
       onRemoveDocument: onRemoveDocument,
+      onSeverityChanged: onSeverityChanged,
+      onRemoveCondition: onRemoveCondition,
     ),
   );
 }
@@ -1436,6 +1536,8 @@ class _ConditionDetailSheet extends StatefulWidget {
     this.onWillPauseForPicker,
     this.onAddDocument,
     this.onRemoveDocument,
+    this.onSeverityChanged,
+    this.onRemoveCondition,
   });
 
   final ChronicCondition condition;
@@ -1449,6 +1551,12 @@ class _ConditionDetailSheet extends StatefulWidget {
   /// from the record and persists. Null = delete button hidden.
   final Future<void> Function(MediaDescriptor)? onRemoveDocument;
 
+  /// Called when the patient changes the severity slider. Null = read-only.
+  final Future<void> Function(int)? onSeverityChanged;
+
+  /// Called when the patient confirms deletion of this condition. Null = no delete button.
+  final Future<void> Function()? onRemoveCondition;
+
   @override
   State<_ConditionDetailSheet> createState() => _ConditionDetailSheetState();
 }
@@ -1456,11 +1564,25 @@ class _ConditionDetailSheet extends StatefulWidget {
 class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
   _UploadStatus _uploadStatus = _UploadStatus.idle;
   String? _uploadError;
+  late int _severity;
 
   // Optimistic: descriptors added this session, not yet in widget.condition.documents
   final List<MediaDescriptor> _localDocs = [];
   // Optimistic: UUIDs removed this session, pending parent record update
   final Set<String> _removedUuids = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _severity = widget.condition.severity ?? 1;
+    // If this condition has never had severity set, persist the displayed
+    // default (1 = Légère) immediately so the doctor's QR always shows a badge.
+    if (widget.condition.severity == null && widget.onSeverityChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onSeverityChanged!(_severity);
+      });
+    }
+  }
 
   List<MediaDescriptor> get _allDocs => [
         ...widget.condition.documents
@@ -1685,6 +1807,36 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
               ],
             ),
           ],
+          // Sévérité (#138)
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Text('Sévérité',
+                  style: tt.labelLarge?.copyWith(color: AppColors.neutral500)),
+              const Spacer(),
+              _SeverityDots(_severity),
+            ],
+          ),
+          if (widget.onSeverityChanged != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            SliderTheme(
+              data: SliderThemeData(
+                thumbColor: _severityColor(_severity),
+                activeTrackColor: _severityColor(_severity),
+                inactiveTrackColor: AppColors.neutral200,
+                overlayColor: _severityColor(_severity).withValues(alpha: 0.15),
+                trackHeight: 4,
+              ),
+              child: Slider(
+                value: _severity.toDouble(),
+                min: 1,
+                max: 5,
+                divisions: 4,
+                onChanged: (v) => setState(() => _severity = v.round()),
+                onChangeEnd: (v) => widget.onSeverityChanged!(v.round()),
+              ),
+            ),
+          ],
           // Justificatifs
           const SizedBox(height: AppSpacing.lg),
           Row(
@@ -1756,6 +1908,51 @@ class _ConditionDetailSheetState extends State<_ConditionDetailSheet> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary700,
                 side: const BorderSide(color: AppColors.primary100),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ],
+          // ── Supprimer la pathologie ──────────────────────────────────────
+          if (widget.onRemoveCondition != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            const Divider(),
+            const SizedBox(height: AppSpacing.xs),
+            TextButton.icon(
+              onPressed: () async {
+                final nav = Navigator.of(context);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Supprimer cette pathologie ?'),
+                    content: Text(
+                      'La pathologie « ${widget.condition.name} » '
+                      'sera retirée de votre dossier.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Annuler'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                        ),
+                        child: const Text('Supprimer'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true && mounted) {
+                  await widget.onRemoveCondition!();
+                  nav.pop();
+                }
+              },
+              icon: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.error, size: 18),
+              label: const Text('Supprimer cette pathologie'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.error,
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
@@ -1851,12 +2048,13 @@ class _AllergyPill extends StatelessWidget {
 
 // ─── Antécédents (#115) ───────────────────────────────────────────────────────
 
-class _ConditionsSection extends StatelessWidget {
+class _ConditionsSection extends StatefulWidget {
   const _ConditionsSection({
     required this.conditions,
     this.backendUrl,
     this.onAddCondition,
     this.onUpdateCondition,
+    this.onRemoveCondition,
     this.onWillPauseForPicker,
   });
 
@@ -1864,8 +2062,14 @@ class _ConditionsSection extends StatelessWidget {
   final String? backendUrl;
   final Future<void> Function(ChronicCondition)? onAddCondition;
   final Future<void> Function(int index, ChronicCondition)? onUpdateCondition;
+  final Future<void> Function(int index)? onRemoveCondition;
   final VoidCallback? onWillPauseForPicker;
 
+  @override
+  State<_ConditionsSection> createState() => _ConditionsSectionState();
+}
+
+class _ConditionsSectionState extends State<_ConditionsSection> {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
@@ -1890,7 +2094,7 @@ class _ConditionsSection extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text('Antécédents', style: tt.titleSmall),
-                if (conditions.isNotEmpty) ...[
+                if (widget.conditions.isNotEmpty) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Container(
                     padding:
@@ -1900,7 +2104,7 @@ class _ConditionsSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadii.pill),
                     ),
                     child: Text(
-                      '${conditions.length}',
+                      '${widget.conditions.length}',
                       style: tt.bodySmall?.copyWith(
                         color: AppColors.primary700,
                         fontWeight: FontWeight.w600,
@@ -1909,12 +2113,12 @@ class _ConditionsSection extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                if (onAddCondition != null)
+                if (widget.onAddCondition != null)
                   OutlinedButton.icon(
                     onPressed: () => _showAddConditionSheet(
                       context,
-                      onAdd: onAddCondition!,
-                      onWillPauseForPicker: onWillPauseForPicker,
+                      onAdd: widget.onAddCondition!,
+                      onWillPauseForPicker: widget.onWillPauseForPicker,
                     ),
                     icon: const Icon(Icons.add, size: 13),
                     label: const Text('Ajouter'),
@@ -1930,7 +2134,7 @@ class _ConditionsSection extends StatelessWidget {
               ],
             ),
           ),
-          if (conditions.isEmpty)
+          if (widget.conditions.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: Text(
@@ -1939,35 +2143,54 @@ class _ConditionsSection extends StatelessWidget {
               ),
             )
           else
-            ...List.generate(conditions.length, (i) {
-              final c = conditions[i];
-              return _ConditionRow(
-                condition: c,
-                onTap: () => _showConditionDetailSheet(
-                  context,
+            ...(() {
+              // Sort by addedAt descending (newest first). Conditions without
+              // addedAt (pre-#138) sort to the bottom.
+              final conditions = widget.conditions;
+              final sortedIdx = List.generate(conditions.length, (i) => i)
+                ..sort(
+                  (a, b) => (conditions[b].addedAt ?? '')
+                      .compareTo(conditions[a].addedAt ?? ''),
+                );
+              return sortedIdx.map((i) {
+                final c = conditions[i];
+                return _ConditionRow(
                   condition: c,
-                  backendUrl: backendUrl,
-                  onWillPauseForPicker: onWillPauseForPicker,
-                  onAddDocument: onUpdateCondition != null
-                      ? (descriptor) =>
-                          onUpdateCondition!(i, c.copyWithDocument(descriptor))
-                      : null,
-                  onRemoveDocument: onUpdateCondition != null
-                      ? (descriptor) {
-                          final updated = ChronicCondition(
-                            name: c.name,
-                            icd10: c.icd10,
-                            since: c.since,
-                            documents: c.documents
-                                .where((d) => d.uuid != descriptor.uuid)
-                                .toList(),
-                          );
-                          return onUpdateCondition!(i, updated);
-                        }
-                      : null,
-                ),
-              );
-            }),
+                  onTap: () => _showConditionDetailSheet(
+                    context,
+                    condition: c,
+                    backendUrl: widget.backendUrl,
+                    onWillPauseForPicker: widget.onWillPauseForPicker,
+                    // Callbacks read widget.conditions[i] at call time, NOT
+                    // the stale `c` from build(). State.widget is always
+                    // updated by Flutter on parent rebuild (didUpdateWidget),
+                    // so these closures are never stale even if the bottom
+                    // sheet stays open across parent rebuilds.
+                    onAddDocument: widget.onUpdateCondition != null
+                        ? (descriptor) => widget.onUpdateCondition!(i,
+                            widget.conditions[i].copyWithDocument(descriptor))
+                        : null,
+                    onRemoveDocument: widget.onUpdateCondition != null
+                        ? (descriptor) => widget.onUpdateCondition!(
+                              i,
+                              widget.conditions[i].copyWith(
+                                documents: widget.conditions[i].documents
+                                    .where((d) => d.uuid != descriptor.uuid)
+                                    .toList(),
+                              ),
+                            )
+                        : null,
+                    onSeverityChanged: widget.onUpdateCondition != null
+                        ? (sev) => widget.onUpdateCondition!(
+                            i, widget.conditions[i].copyWith(severity: sev))
+                        : null,
+                    onRemoveCondition: widget.onRemoveCondition != null
+                        ? () => widget.onRemoveCondition!(i)
+                        : null,
+                  ),
+                );
+              }).toList();
+            })()
         ],
       ),
     );
@@ -2019,6 +2242,10 @@ class _ConditionRow extends StatelessWidget {
                           style: tt.bodySmall
                               ?.copyWith(color: AppColors.neutral500),
                         ),
+                      if (condition.severity != null) ...[
+                        const SizedBox(height: 3),
+                        _SeverityDots(condition.severity!),
+                      ],
                     ],
                   ),
                 ),

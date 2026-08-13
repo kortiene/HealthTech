@@ -147,12 +147,30 @@ function HeroChip({
 
 // ─── Pathologies ─────────────────────────────────────────────────────────────
 
+const SEVERITY_LABEL: Record<number, string> = {
+  1: "Légère",
+  2: "Modérée",
+  3: "Importante",
+  4: "Sévère",
+  5: "Critique",
+};
+const SEVERITY_COLOR: Record<number, string> = {
+  1: "#059669",
+  2: "#84CC16",
+  3: "#F59E0B",
+  4: "#F97316",
+  5: "#DC2626",
+};
+
 function ConditionRow({ condition }: { condition: ChronicCondition }) {
+  const sev = condition.severity;
+  const docCount = condition.documents?.length ?? 0;
+  const sevColor = sev !== undefined ? (SEVERITY_COLOR[sev] ?? "#6B7280") : undefined;
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: "var(--space-sm)",
         padding: "10px var(--space-sm)",
         borderLeft: "3px solid var(--color-primary-500)",
@@ -161,27 +179,75 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      <p
-        className="text-body-lg"
-        style={{ flex: 1, margin: 0, fontWeight: 500 }}
-      >
-        {condition.name}
-      </p>
-      <span
+      {/* Gauche : nom + since */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p className="text-body-lg" style={{ margin: 0, fontWeight: 500 }}>
+          {condition.name}
+        </p>
+        {condition.since && (
+          <p style={{ margin: 0, fontSize: 12, color: "var(--color-neutral-500)" }}>
+            Depuis {condition.since}
+          </p>
+        )}
+      </div>
+      {/* Droite : badges empilés verticalement */}
+      <div
         style={{
-          padding: "2px 8px",
-          borderRadius: "var(--radius-pill)",
-          background: "var(--color-neutral-100)",
-          border: "1px solid var(--color-neutral-200)",
-          fontSize: 11,
-          fontWeight: 700,
-          color: "var(--color-neutral-500)",
-          fontFamily: "monospace",
-          letterSpacing: "0.04em",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 4,
+          flexShrink: 0,
         }}
       >
-        {condition.icd10}
-      </span>
+        {condition.icd10 && (
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--color-neutral-100)",
+              border: "1px solid var(--color-neutral-200)",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--color-neutral-500)",
+              fontFamily: "monospace",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {condition.icd10}
+          </span>
+        )}
+        {sevColor !== undefined && (
+          <span
+            style={{
+              padding: "2px 8px",
+              borderRadius: "var(--radius-pill)",
+              background: sevColor + "1A",
+              border: `1px solid ${sevColor}`,
+              fontSize: 11,
+              fontWeight: 700,
+              color: sevColor,
+            }}
+          >
+            {SEVERITY_LABEL[sev!] ?? `Sév. ${sev}`}
+          </span>
+        )}
+        {docCount > 0 && (
+          <span
+            style={{
+              padding: "2px 7px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--color-neutral-100)",
+              border: "1px solid var(--color-neutral-200)",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-neutral-500)",
+            }}
+          >
+            📎 {docCount}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -760,9 +826,13 @@ export function RecordScreen({
 
         {record.chronicConditions.length > 0 && (
           <SectionCard title="Pathologies chroniques" icon="history">
-            {record.chronicConditions.map((c) => (
-              <ConditionRow key={c.icd10} condition={c} />
-            ))}
+            {[...record.chronicConditions]
+              .sort((a, b) =>
+                (b.addedAt ?? "").localeCompare(a.addedAt ?? ""),
+              )
+              .map((c) => (
+                <ConditionRow key={c.icd10 || c.name} condition={c} />
+              ))}
           </SectionCard>
         )}
 
