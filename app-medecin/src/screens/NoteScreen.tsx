@@ -975,6 +975,16 @@ export function NoteScreen({
                     <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-600)" }}>
                       · {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
                     </span>
+                    {c.icd10 && (
+                      <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-500)" }}>
+                        · {c.icd10}
+                      </span>
+                    )}
+                    {c.since && (
+                      <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-500)" }}>
+                        · depuis {c.since}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeCondition(i)}
