@@ -873,127 +873,131 @@ export function NoteScreen({
               </h2>
             </div>
 
+            {/* Chips — conditions et allergies déjà ajoutées */}
             {(newAllergies.length > 0 || newConditions.length > 0) && (
               <div
                 style={{
                   display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-xs)",
+                  flexWrap: "wrap",
+                  gap: 6,
                   marginBottom: "var(--space-sm)",
                 }}
               >
                 {newAllergies.map((a, i) => (
-                  <div
-                    key={`allergy-${i}`}
+                  <span
+                    key={`a-${i}`}
                     style={{
-                      display: "flex",
+                      display: "inline-flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "var(--space-sm) var(--space-md)",
+                      gap: 4,
+                      padding: "4px 6px 4px 10px",
+                      borderRadius: 99,
                       background: "var(--color-allergy-bg)",
-                      borderRadius: "var(--radius-sm)",
                       border: "1px solid var(--color-allergy)",
+                      fontSize: 13,
                     }}
                   >
-                    <div>
-                      <span
-                        className="text-label"
-                        style={{ color: "var(--color-neutral-600)", marginRight: "var(--space-xs)" }}
-                      >
-                        Allergie
-                      </span>
-                      <span
-                        className="text-body"
-                        style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}
-                      >
-                        {a.substance}
-                      </span>
-                      <span
-                        className="text-label"
-                        style={{
-                          marginLeft: "var(--space-sm)",
-                          color:
-                            a.severity === "severe"
-                              ? "var(--color-error)"
-                              : a.severity === "moderate"
-                                ? "var(--color-allergy)"
-                                : "var(--color-neutral-700)",
-                        }}
-                      >
-                        {a.severity === "severe"
-                          ? "Sévère"
-                          : a.severity === "moderate"
-                            ? "Modérée"
-                            : "Légère"}
-                      </span>
-                    </div>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        color: "var(--color-allergy)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Allergie
+                    </span>
+                    <span style={{ fontWeight: 600, color: "var(--color-neutral-900)", marginLeft: 2 }}>
+                      {a.substance}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        marginLeft: 2,
+                        color:
+                          a.severity === "severe"
+                            ? "var(--color-error)"
+                            : a.severity === "moderate"
+                              ? "var(--color-allergy)"
+                              : "var(--color-neutral-600)",
+                      }}
+                    >
+                      · {a.severity === "severe" ? "Sévère" : a.severity === "moderate" ? "Modérée" : "Légère"}
+                    </span>
                     <button
                       type="button"
-                      className="btn-icon"
                       onClick={() => removeAllergy(i)}
                       aria-label={`Retirer ${a.substance}`}
-                      style={{ color: "var(--color-neutral-500)" }}
+                      style={{
+                        marginLeft: 2,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--color-neutral-400)",
+                      }}
                     >
-                      <Icon name="close" size={18} />
+                      <Icon name="close" size={14} />
                     </button>
-                  </div>
+                  </span>
                 ))}
                 {newConditions.map((c, i) => (
-                  <div
-                    key={`cond-${i}`}
+                  <span
+                    key={`c-${i}`}
                     style={{
-                      display: "flex",
+                      display: "inline-flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "var(--space-sm) var(--space-md)",
+                      gap: 4,
+                      padding: "4px 6px 4px 10px",
+                      borderRadius: 99,
                       background: "var(--color-primary-50)",
-                      borderRadius: "var(--radius-sm)",
                       border: "1px solid var(--color-primary-200)",
+                      fontSize: 13,
                     }}
                   >
-                    <div>
-                      <span
-                        className="text-label"
-                        style={{ color: "var(--color-neutral-600)", marginRight: "var(--space-xs)" }}
-                      >
-                        Antécédent
-                      </span>
-                      <span
-                        className="text-body"
-                        style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}
-                      >
-                        {c.name}
-                      </span>
-                      <span
-                        className="text-label"
-                        style={{ marginLeft: "var(--space-sm)", color: "var(--color-neutral-600)" }}
-                      >
-                        {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ??
-                          `Sév. ${c.severity}`}
-                      </span>
-                      {c.icd10 && (
-                        <span
-                          className="text-label"
-                          style={{ marginLeft: "var(--space-sm)", color: "var(--color-neutral-600)" }}
-                        >
-                          {c.icd10}
-                        </span>
-                      )}
-                    </div>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        color: "var(--color-primary-700)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Antécédent
+                    </span>
+                    <span style={{ fontWeight: 600, color: "var(--color-neutral-900)", marginLeft: 2 }}>
+                      {c.name}
+                    </span>
+                    <span style={{ fontSize: 12, marginLeft: 2, color: "var(--color-neutral-600)" }}>
+                      · {["Légère", "Modérée", "Importante", "Sévère", "Critique"][c.severity - 1] ?? `Sév. ${c.severity}`}
+                    </span>
                     <button
                       type="button"
-                      className="btn-icon"
                       onClick={() => removeCondition(i)}
                       aria-label={`Retirer ${c.name}`}
-                      style={{ color: "var(--color-neutral-500)" }}
+                      style={{
+                        marginLeft: 2,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--color-neutral-400)",
+                      }}
                     >
-                      <Icon name="close" size={18} />
+                      <Icon name="close" size={14} />
                     </button>
-                  </div>
+                  </span>
                 ))}
               </div>
             )}
 
+            {/* Formulaire compact — radio + champ texte + sévérité */}
             <div
               style={{
                 background: "var(--color-white)",
@@ -1005,139 +1009,92 @@ export function NoteScreen({
                 gap: "var(--space-sm)",
               }}
             >
-              <div style={{ display: "flex", gap: "var(--space-xs)" }}>
-                <button
-                  type="button"
-                  className={conditionType === "allergy" ? "btn btn-filled" : "btn btn-outline"}
-                  style={{ flex: 1 }}
-                  onClick={() => setConditionType("allergy")}
+              <div style={{ display: "flex", gap: "var(--space-lg)" }}>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", cursor: "pointer" }}
                 >
-                  Allergie
-                </button>
-                <button
-                  type="button"
-                  className={conditionType === "condition" ? "btn btn-filled" : "btn btn-outline"}
-                  style={{ flex: 1 }}
-                  onClick={() => setConditionType("condition")}
+                  <input
+                    type="radio"
+                    name="cond-type"
+                    checked={conditionType === "allergy"}
+                    onChange={() => setConditionType("allergy")}
+                    style={{ accentColor: "var(--color-allergy)", width: 15, height: 15 }}
+                  />
+                  <span className="text-body">Allergie</span>
+                </label>
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)", cursor: "pointer" }}
                 >
-                  Antécédent
-                </button>
+                  <input
+                    type="radio"
+                    name="cond-type"
+                    checked={conditionType === "condition"}
+                    onChange={() => setConditionType("condition")}
+                    style={{ accentColor: "var(--color-primary-700)", width: 15, height: 15 }}
+                  />
+                  <span className="text-body">Antécédent</span>
+                </label>
               </div>
 
-              {conditionType === "allergy" ? (
-                <>
-                  {/* Ligne 1 : substance + sévérité */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: "var(--space-sm)",
-                    }}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: "var(--space-sm)",
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  className="field-input"
+                  placeholder={
+                    conditionType === "allergy"
+                      ? "Substance ou allergène — ↵ pour ajouter"
+                      : "Nom de la pathologie — ↵ pour ajouter"
+                  }
+                  value={conditionType === "allergy" ? allergySubstance : conditionName}
+                  onInput={(e) => {
+                    const val = (e.target as HTMLInputElement).value;
+                    conditionType === "allergy" ? setAllergySubstance(val) : setConditionName(val);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      conditionType === "allergy" ? addAllergy() : addCondition();
+                    }
+                  }}
+                />
+                {conditionType === "allergy" ? (
+                  <select
+                    className="field-input"
+                    value={allergySeverity}
+                    onChange={(e) =>
+                      setAllergySeverity(
+                        (e.target as HTMLSelectElement).value as NewAllergy["severity"],
+                      )
+                    }
+                    style={{ width: "auto" }}
                   >
-                    <input
-                      className="field-input"
-                      placeholder="Substance ou allergène"
-                      value={allergySubstance}
-                      onInput={(e) => setAllergySubstance((e.target as HTMLInputElement).value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addAllergy();
-                        }
-                      }}
-                    />
-                    <select
-                      className="field-input"
-                      value={allergySeverity}
-                      onChange={(e) =>
-                        setAllergySeverity(
-                          (e.target as HTMLSelectElement).value as NewAllergy["severity"],
-                        )
-                      }
-                    >
-                      <option value="mild">Légère</option>
-                      <option value="moderate">Modérée</option>
-                      <option value="severe">Sévère</option>
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    style={{ gap: "var(--space-xs)", alignSelf: "flex-end" }}
-                    onClick={addAllergy}
+                    <option value="mild">Légère</option>
+                    <option value="moderate">Modérée</option>
+                    <option value="severe">Sévère</option>
+                  </select>
+                ) : (
+                  <select
+                    className="field-input"
+                    value={conditionSeverity}
+                    onChange={(e) =>
+                      setConditionSeverity(Number((e.target as HTMLSelectElement).value))
+                    }
+                    style={{ width: "auto" }}
                   >
-                    <Icon name="add" size={18} color="var(--color-primary-700)" />
-                    Ajouter
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Ligne 1 : nom + sévérité */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: "var(--space-sm)",
-                    }}
-                  >
-                    <input
-                      className="field-input"
-                      placeholder="Nom de la pathologie"
-                      value={conditionName}
-                      onInput={(e) => setConditionName((e.target as HTMLInputElement).value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addCondition();
-                        }
-                      }}
-                    />
-                    <select
-                      className="field-input"
-                      value={conditionSeverity}
-                      onChange={(e) =>
-                        setConditionSeverity(Number((e.target as HTMLSelectElement).value))
-                      }
-                    >
-                      <option value={1}>1 — Légère</option>
-                      <option value={2}>2 — Modérée</option>
-                      <option value={3}>3 — Importante</option>
-                      <option value={4}>4 — Sévère</option>
-                      <option value={5}>5 — Critique</option>
-                    </select>
-                  </div>
-                  {/* Ligne 2 : ICD-10 + depuis */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: "var(--space-sm)",
-                    }}
-                  >
-                    <input
-                      className="field-input"
-                      placeholder="Code ICD-10 (optionnel)"
-                      value={conditionIcd10}
-                      onInput={(e) => setConditionIcd10((e.target as HTMLInputElement).value)}
-                    />
-                    <input
-                      className="field-input"
-                      placeholder="Depuis (ex : 2020, optionnel)"
-                      value={conditionSince}
-                      onInput={(e) => setConditionSince((e.target as HTMLInputElement).value)}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    style={{ gap: "var(--space-xs)", alignSelf: "flex-end" }}
-                    onClick={addCondition}
-                  >
-                    <Icon name="add" size={18} color="var(--color-primary-700)" />
-                    Ajouter
-                  </button>
-                </>
-              )}
+                    <option value={1}>Légère</option>
+                    <option value={2}>Modérée</option>
+                    <option value={3}>Importante</option>
+                    <option value={4}>Sévère</option>
+                    <option value={5}>Critique</option>
+                  </select>
+                )}
+              </div>
             </div>
           </div>
 
