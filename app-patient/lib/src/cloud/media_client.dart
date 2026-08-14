@@ -130,6 +130,34 @@ class MediaClient {
     }
   }
 
+  /// Delete a media object — `DELETE /media/{uuid}`.
+  ///
+  /// Returns normally on 200 or 204. Throws [MediaNotFound] on 404 (already
+  /// deleted — treat as success for idempotent callers). Throws
+  /// [MediaBackendUnavailable] on any other failure.
+  ///
+  /// MUST only be called after the local file has been written and the record
+  /// persisted (issue #152 invariant). Failures are safe to ignore — the
+  /// backend retention policy (#114) will clean up orphaned objects.
+  Future<void> deleteMedia(String uuid) async {
+    final uri = Uri.parse('$baseUrl/media/$uuid');
+    try {
+      final resp = await _http.delete(uri);
+      if (resp.statusCode == 200 ||
+          resp.statusCode == 204 ||
+          resp.statusCode == 404) {
+        return;
+      }
+      throw MediaBackendUnavailable(
+        'DELETE /media/$uuid → ${resp.statusCode}',
+      );
+    } on MediaBackendUnavailable {
+      rethrow;
+    } catch (e) {
+      throw MediaBackendUnavailable('DELETE /media/$uuid: $e');
+    }
+  }
+
   /// Download opaque media ciphertext via a minted access URL — `GET <url>`.
   ///
   /// [url] is the [MediaAccessGrant.url]; a backend-relative path is resolved
