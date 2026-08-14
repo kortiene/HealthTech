@@ -321,8 +321,7 @@ class _ActiveTreatmentsCard extends StatelessWidget {
                   style: tt.labelLarge?.copyWith(color: AppColors.primary700)),
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.primary100,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -330,8 +329,7 @@ class _ActiveTreatmentsCard extends StatelessWidget {
                 child: Text(
                   '${treatments.length}',
                   style: tt.bodySmall?.copyWith(
-                      color: AppColors.primary700,
-                      fontWeight: FontWeight.w700),
+                      color: AppColors.primary700, fontWeight: FontWeight.w700),
                 ),
               ),
             ],

@@ -321,16 +321,16 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       if (sessionC == null) return localC;
 
       // amendments: pick up any that the doctor appended
-      final newAmendments = sessionC.amendments.length > localC.amendments.length
-          ? sessionC.amendments.sublist(localC.amendments.length)
-          : <ConsultationAmendment>[];
+      final newAmendments =
+          sessionC.amendments.length > localC.amendments.length
+              ? sessionC.amendments.sublist(localC.amendments.length)
+              : <ConsultationAmendment>[];
 
       // ordonnance line statuses
       var ordsChanged = false;
       final mergedOrdonnances = localC.ordonnances.map((localOrd) {
-        final sessionOrd = sessionC.ordonnances
-            .where((o) => o.id == localOrd.id)
-            .firstOrNull;
+        final sessionOrd =
+            sessionC.ordonnances.where((o) => o.id == localOrd.id).firstOrNull;
         if (sessionOrd == null) return localOrd;
         var lineChanged = false;
         final mergedLines = List<OrdonnanceLine>.generate(

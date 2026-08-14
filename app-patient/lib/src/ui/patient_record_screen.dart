@@ -2962,8 +2962,8 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            ...widget.consultation.ordonnances
-                .map((o) => _OrdonnanceBlock(ordonnance: o, consultationDate: widget.consultation.date)),
+            ...widget.consultation.ordonnances.map((o) => _OrdonnanceBlock(
+                ordonnance: o, consultationDate: widget.consultation.date)),
           ] else if (widget.consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -3409,8 +3409,11 @@ class _TreatmentCardState extends State<_TreatmentCard> {
                                           fontWeight: FontWeight.w600),
                                     ),
                                   ),
-                                  ...pair.ordonnance.lines
-                                      .map((l) => _OrdonnanceLineCard(line: l, consultationDate: pair.consultation.date)),
+                                  ...pair.ordonnance.lines.map((l) =>
+                                      _OrdonnanceLineCard(
+                                          line: l,
+                                          consultationDate:
+                                              pair.consultation.date)),
                                   if (pair.ordonnance.lines.isEmpty)
                                     Padding(
                                       padding:
@@ -3550,7 +3553,8 @@ class _CloseOption extends StatelessWidget {
 // ── Ordonnance block (#121) ───────────────────────────────────────────────────
 
 class _OrdonnanceBlock extends StatelessWidget {
-  const _OrdonnanceBlock({required this.ordonnance, required this.consultationDate});
+  const _OrdonnanceBlock(
+      {required this.ordonnance, required this.consultationDate});
   final Ordonnance ordonnance;
   final String consultationDate;
 
@@ -3578,7 +3582,8 @@ class _OrdonnanceBlock extends StatelessWidget {
               ),
             ),
           ...ordonnance.lines.map(
-            (l) => _OrdonnanceLineCard(line: l, consultationDate: consultationDate),
+            (l) => _OrdonnanceLineCard(
+                line: l, consultationDate: consultationDate),
           ),
           if (ordonnance.lines.isEmpty)
             Padding(
@@ -3593,17 +3598,20 @@ class _OrdonnanceBlock extends StatelessWidget {
 }
 
 class _OrdonnanceLineCard extends StatelessWidget {
-  const _OrdonnanceLineCard({required this.line, required this.consultationDate});
+  const _OrdonnanceLineCard(
+      {required this.line, required this.consultationDate});
   final OrdonnanceLine line;
   final String consultationDate;
 
   /// Option A: auto-expiry when durationDays has elapsed since consultationDate.
   /// Stored 'completed' and 'expired' always win.
-  static String? _effectiveStatus(String? stored, String consultationDate, int? durationDays) {
+  static String? _effectiveStatus(
+      String? stored, String consultationDate, int? durationDays) {
     if (stored == 'completed' || stored == 'expired') return stored;
     if (durationDays != null) {
       final d = DateTime.tryParse(consultationDate);
-      if (d != null && DateTime.now().isAfter(d.add(Duration(days: durationDays)))) {
+      if (d != null &&
+          DateTime.now().isAfter(d.add(Duration(days: durationDays)))) {
         return 'expired';
       }
     }
@@ -3636,7 +3644,8 @@ class _OrdonnanceLineCard extends StatelessWidget {
       if (line.frequency != null) line.frequency!,
       if (line.durationDays != null) '${line.durationDays} j',
     ].join(' · ');
-    final status = _effectiveStatus(line.status, consultationDate, line.durationDays);
+    final status =
+        _effectiveStatus(line.status, consultationDate, line.durationDays);
     final isActive = status == null || status == 'active';
     final statusLabel = _statusLabel(status);
 
@@ -3658,11 +3667,8 @@ class _OrdonnanceLineCard extends StatelessWidget {
                   line.medication,
                   style: tt.titleSmall?.copyWith(
                     fontSize: 14,
-                    color: isActive
-                        ? null
-                        : AppColors.neutral500,
-                    decoration:
-                        isActive ? null : TextDecoration.lineThrough,
+                    color: isActive ? null : AppColors.neutral500,
+                    decoration: isActive ? null : TextDecoration.lineThrough,
                   ),
                 ),
                 if (details.isNotEmpty) ...[
@@ -3681,19 +3687,16 @@ class _OrdonnanceLineCard extends StatelessWidget {
           if (!isActive && statusLabel != null) ...[
             const SizedBox(width: AppSpacing.xs),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: _statusBg(status),
                 borderRadius: BorderRadius.circular(AppRadii.pill),
-                border:
-                    Border.all(color: _statusColor(status).withAlpha(60)),
+                border: Border.all(color: _statusColor(status).withAlpha(60)),
               ),
               child: Text(
                 statusLabel,
                 style: tt.bodySmall?.copyWith(
-                    color: _statusColor(status),
-                    fontWeight: FontWeight.w600),
+                    color: _statusColor(status), fontWeight: FontWeight.w600),
               ),
             ),
           ],

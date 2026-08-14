@@ -456,9 +456,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       // ordonnance line statuses
       var ordsChanged = false;
       final mergedOrdonnances = localC.ordonnances.map((localOrd) {
-        final sessionOrd = sessionC.ordonnances
-            .where((o) => o.id == localOrd.id)
-            .firstOrNull;
+        final sessionOrd =
+            sessionC.ordonnances.where((o) => o.id == localOrd.id).firstOrNull;
         if (sessionOrd == null) return localOrd;
         var lineChanged = false;
         final mergedLines = List<OrdonnanceLine>.generate(
