@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
 import type {
+  MediaDescriptor,
   MedicalRecord,
   OrdonnanceJson,
   TreatmentJson,
@@ -47,6 +48,8 @@ export interface NewConsultation {
   newTreatment?: TreatmentJson;
   /** Id of an existing active treatment to mark as completed at this consultation. */
   closedTreatmentId?: string;
+  /** Images chiffrées uploadées avant l'enregistrement du blob. */
+  media?: MediaDescriptor[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

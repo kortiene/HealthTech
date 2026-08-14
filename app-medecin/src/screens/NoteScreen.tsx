@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { MediaDescriptor } from "../stubs/data";
 import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
 import { SnackBar } from "../components/SnackBar";
@@ -11,6 +12,12 @@ import type { NewAllergy, NewCondition, NewConsultation } from "./EditScreen";
 import type { NewVoiceConsultation } from "./VoiceNoteScreen";
 
 // ── Local types (UI-only, not serialised) ────────────────────────────────────
+
+interface LocalAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
 
 interface MedLine {
   id: string;
@@ -135,19 +142,28 @@ export function NoteScreen({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentsRef = useRef<LocalAttachment[]>([]);
 
   useEffect(() => {
     return () => {
       window.clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      attachmentsRef.current.forEach((a) => URL.revokeObjectURL(a.previewUrl));
     };
   }, []);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   const activeExistingTreatments = record.treatments.filter(
     (t) => t.status === "active",
@@ -190,6 +206,26 @@ export function NoteScreen({
 
   function removeCondition(i: number) {
     setNewConditions((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleFileSelect(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    const next: LocalAttachment[] = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setAttachments((prev) => [...prev, ...next]);
+    input.value = "";
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => {
+      const att = prev.find((a) => a.id === id);
+      if (att) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
   }
 
   function updateLine(
@@ -364,6 +400,46 @@ export function NoteScreen({
     setIsSaving(true);
     setError(null);
     try {
+      // DEV STUB — XOR 0x5A — TODO #102 : remplacer par WebAssembly AES-256-GCM
+      const uploadedMedia: MediaDescriptor[] =
+        attachments.length > 0
+          ? await Promise.all(
+              attachments.map(async (att) => {
+                const plainBytes = new Uint8Array(await att.file.arrayBuffer());
+                const hashBuf = await crypto.subtle.digest("SHA-256", plainBytes);
+                const contentHash = btoa(
+                  String.fromCharCode(...new Uint8Array(hashBuf)),
+                );
+                const encrypted = new Uint8Array(plainBytes.length);
+                for (let i = 0; i < plainBytes.length; i++)
+                  encrypted[i] = plainBytes[i] ^ 0x5a;
+                const mediaId = crypto.randomUUID();
+                const res = await fetch(`${backendUrl}/media/${mediaId}`, {
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": "application/octet-stream",
+                    Authorization: `Bearer ${writeToken!}`,
+                  },
+                  body: encrypted.buffer as ArrayBuffer,
+                });
+                if (!res.ok)
+                  throw new Error(
+                    res.status >= 500
+                      ? "Serveur indisponible — réessayez."
+                      : `Échec upload image (${res.status}) — réessayez.`,
+                  );
+                return {
+                  mediaId,
+                  url: `${backendUrl}/media/${mediaId}`,
+                  mime: att.file.type || "image/jpeg",
+                  sizeBytes: plainBytes.length,
+                  contentKey: btoa(String.fromCharCode(...new Uint8Array(32))),
+                  contentHash,
+                } satisfies MediaDescriptor;
+              }),
+            )
+          : [];
+
       await onWrittenSaved({
         summary,
         doctorName: doctorName.trim(),
@@ -372,6 +448,7 @@ export function NoteScreen({
         ordonnances: builtOrdonnances,
         newTreatment,
         closedTreatmentId,
+        media: uploadedMedia,
       });
     } catch (e) {
       setIsSaving(false);
@@ -1395,6 +1472,127 @@ export function NoteScreen({
               )}
             </div>
           </div>
+
+          {/* Pièces jointes — images chiffrées XOR stub avant upload */}
+          {writeToken && (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-sm)",
+                  marginBottom: "var(--space-sm)",
+                }}
+              >
+                <span
+                  className="icon-badge"
+                  style={{
+                    background: "var(--color-neutral-100)",
+                    width: 32,
+                    height: 32,
+                  }}
+                >
+                  <Icon
+                    name="attach_file"
+                    size={16}
+                    color="var(--color-neutral-700)"
+                  />
+                </span>
+                <h2 className="text-title-sm" style={{ margin: 0 }}>
+                  Pièces jointes
+                </h2>
+              </div>
+
+              {attachments.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "var(--space-sm)",
+                    marginBottom: "var(--space-sm)",
+                  }}
+                >
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      style={{ position: "relative", width: 72 }}
+                    >
+                      <img
+                        src={att.previewUrl}
+                        alt={att.file.name}
+                        style={{
+                          width: 72,
+                          height: 72,
+                          objectFit: "cover",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--color-neutral-200)",
+                          display: "block",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        aria-label={`Retirer ${att.file.name}`}
+                        style={{
+                          position: "absolute",
+                          top: -6,
+                          right: -6,
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          background: "var(--color-neutral-700)",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Icon name="close" size={12} color="#fff" />
+                      </button>
+                      <p
+                        style={{
+                          fontSize: 10,
+                          margin: "3px 0 0",
+                          color: "var(--color-neutral-500)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: 72,
+                        }}
+                      >
+                        {att.file.name}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={handleFileSelect}
+                disabled={isSaving}
+              />
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ fontSize: 13, gap: "var(--space-xs)" }}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSaving}
+              >
+                <Icon
+                  name="add_photo_alternate"
+                  size={16}
+                  color="var(--color-primary-700)"
+                />
+                Ajouter des images
+              </button>
+            </div>
+          )}
 
           {error && (
             <div
