@@ -73,12 +73,11 @@ class _QrScreenState extends State<QrScreen> {
     super.dispose();
   }
 
-  // Collects all local-only (file://) media across the record, grouped for UI.
-  List<_SelectableMedia> _collectAllPendingMedia(MedicalRecord record) {
+  // Collects all media across the record (local file:// AND backend url:null), grouped for UI.
+  List<_SelectableMedia> _collectAllMedia(MedicalRecord record) {
     final result = <_SelectableMedia>[];
     for (final c in record.consultations) {
       for (final d in c.media) {
-        if (!(d.url?.startsWith('file://') ?? false)) continue;
         result.add(_SelectableMedia(
           descriptor: d,
           groupLabel: 'Consultations',
@@ -88,7 +87,6 @@ class _QrScreenState extends State<QrScreen> {
     }
     for (final cc in record.chronicConditions) {
       for (final d in cc.documents) {
-        if (!(d.url?.startsWith('file://') ?? false)) continue;
         result.add(_SelectableMedia(
           descriptor: d,
           groupLabel: cc.name,
@@ -97,7 +95,6 @@ class _QrScreenState extends State<QrScreen> {
       }
     }
     for (final doc in record.documents) {
-      if (!(doc.media.url?.startsWith('file://') ?? false)) continue;
       result.add(_SelectableMedia(
         descriptor: doc.media,
         groupLabel: 'Documents administratifs',
@@ -174,7 +171,7 @@ class _QrScreenState extends State<QrScreen> {
     final rec = widget.record;
     Set<String> selectedUuids = const {};
     if (rec != null) {
-      final allMedia = _collectAllPendingMedia(rec);
+      final allMedia = _collectAllMedia(rec);
       if (allMedia.isNotEmpty) {
         if (widget.autoShareMedia) {
           // Patient configured auto-share — select all without showing sheet.

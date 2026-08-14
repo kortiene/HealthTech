@@ -198,8 +198,8 @@ class AccessTokenService {
   /// UUID is NOT in [selectedMediaUuids] are stripped entirely: the doctor has no
   /// UUID and cannot call requestAccess for the patient's local-only files.
   ///
-  /// When [selectedMediaUuids] is empty, all `file://` descriptors are stripped
-  /// without uploading — doctor sees the full text record but no attachments.
+  /// When [selectedMediaUuids] is empty, all media descriptors (local and cloud)
+  /// are stripped — doctor sees the full text record but no attachments.
   ///
   /// Throws [BlobNotFound] when no local or cloud record exists yet.
   /// Throws [BackendUnavailable] when the session blob cannot be uploaded.
@@ -286,16 +286,16 @@ class AccessTokenService {
     }
   }
 
-  /// Returns a copy of [record] with all `file://` descriptors handled.
+  /// Returns a copy of [record] with media descriptors filtered by selection.
   ///
-  /// For each `file://` descriptor:
-  ///   - UUID in [selectedMediaUuids] → url set to null (bytes were uploaded,
-  ///     doctor fetches via requestAccess(uuid)).
-  ///   - UUID NOT in [selectedMediaUuids] → descriptor removed entirely
-  ///     (doctor has no UUID and cannot call requestAccess).
+  /// For each descriptor (file://, url:null, or cloud URL):
+  ///   - UUID in [selectedMediaUuids] → kept; local (file://) descriptors have
+  ///     their url set to null (bytes were uploaded, doctor fetches via
+  ///     requestAccess(uuid)). Cloud/backend descriptors are kept as-is.
+  ///   - UUID NOT in [selectedMediaUuids] → descriptor stripped entirely.
   ///
-  /// When [selectedMediaUuids] is empty, all `file://` descriptors are removed.
-  /// Non-file:// descriptors (cloud URLs or null) are always kept unchanged.
+  /// When [selectedMediaUuids] is empty, all descriptors are stripped —
+  /// the doctor sees the full text record but no attachments.
   /// Local `file://` paths are never embedded in the QR payload.
   MedicalRecord _sanitiseFileUrls(
     MedicalRecord record, {
@@ -315,18 +315,17 @@ class AccessTokenService {
           // url intentionally omitted → null
         );
 
-    // Selected file:// → null url (uploaded). Unselected → strip.
+    // Not selected → strip. Selected local → null url. Selected cloud → keep.
     List<MediaDescriptor> handle(List<MediaDescriptor> media) => media
         .map((d) {
-          if (!isDirty(d)) return d;
-          if (selectedMediaUuids.contains(d.uuid)) return nullUrl(d);
-          return null;
+          if (!selectedMediaUuids.contains(d.uuid)) return null;
+          return isDirty(d) ? nullUrl(d) : d;
         })
         .whereType<MediaDescriptor>()
         .toList();
 
     final sanitisedConsultations = record.consultations.map((c) {
-      if (!c.media.any(isDirty)) return c;
+      if (c.media.isEmpty) return c;
       return Consultation(
         id: c.id,
         date: c.date,
@@ -340,7 +339,7 @@ class AccessTokenService {
     }).toList();
 
     final sanitisedConditions = record.chronicConditions.map((cc) {
-      if (!cc.documents.any(isDirty)) return cc;
+      if (cc.documents.isEmpty) return cc;
       return ChronicCondition(
         name: cc.name,
         icd10: cc.icd10,
@@ -351,14 +350,13 @@ class AccessTokenService {
       );
     }).toList();
 
-    // Admin documents: selected → keep with null url; unselected → strip entry.
+    // Admin documents: selected → keep (local gets null url); unselected → strip.
     final sanitisedDocuments = record.documents
         .map((doc) {
-          if (!isDirty(doc.media)) return doc;
-          if (selectedMediaUuids.contains(doc.media.uuid)) {
-            return doc.copyWithMedia(nullUrl(doc.media));
-          }
-          return null;
+          if (!selectedMediaUuids.contains(doc.media.uuid)) return null;
+          return isDirty(doc.media)
+              ? doc.copyWithMedia(nullUrl(doc.media))
+              : doc;
         })
         .whereType<PatientDocument>()
         .toList();

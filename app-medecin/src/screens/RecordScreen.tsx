@@ -16,6 +16,7 @@ import {
   type MedicalRecord,
   type MediaDescriptor,
   type Medication,
+  type PatientDocument,
 } from "../stubs/data";
 import { TerminatingOverlay } from "./TerminatingOverlay";
 
@@ -164,16 +165,21 @@ const SEVERITY_COLOR: Record<number, string> = {
   5: "#DC2626",
 };
 
-function ConditionRow({ condition }: { condition: ChronicCondition }) {
+function ConditionRow({
+  condition,
+  backendUrl,
+}: {
+  condition: ChronicCondition;
+  backendUrl?: string;
+}) {
   const sev = condition.severity;
-  const docCount = condition.documents?.length ?? 0;
+  const docs = condition.documents ?? [];
   const sevColor = sev !== undefined ? (SEVERITY_COLOR[sev] ?? "#6B7280") : undefined;
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "flex-start",
-        gap: "var(--space-sm)",
+        flexDirection: "column",
         padding: "10px var(--space-sm)",
         borderLeft: "3px solid var(--color-primary-500)",
         background: "var(--color-primary-50)",
@@ -181,75 +187,81 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      {/* Gauche : nom + since */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p className="text-body-lg" style={{ margin: 0, fontWeight: 500 }}>
-          {condition.name}
-        </p>
-        {condition.since && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--color-neutral-500)" }}>
-            Depuis {condition.since}
+      {/* Ligne principale : nom + badges */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-sm)" }}>
+        {/* Gauche : nom + since */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="text-body-lg" style={{ margin: 0, fontWeight: 500 }}>
+            {condition.name}
           </p>
-        )}
+          {condition.since && (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--color-neutral-500)" }}>
+              Depuis {condition.since}
+            </p>
+          )}
+        </div>
+        {/* Droite : badges empilés verticalement */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 4,
+            flexShrink: 0,
+          }}
+        >
+          {condition.icd10 && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "var(--radius-pill)",
+                background: "var(--color-neutral-100)",
+                border: "1px solid var(--color-neutral-200)",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--color-neutral-500)",
+                fontFamily: "monospace",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {condition.icd10}
+            </span>
+          )}
+          {sevColor !== undefined && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "var(--radius-pill)",
+                background: sevColor + "1A",
+                border: `1px solid ${sevColor}`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: sevColor,
+              }}
+            >
+              {SEVERITY_LABEL[sev!] ?? `Sév. ${sev}`}
+            </span>
+          )}
+        </div>
       </div>
-      {/* Droite : badges empilés verticalement */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 4,
-          flexShrink: 0,
-        }}
-      >
-        {condition.icd10 && (
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--color-neutral-100)",
-              border: "1px solid var(--color-neutral-200)",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--color-neutral-500)",
-              fontFamily: "monospace",
-              letterSpacing: "0.04em",
-            }}
-          >
-            {condition.icd10}
-          </span>
-        )}
-        {sevColor !== undefined && (
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: "var(--radius-pill)",
-              background: sevColor + "1A",
-              border: `1px solid ${sevColor}`,
-              fontSize: 11,
-              fontWeight: 700,
-              color: sevColor,
-            }}
-          >
-            {SEVERITY_LABEL[sev!] ?? `Sév. ${sev}`}
-          </span>
-        )}
-        {docCount > 0 && (
-          <span
-            style={{
-              padding: "2px 7px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--color-neutral-100)",
-              border: "1px solid var(--color-neutral-200)",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-neutral-500)",
-            }}
-          >
-            📎 {docCount}
-          </span>
-        )}
-      </div>
+      {/* Justificatifs de la condition */}
+      {backendUrl && docs.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+          {docs.map((d) => (
+            <MediaImageTile
+              key={d.uuid}
+              media={{
+                mediaId: d.uuid,
+                url: d.url ?? "",
+                mime: d.mime ?? "image/jpeg",
+                contentKey: "",
+                contentHash: "",
+              }}
+              backendUrl={backendUrl}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -395,6 +407,68 @@ function MediaImageTile({ media, backendUrl }: { media: MediaDescriptor; backend
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
     </div>
+  );
+}
+
+// ─── Documents administratifs ─────────────────────────────────────────────────
+
+const DOCUMENT_TYPE_LABEL: Record<string, string> = {
+  cmu_card: "Carte CMU",
+  insurance_card: "Carte d'assurance",
+  other: "Document",
+};
+
+function AdminDocumentsSection({
+  documents,
+  backendUrl,
+}: {
+  documents: PatientDocument[];
+  backendUrl?: string;
+}) {
+  return (
+    <SectionCard title="Documents administratifs" icon="folder">
+      {documents.map((doc) => (
+        <div
+          key={doc.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            padding: "var(--space-sm)",
+            background: "var(--color-neutral-100)",
+            borderRadius: "var(--radius-sm)",
+            marginBottom: "var(--space-xs)",
+          }}
+        >
+          {backendUrl && (
+            <MediaImageTile
+              media={{
+                mediaId: doc.media.uuid,
+                url: doc.media.url ?? "",
+                mime: doc.media.mime ?? "image/jpeg",
+                contentKey: "",
+                contentHash: "",
+              }}
+              backendUrl={backendUrl}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
+              className="text-body-lg"
+              style={{ fontWeight: 600, color: "var(--color-neutral-900)", margin: 0 }}
+            >
+              {doc.label || DOCUMENT_TYPE_LABEL[doc.type] || doc.type}
+            </p>
+            <p
+              className="text-caption"
+              style={{ color: "var(--color-neutral-500)", margin: "2px 0 0" }}
+            >
+              {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
+            </p>
+          </div>
+        </div>
+      ))}
+    </SectionCard>
   );
 }
 
@@ -843,7 +917,7 @@ export function RecordScreen({
                 (b.addedAt ?? "").localeCompare(a.addedAt ?? ""),
               )
               .map((c) => (
-                <ConditionRow key={c.icd10 || c.name} condition={c} />
+                <ConditionRow key={c.icd10 || c.name} condition={c} backendUrl={backendUrl} />
               ))}
           </SectionCard>
         )}
@@ -879,6 +953,10 @@ export function RecordScreen({
               </button>
             )}
           </div>
+        )}
+
+        {record.documents && record.documents.length > 0 && (
+          <AdminDocumentsSection documents={record.documents} backendUrl={backendUrl} />
         )}
 
         {record.consultations.length > 0 && (
