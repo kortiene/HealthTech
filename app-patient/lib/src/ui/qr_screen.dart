@@ -73,41 +73,76 @@ class _QrScreenState extends State<QrScreen> {
     super.dispose();
   }
 
-  // Returns the number of local-only (file://) media items in the record.
-  int _countPendingMedia(MedicalRecord record) {
-    var n = 0;
+  // Collects all media across the record (local file:// AND backend url:null), grouped for UI.
+  List<_SelectableMedia> _collectAllMedia(MedicalRecord record) {
+    final result = <_SelectableMedia>[];
     for (final c in record.consultations) {
-      n += c.media.where((d) => d.url?.startsWith('file://') ?? false).length;
+      for (final d in c.media) {
+        result.add(_SelectableMedia(
+          descriptor: d,
+          groupLabel: 'Consultations',
+          itemLabel: _fmtMediaItem(d.mime, d.addedAt),
+        ));
+      }
     }
     for (final cc in record.chronicConditions) {
-      n += cc.documents
-          .where((d) => d.url?.startsWith('file://') ?? false)
-          .length;
+      for (final d in cc.documents) {
+        result.add(_SelectableMedia(
+          descriptor: d,
+          groupLabel: cc.name,
+          itemLabel: _fmtMediaItem(d.mime, d.addedAt),
+        ));
+      }
     }
-    return n;
+    for (final doc in record.documents) {
+      result.add(_SelectableMedia(
+        descriptor: doc.media,
+        groupLabel: 'Documents administratifs',
+        itemLabel: doc.label.isNotEmpty ? doc.label : doc.type.label,
+      ));
+    }
+    return result;
   }
 
-  // Consent dialog: returns true = share, false = skip, null = cancelled.
-  Future<bool?> _askShareMedia(int count) => showDialog<bool>(
+  static String _fmtMediaItem(String mime, String addedAt) {
+    final type = mime.startsWith('image/')
+        ? 'Photo'
+        : mime.startsWith('audio/')
+            ? 'Audio'
+            : 'Document';
+    try {
+      final d = DateTime.parse(addedAt).toLocal();
+      const months = [
+        '',
+        'jan.',
+        'fév.',
+        'mars',
+        'avr.',
+        'mai',
+        'juin',
+        'juil.',
+        'août',
+        'sep.',
+        'oct.',
+        'nov.',
+        'déc.',
+      ];
+      return '$type · ${d.day} ${months[d.month]} ${d.year}';
+    } catch (_) {
+      return type;
+    }
+  }
+
+  Future<Set<String>?> _showMediaSelectionSheet(List<_SelectableMedia> media) =>
+      showModalBottomSheet<Set<String>>(
         context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Partager les justificatifs ?'),
-          content: Text(
-            'Votre dossier contient $count justificatif(s) enregistré(s) '
-            'sur cet appareil. Souhaitez-vous les envoyer au médecin ?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Non, ignorer'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Oui, partager'),
-            ),
-          ],
+        isScrollControlled: true,
+        useSafeArea: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
         ),
+        builder: (ctx) => _MediaSelectionSheet(media: media),
       );
 
   // Fallback dialog after upload failure: returns true = retry without media.
@@ -133,28 +168,29 @@ class _QrScreenState extends State<QrScreen> {
       );
 
   Future<void> _generate(QrMode mode) async {
-    bool shareMedia = false;
     final rec = widget.record;
+    Set<String> selectedUuids = const {};
     if (rec != null) {
-      final count = _countPendingMedia(rec);
-      if (count > 0) {
+      final allMedia = _collectAllMedia(rec);
+      if (allMedia.isNotEmpty) {
         if (widget.autoShareMedia) {
-          // Patient configured auto-share in Settings — no dialog needed.
-          shareMedia = true;
+          // Patient configured auto-share — select all without showing sheet.
+          selectedUuids = allMedia.map((m) => m.descriptor.uuid).toSet();
         } else {
-          final answer = await _askShareMedia(count);
+          final result = await _showMediaSelectionSheet(allMedia);
           if (!mounted) return;
-          if (answer == null) {
-            return; // dialog dismissed — stay on mode selector
-          }
-          shareMedia = answer;
+          if (result == null) return; // sheet dismissed — stay on mode selector
+          selectedUuids = result;
         }
       }
     }
-    await _doGenerate(mode, shareMedia: shareMedia);
+    await _doGenerate(mode, selectedMediaUuids: selectedUuids);
   }
 
-  Future<void> _doGenerate(QrMode mode, {bool shareMedia = false}) async {
+  Future<void> _doGenerate(
+    QrMode mode, {
+    Set<String> selectedMediaUuids = const {},
+  }) async {
     _countdownTimer?.cancel();
     setState(() {
       _generating = true;
@@ -163,12 +199,15 @@ class _QrScreenState extends State<QrScreen> {
       _payload = null;
       _remainingSeconds = 0;
       _selectedMode = mode;
-      _loadingMessage =
-          shareMedia ? 'Envoi des justificatifs…' : 'Génération du code…';
+      _loadingMessage = selectedMediaUuids.isNotEmpty
+          ? 'Envoi des justificatifs…'
+          : 'Génération du code…';
     });
     try {
-      final p =
-          await widget.controller.generate(mode: mode, shareMedia: shareMedia);
+      final p = await widget.controller.generate(
+        mode: mode,
+        selectedMediaUuids: selectedMediaUuids,
+      );
       if (!mounted) {
         p.wipe();
         return;
@@ -183,12 +222,12 @@ class _QrScreenState extends State<QrScreen> {
       if (secs > 0) _startCountdown();
     } catch (e) {
       if (!mounted) return;
-      if (shareMedia) {
+      if (selectedMediaUuids.isNotEmpty) {
         // Upload failed — offer to continue without the media.
         final fallback = await _askFallbackWithoutMedia();
         if (!mounted) return;
         if (fallback == true) {
-          await _doGenerate(mode, shareMedia: false);
+          await _doGenerate(mode, selectedMediaUuids: const {});
           return;
         }
       }
@@ -257,6 +296,19 @@ class _QrScreenState extends State<QrScreen> {
       readOnly: p.isReadOnly,
     );
   }
+}
+
+// ── Media selection data ──────────────────────────────────────────────────────
+
+class _SelectableMedia {
+  const _SelectableMedia({
+    required this.descriptor,
+    required this.groupLabel,
+    required this.itemLabel,
+  });
+  final MediaDescriptor descriptor;
+  final String groupLabel;
+  final String itemLabel;
 }
 
 // ── Mode selector ─────────────────────────────────────────────────────────────
@@ -742,6 +794,174 @@ class _ErrorView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Media selection bottom sheet (#143) ───────────────────────────────────────
+
+class _MediaSelectionSheet extends StatefulWidget {
+  const _MediaSelectionSheet({required this.media});
+  final List<_SelectableMedia> media;
+
+  @override
+  State<_MediaSelectionSheet> createState() => _MediaSelectionSheetState();
+}
+
+class _MediaSelectionSheetState extends State<_MediaSelectionSheet> {
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-select all by default.
+    _selected = widget.media.map((m) => m.descriptor.uuid).toSet();
+  }
+
+  void _toggleAll(bool select) {
+    setState(() {
+      _selected =
+          select ? widget.media.map((m) => m.descriptor.uuid).toSet() : {};
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+
+    // Build ordered group map preserving insertion order.
+    final groups = <String, List<_SelectableMedia>>{};
+    for (final m in widget.media) {
+      (groups[m.groupLabel] ??= []).add(m);
+    }
+
+    final allSelected = _selected.length == widget.media.length;
+    final noneSelected = _selected.isEmpty;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Column(
+        children: [
+          // Drag handle
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Partager avec le médecin',
+                    style:
+                        tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Symbols.close_rounded),
+                  tooltip: 'Annuler',
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          ),
+          // Select all / none
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: allSelected ? null : () => _toggleAll(true),
+                  child: const Text('Tout sélectionner'),
+                ),
+                TextButton(
+                  onPressed: noneSelected ? null : () => _toggleAll(false),
+                  child: const Text('Tout désélectionner'),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Scrollable list grouped by source
+          Expanded(
+            child: ListView(
+              controller: scrollCtrl,
+              children: [
+                for (final groupLabel in groups.keys) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                    child: Text(
+                      groupLabel,
+                      style: tt.labelMedium?.copyWith(
+                        color: AppColors.primary700,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  for (final m in groups[groupLabel]!)
+                    CheckboxListTile(
+                      value: _selected.contains(m.descriptor.uuid),
+                      onChanged: (v) => setState(() {
+                        if (v ?? false) {
+                          _selected.add(m.descriptor.uuid);
+                        } else {
+                          _selected.remove(m.descriptor.uuid);
+                        }
+                      }),
+                      title: Text(m.itemLabel, style: tt.bodyMedium),
+                      subtitle: Text(
+                        '${(m.descriptor.sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB',
+                        style:
+                            tt.bodySmall?.copyWith(color: AppColors.neutral500),
+                      ),
+                      activeColor: AppColors.primary700,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                ],
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+          // Confirm button — always enabled; empty set = QR without attachments
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, _selected),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary700,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                  ),
+                ),
+                child: Text(
+                  _selected.isEmpty
+                      ? 'Générer le QR sans pièces jointes'
+                      : 'Partager ${_selected.length} fichier${_selected.length > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

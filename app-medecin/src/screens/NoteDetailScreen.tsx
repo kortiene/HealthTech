@@ -116,6 +116,64 @@ function ImageTile({ media, backendUrl }: { media: MediaDescriptor; backendUrl: 
   );
 }
 
+// ── Audio player (mint-access → XOR decrypt → <audio>) ───────────────────────
+
+function AudioPlayer({ media, backendUrl }: { media: MediaDescriptor; backendUrl: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const blobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${backendUrl}/media/${media.mediaId}/access`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`access:${r.status}`); return r.json(); })
+      .then((grant: { url: string }) => {
+        const capUrl = grant.url.startsWith("http") ? grant.url : `${backendUrl}${grant.url}`;
+        return fetch(capUrl);
+      })
+      .then((r) => { if (!r.ok) throw new Error(`fetch:${r.status}`); return r.arrayBuffer(); })
+      .then((buf) => {
+        if (!active) return;
+        const bytes = new Uint8Array(buf);
+        const dec = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) dec[i] = bytes[i] ^ 0x5a;
+        const blob = new Blob([dec], { type: media.mime || "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        blobRef.current = url;
+        setObjectUrl(url);
+      })
+      .catch(() => { if (active) setFailed(true); });
+    return () => {
+      active = false;
+      if (blobRef.current) { URL.revokeObjectURL(blobRef.current); blobRef.current = null; }
+    };
+  }, [backendUrl, media.mediaId, media.mime]);
+
+  const rowStyle: preact.JSX.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 8,
+    padding: "6px 12px", background: "var(--color-neutral-100)",
+    borderRadius: "var(--radius-sm)",
+  };
+
+  if (failed) {
+    return (
+      <div style={rowStyle}>
+        <Icon name="mic_off" size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ margin: 0, color: "var(--color-neutral-400)" }}>Lecture indisponible</p>
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return (
+      <div style={rowStyle}>
+        <Spinner size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ margin: 0, color: "var(--color-neutral-500)" }}>Chargement…</p>
+      </div>
+    );
+  }
+  return <audio controls src={objectUrl} style={{ width: "100%", height: 36 }} />;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function NoteDetailScreen({
@@ -464,23 +522,31 @@ export function NoteDetailScreen({
               </span>
               <h2 className="text-title-sm" style={{ margin: 0 }}>Pièces jointes</h2>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-sm)", alignItems: "flex-start" }}>
-              {c.media.filter((m) => m.mime.startsWith("audio/")).map((m) => (
-                <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
-                  <Icon name="mic" size={14} color="var(--color-neutral-600)" />
-                  <p className="text-caption" style={{ margin: 0 }}>Note vocale</p>
-                </div>
-              ))}
-              {c.media.filter((m) => m.mime.startsWith("image/")).map((m) =>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+              {/* Notes vocales */}
+              {c.media.filter((m) => m.mime.startsWith("audio/")).map((m) =>
                 backendUrl
-                  ? <ImageTile key={m.mediaId} media={m} backendUrl={backendUrl} />
+                  ? <AudioPlayer key={m.mediaId} media={m} backendUrl={backendUrl} />
                   : (
                     <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
-                      <Icon name="image" size={14} color="var(--color-neutral-600)" />
-                      <p className="text-caption" style={{ margin: 0 }}>{m.mime.split("/")[1]?.toUpperCase()}</p>
+                      <Icon name="mic" size={14} color="var(--color-neutral-600)" />
+                      <p className="text-caption" style={{ margin: 0 }}>Note vocale</p>
                     </div>
                   )
               )}
+              {/* Images */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-sm)" }}>
+                {c.media.filter((m) => m.mime.startsWith("image/")).map((m) =>
+                  backendUrl
+                    ? <ImageTile key={m.mediaId} media={m} backendUrl={backendUrl} />
+                    : (
+                      <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
+                        <Icon name="image" size={14} color="var(--color-neutral-600)" />
+                        <p className="text-caption" style={{ margin: 0 }}>{m.mime.split("/")[1]?.toUpperCase()}</p>
+                      </div>
+                    )
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -708,12 +708,12 @@ class _DevQrController implements QrController {
   @override
   Future<QrPayload> generate({
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   }) async {
     if (!await _recordStore.exists()) {
       await _seedEmptyRecord();
     }
-    return _inner.generate(mode: mode, shareMedia: shareMedia);
+    return _inner.generate(mode: mode, selectedMediaUuids: selectedMediaUuids);
   }
 
   Future<void> _seedEmptyRecord() async {

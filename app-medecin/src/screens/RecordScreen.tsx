@@ -16,6 +16,7 @@ import {
   type MedicalRecord,
   type MediaDescriptor,
   type Medication,
+  type PatientDocument,
 } from "../stubs/data";
 import { TerminatingOverlay } from "./TerminatingOverlay";
 
@@ -164,16 +165,21 @@ const SEVERITY_COLOR: Record<number, string> = {
   5: "#DC2626",
 };
 
-function ConditionRow({ condition }: { condition: ChronicCondition }) {
+function ConditionRow({
+  condition,
+  backendUrl,
+}: {
+  condition: ChronicCondition;
+  backendUrl?: string;
+}) {
   const sev = condition.severity;
-  const docCount = condition.documents?.length ?? 0;
+  const docs = condition.documents ?? [];
   const sevColor = sev !== undefined ? (SEVERITY_COLOR[sev] ?? "#6B7280") : undefined;
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "flex-start",
-        gap: "var(--space-sm)",
+        flexDirection: "column",
         padding: "10px var(--space-sm)",
         borderLeft: "3px solid var(--color-primary-500)",
         background: "var(--color-primary-50)",
@@ -181,75 +187,81 @@ function ConditionRow({ condition }: { condition: ChronicCondition }) {
         marginBottom: "var(--space-xs)",
       }}
     >
-      {/* Gauche : nom + since */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p className="text-body-lg" style={{ margin: 0, fontWeight: 500 }}>
-          {condition.name}
-        </p>
-        {condition.since && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--color-neutral-500)" }}>
-            Depuis {condition.since}
+      {/* Ligne principale : nom + badges */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-sm)" }}>
+        {/* Gauche : nom + since */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="text-body-lg" style={{ margin: 0, fontWeight: 500 }}>
+            {condition.name}
           </p>
-        )}
+          {condition.since && (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--color-neutral-500)" }}>
+              Depuis {condition.since}
+            </p>
+          )}
+        </div>
+        {/* Droite : badges empilés verticalement */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 4,
+            flexShrink: 0,
+          }}
+        >
+          {condition.icd10 && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "var(--radius-pill)",
+                background: "var(--color-neutral-100)",
+                border: "1px solid var(--color-neutral-200)",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--color-neutral-500)",
+                fontFamily: "monospace",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {condition.icd10}
+            </span>
+          )}
+          {sevColor !== undefined && (
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "var(--radius-pill)",
+                background: sevColor + "1A",
+                border: `1px solid ${sevColor}`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: sevColor,
+              }}
+            >
+              {SEVERITY_LABEL[sev!] ?? `Sév. ${sev}`}
+            </span>
+          )}
+        </div>
       </div>
-      {/* Droite : badges empilés verticalement */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 4,
-          flexShrink: 0,
-        }}
-      >
-        {condition.icd10 && (
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--color-neutral-100)",
-              border: "1px solid var(--color-neutral-200)",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--color-neutral-500)",
-              fontFamily: "monospace",
-              letterSpacing: "0.04em",
-            }}
-          >
-            {condition.icd10}
-          </span>
-        )}
-        {sevColor !== undefined && (
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: "var(--radius-pill)",
-              background: sevColor + "1A",
-              border: `1px solid ${sevColor}`,
-              fontSize: 11,
-              fontWeight: 700,
-              color: sevColor,
-            }}
-          >
-            {SEVERITY_LABEL[sev!] ?? `Sév. ${sev}`}
-          </span>
-        )}
-        {docCount > 0 && (
-          <span
-            style={{
-              padding: "2px 7px",
-              borderRadius: "var(--radius-pill)",
-              background: "var(--color-neutral-100)",
-              border: "1px solid var(--color-neutral-200)",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-neutral-500)",
-            }}
-          >
-            📎 {docCount}
-          </span>
-        )}
-      </div>
+      {/* Justificatifs de la condition */}
+      {backendUrl && docs.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+          {docs.map((d) => (
+            <MediaImageTile
+              key={d.uuid}
+              media={{
+                mediaId: d.uuid,
+                url: d.url ?? "",
+                mime: d.mime ?? "image/jpeg",
+                contentKey: "",
+                contentHash: "",
+              }}
+              backendUrl={backendUrl}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -394,6 +406,140 @@ function MediaImageTile({ media, backendUrl }: { media: MediaDescriptor; backend
         alt="justificatif"
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
+    </div>
+  );
+}
+
+// ─── Documents administratifs ─────────────────────────────────────────────────
+
+const DOCUMENT_TYPE_LABEL: Record<string, string> = {
+  cmu_card: "Carte CMU",
+  insurance_card: "Carte d'assurance",
+  other: "Document",
+};
+
+function AdminDocumentsSection({
+  documents,
+  backendUrl,
+}: {
+  documents: PatientDocument[];
+  backendUrl?: string;
+}) {
+  return (
+    <SectionCard title="Documents administratifs" icon="folder">
+      {documents.map((doc) => (
+        <div
+          key={doc.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-sm)",
+            padding: "var(--space-sm)",
+            background: "var(--color-neutral-100)",
+            borderRadius: "var(--radius-sm)",
+            marginBottom: "var(--space-xs)",
+          }}
+        >
+          {backendUrl && (
+            <MediaImageTile
+              media={{
+                mediaId: doc.media.uuid,
+                url: doc.media.url ?? "",
+                mime: doc.media.mime ?? "image/jpeg",
+                contentKey: "",
+                contentHash: "",
+              }}
+              backendUrl={backendUrl}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
+              className="text-body-lg"
+              style={{ fontWeight: 600, color: "var(--color-neutral-900)", margin: 0 }}
+            >
+              {doc.label || DOCUMENT_TYPE_LABEL[doc.type] || doc.type}
+            </p>
+            <p
+              className="text-caption"
+              style={{ color: "var(--color-neutral-500)", margin: "2px 0 0" }}
+            >
+              {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
+            </p>
+          </div>
+        </div>
+      ))}
+    </SectionCard>
+  );
+}
+
+// ─── Media audio player (notes vocales) ──────────────────────────────────────
+
+function MediaAudioPlayer({ media, backendUrl }: { media: MediaDescriptor; backendUrl: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const blobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${backendUrl}/media/${media.mediaId}/access`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`access:${r.status}`); return r.json(); })
+      .then((grant: { url: string }) => {
+        const capUrl = grant.url.startsWith("http")
+          ? grant.url
+          : `${backendUrl}${grant.url}`;
+        return fetch(capUrl);
+      })
+      .then((r) => { if (!r.ok) throw new Error(`fetch:${r.status}`); return r.arrayBuffer(); })
+      .then((buf) => {
+        if (!active) return;
+        const bytes = new Uint8Array(buf);
+        const dec = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) dec[i] = bytes[i] ^ 0x5a;
+        const blob = new Blob([dec], { type: media.mime || "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        blobRef.current = url;
+        setObjectUrl(url);
+      })
+      .catch(() => { if (active) setFailed(true); });
+    return () => {
+      active = false;
+      if (blobRef.current) { URL.revokeObjectURL(blobRef.current); blobRef.current = null; }
+    };
+  }, [backendUrl, media.mediaId, media.mime]);
+
+  const rowStyle = {
+    marginTop: "var(--space-xs)",
+    padding: "6px 10px",
+    background: "var(--color-neutral-100)",
+    borderRadius: "var(--radius-sm)",
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  };
+
+  if (failed) {
+    return (
+      <div style={rowStyle}>
+        <Icon name="mic_off" size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ color: "var(--color-neutral-400)", margin: 0 }}>
+          Lecture indisponible
+        </p>
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return (
+      <div style={rowStyle}>
+        <Spinner size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: 0 }}>
+          Chargement…
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: "var(--space-xs)" }}>
+      <audio controls src={objectUrl} style={{ width: "100%", height: 36 }} />
     </div>
   );
 }
@@ -559,25 +705,35 @@ function ConsultationTimeline({
               </div>
             )}
             {c.media?.some((m) => m.mime.startsWith("audio/")) && (
-              <div
-                style={{
-                  marginTop: "var(--space-xs)",
-                  padding: "6px 10px",
-                  background: "var(--color-neutral-100)",
-                  borderRadius: "var(--radius-sm)",
-                  display: "flex",
-                  gap: 6,
-                  alignItems: "center",
-                }}
-              >
-                <Icon name="mic" size={13} color="var(--color-neutral-600)" />
-                <p
-                  className="text-caption"
-                  style={{ color: "var(--color-neutral-600)", margin: 0 }}
+              backendUrl ? (
+                <>
+                  {c.media
+                    .filter((m) => m.mime.startsWith("audio/"))
+                    .map((m) => (
+                      <MediaAudioPlayer key={m.mediaId} media={m} backendUrl={backendUrl} />
+                    ))}
+                </>
+              ) : (
+                <div
+                  style={{
+                    marginTop: "var(--space-xs)",
+                    padding: "6px 10px",
+                    background: "var(--color-neutral-100)",
+                    borderRadius: "var(--radius-sm)",
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                  }}
                 >
-                  Note vocale jointe
-                </p>
-              </div>
+                  <Icon name="mic" size={13} color="var(--color-neutral-600)" />
+                  <p
+                    className="text-caption"
+                    style={{ color: "var(--color-neutral-600)", margin: 0 }}
+                  >
+                    Note vocale jointe
+                  </p>
+                </div>
+              )
             )}
             {backendUrl && c.media?.some((m) => m.mime.startsWith("image/")) && (
               <div
@@ -843,7 +999,7 @@ export function RecordScreen({
                 (b.addedAt ?? "").localeCompare(a.addedAt ?? ""),
               )
               .map((c) => (
-                <ConditionRow key={c.icd10 || c.name} condition={c} />
+                <ConditionRow key={c.icd10 || c.name} condition={c} backendUrl={backendUrl} />
               ))}
           </SectionCard>
         )}
@@ -879,6 +1035,10 @@ export function RecordScreen({
               </button>
             )}
           </div>
+        )}
+
+        {record.documents && record.documents.length > 0 && (
+          <AdminDocumentsSection documents={record.documents} backendUrl={backendUrl} />
         )}
 
         {record.consultations.length > 0 && (

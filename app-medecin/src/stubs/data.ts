@@ -104,6 +104,16 @@ export interface Consultation {
   amendments?: ConsultationAmendment[];
 }
 
+/** Administrative document (CMU card, insurance card, etc.) attached by the patient (#116). */
+export interface PatientDocument {
+  id: string;
+  /** "cmu_card" | "insurance_card" | "other" */
+  type: string;
+  label: string;
+  media: ConditionDocument;
+  addedAt: string;
+}
+
 export interface MedicalRecord {
   givenName: string;
   birthYear: number;
@@ -118,6 +128,7 @@ export interface MedicalRecord {
   medications: Medication[];
   treatments: TreatmentJson[];
   consultations: Consultation[];
+  documents?: PatientDocument[];
 }
 
 /**
@@ -309,6 +320,18 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
         author: a.author ?? "",
         at: a.at ?? "",
       })),
+    })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    documents: ((raw.documents ?? []) as any[]).map((doc: any) => ({
+      id: doc.id ?? "",
+      type: doc.type ?? "other",
+      label: doc.label ?? "",
+      media: {
+        uuid: doc.media?.uuid ?? "",
+        url: (doc.media?.url ?? null) as string | null | undefined,
+        mime: doc.media?.mime as string | undefined,
+      },
+      addedAt: (doc.added_at ?? doc.addedAt ?? "") as string,
     })),
   };
 }
