@@ -472,6 +472,78 @@ function AdminDocumentsSection({
   );
 }
 
+// ─── Media audio player (notes vocales) ──────────────────────────────────────
+
+function MediaAudioPlayer({ media, backendUrl }: { media: MediaDescriptor; backendUrl: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const blobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${backendUrl}/media/${media.mediaId}/access`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`access:${r.status}`); return r.json(); })
+      .then((grant: { url: string }) => {
+        const capUrl = grant.url.startsWith("http")
+          ? grant.url
+          : `${backendUrl}${grant.url}`;
+        return fetch(capUrl);
+      })
+      .then((r) => { if (!r.ok) throw new Error(`fetch:${r.status}`); return r.arrayBuffer(); })
+      .then((buf) => {
+        if (!active) return;
+        const bytes = new Uint8Array(buf);
+        const dec = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) dec[i] = bytes[i] ^ 0x5a;
+        const blob = new Blob([dec], { type: media.mime || "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        blobRef.current = url;
+        setObjectUrl(url);
+      })
+      .catch(() => { if (active) setFailed(true); });
+    return () => {
+      active = false;
+      if (blobRef.current) { URL.revokeObjectURL(blobRef.current); blobRef.current = null; }
+    };
+  }, [backendUrl, media.mediaId, media.mime]);
+
+  const rowStyle = {
+    marginTop: "var(--space-xs)",
+    padding: "6px 10px",
+    background: "var(--color-neutral-100)",
+    borderRadius: "var(--radius-sm)",
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  };
+
+  if (failed) {
+    return (
+      <div style={rowStyle}>
+        <Icon name="mic_off" size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ color: "var(--color-neutral-400)", margin: 0 }}>
+          Lecture indisponible
+        </p>
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return (
+      <div style={rowStyle}>
+        <Spinner size={14} color="var(--color-neutral-400)" />
+        <p className="text-caption" style={{ color: "var(--color-neutral-500)", margin: 0 }}>
+          Chargement…
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: "var(--space-xs)" }}>
+      <audio controls src={objectUrl} style={{ width: "100%", height: 36 }} />
+    </div>
+  );
+}
+
 // ─── Consultations timeline ───────────────────────────────────────────────────
 
 function ConsultationTimeline({
@@ -633,25 +705,35 @@ function ConsultationTimeline({
               </div>
             )}
             {c.media?.some((m) => m.mime.startsWith("audio/")) && (
-              <div
-                style={{
-                  marginTop: "var(--space-xs)",
-                  padding: "6px 10px",
-                  background: "var(--color-neutral-100)",
-                  borderRadius: "var(--radius-sm)",
-                  display: "flex",
-                  gap: 6,
-                  alignItems: "center",
-                }}
-              >
-                <Icon name="mic" size={13} color="var(--color-neutral-600)" />
-                <p
-                  className="text-caption"
-                  style={{ color: "var(--color-neutral-600)", margin: 0 }}
+              backendUrl ? (
+                <>
+                  {c.media
+                    .filter((m) => m.mime.startsWith("audio/"))
+                    .map((m) => (
+                      <MediaAudioPlayer key={m.mediaId} media={m} backendUrl={backendUrl} />
+                    ))}
+                </>
+              ) : (
+                <div
+                  style={{
+                    marginTop: "var(--space-xs)",
+                    padding: "6px 10px",
+                    background: "var(--color-neutral-100)",
+                    borderRadius: "var(--radius-sm)",
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                  }}
                 >
-                  Note vocale jointe
-                </p>
-              </div>
+                  <Icon name="mic" size={13} color="var(--color-neutral-600)" />
+                  <p
+                    className="text-caption"
+                    style={{ color: "var(--color-neutral-600)", margin: 0 }}
+                  >
+                    Note vocale jointe
+                  </p>
+                </div>
+              )
             )}
             {backendUrl && c.media?.some((m) => m.mime.startsWith("image/")) && (
               <div
