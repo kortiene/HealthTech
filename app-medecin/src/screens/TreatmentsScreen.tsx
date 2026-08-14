@@ -77,12 +77,12 @@ export function TreatmentsScreen({
 
   const canWrite = !!writeToken;
 
-  const activeTreatments = record.treatments.filter(
-    (t) => t.status === "active" && treatmentHasActiveLines(record, t.id),
-  );
-  const closedTreatments = record.treatments.filter(
-    (t) => t.status !== "active" || !treatmentHasActiveLines(record, t.id),
-  );
+  const activeTreatments = record.treatments
+    .filter((t) => t.status === "active" && treatmentHasActiveLines(record, t.id))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at));
+  const closedTreatments = record.treatments
+    .filter((t) => t.status !== "active" || !treatmentHasActiveLines(record, t.id))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at));
 
   async function handleCloseLine(
     consultIdx: number,

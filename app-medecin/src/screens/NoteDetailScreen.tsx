@@ -1,9 +1,11 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { AppBar } from "../components/AppBar";
 import { Icon } from "../components/Icon";
+import { Spinner } from "../components/Spinner";
 import {
   formatDateFr,
   type Consultation,
+  type MediaDescriptor,
   type OrdonnanceLineStatus,
 } from "../stubs/data";
 
@@ -50,9 +52,60 @@ function statusBg(s: OrdonnanceLineStatus | undefined) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+// ── Image tile (mint-access → XOR decrypt → blob URL) ────────────────────────
+
+function ImageTile({ media, backendUrl }: { media: MediaDescriptor; backendUrl: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const blobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${backendUrl}/media/${media.mediaId}/access`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`access:${r.status}`); return r.json(); })
+      .then((grant: { url: string }) => {
+        const capUrl = grant.url.startsWith("http") ? grant.url : `${backendUrl}${grant.url}`;
+        return fetch(capUrl);
+      })
+      .then((r) => { if (!r.ok) throw new Error(`fetch:${r.status}`); return r.arrayBuffer(); })
+      .then((buf) => {
+        if (!active) return;
+        const bytes = new Uint8Array(buf);
+        const dec = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) dec[i] = bytes[i] ^ 0x5a;
+        const blob = new Blob([dec], { type: media.mime || "image/jpeg" });
+        const url = URL.createObjectURL(blob);
+        blobRef.current = url;
+        setObjectUrl(url);
+      })
+      .catch(() => { if (active) setFailed(true); });
+    return () => {
+      active = false;
+      if (blobRef.current) { URL.revokeObjectURL(blobRef.current); blobRef.current = null; }
+    };
+  }, [backendUrl, media.mediaId, media.mime]);
+
+  const tile: preact.JSX.CSSProperties = {
+    width: 80, height: 80, borderRadius: "var(--radius-sm)", flexShrink: 0,
+    overflow: "hidden", background: "var(--color-neutral-100)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+  };
+
+  if (failed) return <div style={tile}><Icon name="broken_image" size={24} color="var(--color-neutral-400)" /></div>;
+  if (!objectUrl) return <div style={tile}><Spinner size={20} color="var(--color-neutral-400)" /></div>;
+  return (
+    <div style={{ ...tile, cursor: "pointer" }} onClick={() => window.open(objectUrl, "_blank")}>
+      <img src={objectUrl} alt="pièce jointe" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function NoteDetailScreen({
   consultation: c,
   consultationIndex,
+  backendUrl,
   writeToken,
   onAmend,
   onCloseOrdonnanceLine,
@@ -314,19 +367,23 @@ export function NoteDetailScreen({
               </span>
               <h2 className="text-title-sm" style={{ margin: 0 }}>Pièces jointes</h2>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-sm)" }}>
-              {c.media.filter((m) => m.mime.startsWith("audio/")).length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-sm)", alignItems: "flex-start" }}>
+              {c.media.filter((m) => m.mime.startsWith("audio/")).map((m) => (
+                <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
                   <Icon name="mic" size={14} color="var(--color-neutral-600)" />
                   <p className="text-caption" style={{ margin: 0 }}>Note vocale</p>
                 </div>
-              )}
-              {c.media.filter((m) => m.mime.startsWith("image/")).map((m) => (
-                <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
-                  <Icon name="image" size={14} color="var(--color-neutral-600)" />
-                  <p className="text-caption" style={{ margin: 0 }}>{m.mime.split("/")[1]?.toUpperCase()}</p>
-                </div>
               ))}
+              {c.media.filter((m) => m.mime.startsWith("image/")).map((m) =>
+                backendUrl
+                  ? <ImageTile key={m.mediaId} media={m} backendUrl={backendUrl} />
+                  : (
+                    <div key={m.mediaId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--color-neutral-100)", borderRadius: "var(--radius-sm)" }}>
+                      <Icon name="image" size={14} color="var(--color-neutral-600)" />
+                      <p className="text-caption" style={{ margin: 0 }}>{m.mime.split("/")[1]?.toUpperCase()}</p>
+                    </div>
+                  )
+              )}
             </div>
           </div>
         )}
