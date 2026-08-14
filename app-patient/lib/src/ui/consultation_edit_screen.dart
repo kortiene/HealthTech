@@ -27,7 +27,6 @@ import '../doctor/consultation_merge.dart';
 import '../qr/access_token.dart';
 import '../record/medical_record.dart';
 import '../record/prescription.dart';
-import '../rust/crypto_core_bindings.dart';
 
 /// Session-scoped placeholder practitioner reference.
 ///
@@ -222,8 +221,6 @@ class _ConsultationEditScreenState extends State<ConsultationEditScreen> {
   String _errorMessage(Object e) => switch (e) {
         RecordFullException() =>
           'Dossier plein — impossible d’ajouter la note.',
-        CryptoCoreUnavailable() =>
-          'Chiffrement indisponible — réessayez plus tard.',
         _ => 'Échec de l’enregistrement — réessayez.',
       };
 

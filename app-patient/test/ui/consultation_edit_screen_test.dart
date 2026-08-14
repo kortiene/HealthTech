@@ -11,7 +11,6 @@
 //     Medication entry.
 //   - RecordFullException maps to the "Dossier plein" error string (no data
 //     leaked in the message).
-//   - CryptoCoreUnavailable maps to the "Chiffrement indisponible" message.
 //   - Unknown exceptions map to a generic "Échec de l'enregistrement" message.
 //   - No exception surfaces to the framework after RecordFullException
 //     (saving = false, error shown inline).
@@ -24,7 +23,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app_patient/src/doctor/consultation_edit_service.dart';
 import 'package:app_patient/src/qr/access_token.dart';
 import 'package:app_patient/src/record/medical_record.dart';
-import 'package:app_patient/src/rust/crypto_core_bindings.dart';
 import 'package:app_patient/src/ui/consultation_edit_screen.dart';
 
 // ─── Fakes ────────────────────────────────────────────────────────────────────
@@ -374,25 +372,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Dossier plein'), findsOneWidget);
-    });
-
-    testWidgets('CryptoCoreUnavailable shows Chiffrement indisponible message',
-        (tester) async {
-      await _pushScreen(
-        tester,
-        service: _FakeConsultationEditService(
-          failWith: const CryptoCoreUnavailable(),
-        ),
-      );
-
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Note de consultation'),
-        'Note',
-      );
-      await tester.tap(find.text('Enregistrer'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('Chiffrement indisponible'), findsOneWidget);
     });
 
     testWidgets("unknown exception shows generic Échec de l'enregistrement",

@@ -15,6 +15,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'src/rust/frb_generated.dart';
+
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
 import 'src/cloud/media_client.dart';
@@ -42,7 +44,9 @@ const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await RustLib.init();
   runApp(const PatientApp());
 }
 

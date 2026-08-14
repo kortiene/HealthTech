@@ -100,9 +100,10 @@ jobs:
       - name: Format (lint)
         working-directory: app-patient
         run: dart format --output=none --set-exit-if-changed .
-      # Guard: production entry-point must never import dev stubs.
-      # DevCryptoCore XOR-0x5A and other stubs are lib/src/stubs/; they must
-      # remain injected only through lib/main_dev.dart, never lib/main.dart.
+      # Guard: production entry-point must never import dev stubs, and must
+      # wire up the FRB native library via RustLib.init().
+      # _DevCryptoCore (XOR-0x5A) and other stubs live in lib/src/stubs/ or
+      # lib/main_dev.dart; they must never reach lib/main.dart.
       - name: Gate — no dev-stubs in lib/main.dart
         working-directory: app-patient
         run: |
@@ -110,7 +111,15 @@ jobs:
             echo "ERROR: lib/main.dart imports from lib/src/stubs/ — stubs must stay in main_dev.dart only."
             exit 1
           fi
-          echo "OK: lib/main.dart contains no stub imports."
+          if grep -qE "_DevCryptoCore|main_dev" lib/main.dart; then
+            echo "ERROR: lib/main.dart references _DevCryptoCore or main_dev — dev stubs must not reach production."
+            exit 1
+          fi
+          if ! grep -qE "RustLib\.init\(\)" lib/main.dart; then
+            echo "ERROR: lib/main.dart does not call RustLib.init() — FRB native library must be initialized before runApp()."
+            exit 1
+          fi
+          echo "OK: lib/main.dart contains no dev-stub references and wires RustLib.init()."
       - name: Analyze (lint)
         working-directory: app-patient
         run: flutter analyze
