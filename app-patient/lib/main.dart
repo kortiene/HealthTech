@@ -23,8 +23,11 @@ import 'src/cloud/media_client.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
+import 'src/qr/media_migration.dart';
+import 'src/record/media_cipher.dart';
 import 'src/record/medical_record.dart';
 import 'src/record/medical_record_store.dart';
+import 'src/cloud/network_retry.dart';
 import 'src/rust/crypto_core_bindings.dart';
 import 'src/secure/biometric_service.dart';
 import 'src/secure/keystore_channel.dart';
@@ -100,6 +103,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   final _masterKey = const MasterKeyService();
   late final PatientAccountStore _accountStore;
   late final MedicalRecordStore _recordStore;
+  late final MediaClient _mediaClient;
+  final _mediaCipher = const MediaCipher(FrbCryptoCore());
 
   @override
   void initState() {
@@ -112,6 +117,10 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       crypto: const FrbCryptoCore(),
       client: BackendClient(_kBackendBaseUrl),
       localStore: const FileSealedBlobStore(fileName: 'medical_record.sealed'),
+    );
+    _mediaClient = MediaClient(
+      _kBackendBaseUrl,
+      retry: const NetworkRetry(maxAttempts: 3, baseDelayMs: 500),
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -223,13 +232,31 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
               forceCloud: true,
             );
             merged = _mergeSessionIntoLocal(local, cloud);
+            // Download url:null media that the doctor uploaded (#152).
+            final (downloaded, toDelete) = await downloadPendingMedia(
+              merged,
+              _mediaClient,
+              _mediaCipher,
+            );
+            merged = downloaded;
             if (!identical(merged, local)) {
               // Persist merged record so next restart reads it locally.
               try {
                 await _recordStore.write(
-                    merged, handle, _account!.anonymousUuid);
+                  merged,
+                  handle,
+                  _account!.anonymousUuid,
+                );
               } on BackendUnavailable {
-                // Local cache already updated by _recordStore.read above.
+                // Local write succeeded; cloud sync will retry.
+              }
+              // Delete from backend only after local persistence (#152).
+              for (final uuid in toDelete) {
+                try {
+                  await _mediaClient.deleteMedia(uuid);
+                } catch (_) {
+                  // Best-effort — backend retention policy (#114) cleans up.
+                }
               }
             }
           } on BackendUnavailable {
@@ -412,6 +439,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       // In dev (XOR-0x5A key-agnostic): decrypt succeeds → merge applied.
       // In prod (AES-GCM): decrypt throws with wrong key → fallback to local.
       var toWrite = savedRecord;
+      final toDelete = <String>[];
       try {
         final fromCloud = await _recordStore.read(
           handle,
@@ -419,6 +447,14 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           forceCloud: true,
         );
         toWrite = _mergeSessionIntoLocal(savedRecord, fromCloud);
+        // Download url:null media that the doctor uploaded (#152).
+        final (downloaded, pending) = await downloadPendingMedia(
+          toWrite,
+          _mediaClient,
+          _mediaCipher,
+        );
+        toWrite = downloaded;
+        toDelete.addAll(pending);
       } on BackendUnavailable {
         // Offline — write savedRecord back as-is.
       } catch (_) {
@@ -435,6 +471,14 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         if (mounted) setState(() => _lastSyncedAt = now);
       } on BackendUnavailable {
         // Offline — local record intact; cloud sync will restore on next connect.
+      }
+      // Delete media from backend after local persistence confirmed (#152).
+      for (final uuid in toDelete) {
+        try {
+          await _mediaClient.deleteMedia(uuid);
+        } catch (_) {
+          // Best-effort — backend retention policy (#114) cleans up.
+        }
       }
     } finally {
       await _masterKey.wipeHandle(handle);
