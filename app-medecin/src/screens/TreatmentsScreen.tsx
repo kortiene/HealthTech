@@ -7,6 +7,7 @@ import {
   type OrdonnanceJson,
   type OrdonnanceLineJson,
   type OrdonnanceLineStatus,
+  type TreatmentJson,
 } from "../stubs/data";
 
 export interface TreatmentsScreenProps {
@@ -77,12 +78,17 @@ export function TreatmentsScreen({
 
   const canWrite = !!writeToken;
 
+  function treatmentSort(a: TreatmentJson, b: TreatmentJson) {
+    const dateCmp = b.started_at.localeCompare(a.started_at);
+    if (dateCmp !== 0) return dateCmp;
+    return (b.createdAt ?? b.started_at).localeCompare(a.createdAt ?? a.started_at);
+  }
   const activeTreatments = record.treatments
     .filter((t) => t.status === "active" && treatmentHasActiveLines(record, t.id))
-    .sort((a, b) => b.started_at.localeCompare(a.started_at));
+    .sort(treatmentSort);
   const closedTreatments = record.treatments
     .filter((t) => t.status !== "active" || !treatmentHasActiveLines(record, t.id))
-    .sort((a, b) => b.started_at.localeCompare(a.started_at));
+    .sort(treatmentSort);
 
   async function handleCloseLine(
     consultIdx: number,
@@ -170,17 +176,21 @@ export function TreatmentsScreen({
         )}
 
         {displayed.map((treatment) => {
-          const allOrdonnances: { consultIdx: number; date: string; doctor?: string; ord: OrdonnanceJson }[] = [];
+          const allOrdonnances: { consultIdx: number; date: string; createdAt?: string; doctor?: string; ord: OrdonnanceJson }[] = [];
 
           record.consultations.forEach((c, ci) => {
             (c.ordonnances ?? []).forEach((ord) => {
               if (ord.treatment_id === treatment.id) {
-                allOrdonnances.push({ consultIdx: ci, date: c.date, doctor: c.doctorName, ord });
+                allOrdonnances.push({ consultIdx: ci, date: c.date, createdAt: c.createdAt, doctor: c.doctorName, ord });
               }
             });
           });
 
-          allOrdonnances.sort((a, b) => b.date.localeCompare(a.date));
+          allOrdonnances.sort((a, b) => {
+            const dateCmp = b.date.localeCompare(a.date);
+            if (dateCmp !== 0) return dateCmp;
+            return (b.createdAt ?? b.date).localeCompare(a.createdAt ?? a.date);
+          });
 
           const totalLines = allOrdonnances.reduce((n, o) => n + o.ord.lines.length, 0);
           const activeLines = allOrdonnances.reduce(

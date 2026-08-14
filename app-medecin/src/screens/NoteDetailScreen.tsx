@@ -111,28 +111,50 @@ export function NoteDetailScreen({
   onCloseOrdonnanceLine,
   onBack,
 }: NoteDetailScreenProps) {
-  const [amendText, setAmendText] = useState("");
-  const [amendAuthor, setAmendAuthor] = useState("");
+  type Draft = { text: string; author: string };
+
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [draftText, setDraftText] = useState("");
+  const [draftAuthor, setDraftAuthor] = useState("");
   const [showAmendForm, setShowAmendForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canWrite = !!writeToken;
 
-  async function handleAmend() {
-    if (!amendText.trim()) return;
+  function addDraft() {
+    if (!draftText.trim()) return;
+    setDrafts((prev) => [...prev, { text: draftText.trim(), author: draftAuthor.trim() || "Médecin" }]);
+    setDraftText("");
+    setDraftAuthor("");
+  }
+
+  function removeDraft(i: number) {
+    setDrafts((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function saveAllDrafts() {
+    if (drafts.length === 0) return;
     setIsSaving(true);
     setError(null);
     try {
-      await onAmend(consultationIndex, amendText.trim(), amendAuthor.trim() || "Médecin");
-      setAmendText("");
-      setAmendAuthor("");
+      for (const d of drafts) {
+        await onAmend(consultationIndex, d.text, d.author);
+      }
+      setDrafts([]);
       setShowAmendForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'amendement — réessayez.");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function cancelAmendForm() {
+    setShowAmendForm(false);
+    setDrafts([]);
+    setDraftText("");
+    setDraftAuthor("");
   }
 
   async function handleCloseLine(
@@ -230,28 +252,64 @@ export function NoteDetailScreen({
               </button>
             ) : (
               <div style={{ background: "var(--color-white)", border: "1px solid var(--color-neutral-200)", borderRadius: "var(--radius-sm)", padding: "var(--space-md)", display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-                <p className="text-title-sm" style={{ margin: 0 }}>Ajouter un amendement</p>
+                <p className="text-title-sm" style={{ margin: 0 }}>Amendements à ajouter</p>
+
+                {/* Draft list with delete buttons */}
+                {drafts.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {drafts.map((d, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#fefce8", border: "1px solid #fde68a", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p className="text-caption" style={{ marginBottom: 2 }}>{d.author}</p>
+                          <p className="text-body" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{d.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeDraft(i)}
+                          disabled={isSaving}
+                          aria-label="Supprimer ce brouillon"
+                          style={{ flexShrink: 0, padding: 4, background: "none", border: "none", cursor: "pointer", color: "var(--color-neutral-500)", borderRadius: 4 }}
+                        >
+                          <Icon name="close" size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Input for next draft */}
                 <input
                   className="field-input"
-                  placeholder="Dr. Nom Prénom (auteur de l'amendement)"
-                  value={amendAuthor}
-                  onInput={(e) => setAmendAuthor((e.target as HTMLInputElement).value)}
+                  placeholder="Dr. Nom Prénom (auteur)"
+                  value={draftAuthor}
+                  onInput={(e) => setDraftAuthor((e.target as HTMLInputElement).value)}
                   disabled={isSaving}
                 />
                 <textarea
                   className="field-textarea"
                   placeholder="Texte de l'amendement…"
-                  value={amendText}
-                  onInput={(e) => setAmendText((e.target as HTMLTextAreaElement).value)}
+                  value={draftText}
+                  onInput={(e) => setDraftText((e.target as HTMLTextAreaElement).value)}
                   disabled={isSaving}
                   style={{ minHeight: 80 }}
                 />
-                <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ fontSize: 13, gap: "var(--space-xs)", alignSelf: "flex-start" }}
+                  onClick={addDraft}
+                  disabled={!draftText.trim() || isSaving}
+                >
+                  <Icon name="add" size={16} color="var(--color-primary-700)" />
+                  Ajouter à la liste
+                </button>
+
+                <div style={{ display: "flex", gap: "var(--space-sm)", borderTop: "1px solid var(--color-neutral-100)", paddingTop: "var(--space-sm)" }}>
                   <button
                     type="button"
                     className="btn btn-outline"
                     style={{ fontSize: 13 }}
-                    onClick={() => { setShowAmendForm(false); setAmendText(""); setAmendAuthor(""); }}
+                    onClick={cancelAmendForm}
                     disabled={isSaving}
                   >
                     Annuler
@@ -260,10 +318,12 @@ export function NoteDetailScreen({
                     type="button"
                     className="btn btn-filled"
                     style={{ fontSize: 13 }}
-                    onClick={handleAmend}
-                    disabled={isSaving || !amendText.trim()}
+                    onClick={saveAllDrafts}
+                    disabled={isSaving || drafts.length === 0}
                   >
-                    {isSaving ? "Enregistrement…" : "Enregistrer l'amendement"}
+                    {isSaving
+                      ? "Enregistrement…"
+                      : `Enregistrer ${drafts.length > 0 ? drafts.length : ""} amendement${drafts.length > 1 ? "s" : ""}`}
                   </button>
                 </div>
               </div>
