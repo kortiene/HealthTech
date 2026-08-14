@@ -3,6 +3,7 @@ import jsQR from "jsqr";
 import { Icon } from "../components/Icon";
 import { SnackBar, type SnackBarTone } from "../components/SnackBar";
 import { Spinner } from "../components/Spinner";
+import { createSessionCrypto, type SessionCrypto } from "../crypto";
 import { parseFlutterRecord, type MedicalRecord } from "../stubs/data";
 
 type ScanError = "expired" | "serverDown" | "decryptError" | "cameraError";
@@ -11,6 +12,7 @@ export interface QrPayload {
   v: number;
   uuid: string;
   url: string;
+  /** Clé de session AES-256 (base64url, 32 octets) — déchiffrement client uniquement. */
   key: string;
   exp?: number;
   /** Write token (base64url). Present only in read-write sessions. */
@@ -18,7 +20,12 @@ export interface QrPayload {
 }
 
 export interface ScanScreenProps {
-  onScanned: (record: MedicalRecord, raw: unknown, payload: QrPayload) => void;
+  onScanned: (
+    record: MedicalRecord,
+    raw: unknown,
+    payload: QrPayload,
+    crypto: SessionCrypto,
+  ) => void;
 }
 
 const ERROR_MESSAGES: Record<ScanError, string> = {
@@ -36,12 +43,6 @@ const CORNERS = [
   { bottom: -1, left: -1, borderBottomWidth: 3, borderLeftWidth: 3, borderTopWidth: 0, borderRightWidth: 0, borderBottomLeftRadius: 6 },
   { bottom: -1, right: -1, borderBottomWidth: 3, borderRightWidth: 3, borderTopWidth: 0, borderLeftWidth: 0, borderBottomRightRadius: 6 },
 ] as const;
-
-function xorBytes(data: Uint8Array): Uint8Array {
-  const out = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) out[i] = data[i] ^ 0x5a;
-  return out;
-}
 
 export function ScanScreen({ onScanned }: ScanScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -157,19 +158,18 @@ export function ScanScreen({ onScanned }: ScanScreenProps) {
       if (!res.ok) throw new Error("serverDown");
 
       const buf = await res.arrayBuffer();
-      const decrypted = xorBytes(new Uint8Array(buf));
-      const text = new TextDecoder().decode(decrypted);
-
+      let decrypted: Uint8Array;
       let recordRaw: unknown;
       try {
-        recordRaw = JSON.parse(text);
+        const sc = await createSessionCrypto(payload.key);
+        decrypted = await sc.decrypt(new Uint8Array(buf));
+        recordRaw = JSON.parse(new TextDecoder().decode(decrypted));
+        const record = parseFlutterRecord(recordRaw);
+        setProcessing(false);
+        onScanned(record, recordRaw, payload, sc);
       } catch {
         throw new Error("decryptError");
       }
-
-      const record = parseFlutterRecord(recordRaw);
-      setProcessing(false);
-      onScanned(record, recordRaw, payload);
     } catch (err) {
       setProcessing(false);
       scanningRef.current = false;
