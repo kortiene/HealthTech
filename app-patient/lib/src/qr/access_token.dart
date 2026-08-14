@@ -110,7 +110,7 @@ class QrPayload {
 abstract class QrController {
   Future<QrPayload> generate({
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   });
 }
 
@@ -135,7 +135,7 @@ class DefaultQrController implements QrController {
   @override
   Future<QrPayload> generate({
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   }) async {
     final handle = await _masterKey.unsealForUse();
     try {
@@ -145,7 +145,7 @@ class DefaultQrController implements QrController {
         handle,
         backendUrl,
         mode: mode,
-        shareMedia: shareMedia,
+        selectedMediaUuids: selectedMediaUuids,
       );
     } finally {
       await _masterKey.wipeHandle(handle);
@@ -191,22 +191,25 @@ class AccessTokenService {
   /// [handle] is the master-key handle from [MasterKeyService.unsealForUse];
   /// the caller owns the handle lifecycle and must wipe it after this returns.
   ///
-  /// When [shareMedia] is true and a [MediaClient] was injected, all pending
-  /// local media (descriptors whose `url` starts with `file://`) are uploaded
-  /// to the backend before the session blob is generated. The QR payload then
-  /// carries `url: null` for those descriptors — the doctor fetches them via
-  /// [MediaClient.requestAccess]. When [shareMedia] is false, `file://` URLs
-  /// are stripped without uploading; the doctor gets no access to those bytes.
+  /// When [selectedMediaUuids] is non-empty and a [MediaClient] was injected,
+  /// only those descriptors (matched by UUID) are uploaded to the backend before
+  /// the session blob is generated. Their `url` is set to null in the QR payload —
+  /// the doctor fetches them via [MediaClient.requestAccess]. Descriptors whose
+  /// UUID is NOT in [selectedMediaUuids] are stripped entirely: the doctor has no
+  /// UUID and cannot call requestAccess for the patient's local-only files.
+  ///
+  /// When [selectedMediaUuids] is empty, all `file://` descriptors are stripped
+  /// without uploading — doctor sees the full text record but no attachments.
   ///
   /// Throws [BlobNotFound] when no local or cloud record exists yet.
   /// Throws [BackendUnavailable] when the session blob cannot be uploaded.
-  /// Throws [MediaBackendUnavailable] when shareMedia=true and any upload fails.
+  /// Throws [MediaBackendUnavailable] when any selected upload fails.
   Future<QrPayload> generate(
     String anonymousUuid,
     MasterKeyHandle handle,
     String backendUrl, {
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   }) async {
     // 1-2. Generate ephemeral session key + write token (OS CSPRNG, never on disk).
     final sessionKey = _randomBytes(_kKeyBytes);
@@ -215,17 +218,19 @@ class AccessTokenService {
     // 3. Read current record (decrypted in Rust using the master handle).
     final record = await _recordStore.read(handle, anonymousUuid);
 
-    // 4. Flush local media to backend (if patient consented) then sanitise.
-    //    Local file:// paths are stripped in all cases — the doctor uses
-    //    requestAccess() to reach uploaded bytes; un-uploaded bytes stay inaccessible.
+    // 4. Flush only the selected local media, then sanitise.
+    //    Unselected file:// descriptors are stripped — doctor cannot access them.
     MedicalRecord qrRecord = record;
-    if (shareMedia && _mediaClient != null) {
-      final pending = _collectPendingMedia(record);
+    if (selectedMediaUuids.isNotEmpty && _mediaClient != null) {
+      final pending = _collectPendingMedia(record)
+          .where((d) => selectedMediaUuids.contains(d.uuid))
+          .toList();
       if (pending.isNotEmpty) {
         await _flushPendingMedia(pending, _mediaClient);
       }
     }
-    qrRecord = _sanitiseFileUrls(record, removeDescriptors: !shareMedia);
+    qrRecord =
+        _sanitiseFileUrls(record, selectedMediaUuids: selectedMediaUuids);
 
     // 5. Re-encrypt sanitised record with session key — doctor will decrypt with this key.
     final plaintext = Uint8List.fromList(qrRecord.toUtf8Bytes());
@@ -283,18 +288,18 @@ class AccessTokenService {
 
   /// Returns a copy of [record] with all `file://` descriptors handled.
   ///
-  /// When [removeDescriptors] is true (patient refused sharing): descriptors
-  /// whose URL starts with `file://` are removed entirely — the doctor receives
-  /// no UUID and cannot call requestAccess() for the patient's local files.
+  /// For each `file://` descriptor:
+  ///   - UUID in [selectedMediaUuids] → url set to null (bytes were uploaded,
+  ///     doctor fetches via requestAccess(uuid)).
+  ///   - UUID NOT in [selectedMediaUuids] → descriptor removed entirely
+  ///     (doctor has no UUID and cannot call requestAccess).
   ///
-  /// When [removeDescriptors] is false (patient consented to share, bytes already
-  /// uploaded): the URL is set to null so the QR payload carries no local path.
-  /// The doctor fetches bytes via requestAccess(uuid).
-  ///
-  /// In both cases, local `file://` paths are never embedded in the QR payload.
+  /// When [selectedMediaUuids] is empty, all `file://` descriptors are removed.
+  /// Non-file:// descriptors (cloud URLs or null) are always kept unchanged.
+  /// Local `file://` paths are never embedded in the QR payload.
   MedicalRecord _sanitiseFileUrls(
     MedicalRecord record, {
-    bool removeDescriptors = false,
+    Set<String> selectedMediaUuids = const {},
   }) {
     bool isDirty(MediaDescriptor d) => d.url?.startsWith('file://') ?? false;
 
@@ -310,10 +315,15 @@ class AccessTokenService {
           // url intentionally omitted → null
         );
 
-    List<MediaDescriptor> handle(List<MediaDescriptor> media) =>
-        removeDescriptors
-            ? media.where((d) => !isDirty(d)).toList()
-            : media.map((d) => isDirty(d) ? nullUrl(d) : d).toList();
+    // Selected file:// → null url (uploaded). Unselected → strip.
+    List<MediaDescriptor> handle(List<MediaDescriptor> media) => media
+        .map((d) {
+          if (!isDirty(d)) return d;
+          if (selectedMediaUuids.contains(d.uuid)) return nullUrl(d);
+          return null;
+        })
+        .whereType<MediaDescriptor>()
+        .toList();
 
     final sanitisedConsultations = record.consultations.map((c) {
       if (!c.media.any(isDirty)) return c;
@@ -341,14 +351,14 @@ class AccessTokenService {
       );
     }).toList();
 
-    // Patient administrative documents (#116): strip or null local media URLs.
-    // When removeDescriptors=true the whole document entry is removed (patient
-    // refused sharing — doctor must not call requestAccess on local-only UUIDs).
+    // Admin documents: selected → keep with null url; unselected → strip entry.
     final sanitisedDocuments = record.documents
         .map((doc) {
           if (!isDirty(doc.media)) return doc;
-          if (removeDescriptors) return null;
-          return doc.copyWithMedia(nullUrl(doc.media));
+          if (selectedMediaUuids.contains(doc.media.uuid)) {
+            return doc.copyWithMedia(nullUrl(doc.media));
+          }
+          return null;
         })
         .whereType<PatientDocument>()
         .toList();

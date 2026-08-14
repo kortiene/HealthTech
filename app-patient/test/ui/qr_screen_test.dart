@@ -22,7 +22,7 @@ class _FakeQrController implements QrController {
   @override
   Future<QrPayload> generate({
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   }) async =>
       QrPayload(
         uuid: 'test-uuid',
@@ -37,7 +37,7 @@ class _ThrowingQrController implements QrController {
   @override
   Future<QrPayload> generate({
     QrMode mode = QrMode.readWrite,
-    bool shareMedia = false,
+    Set<String> selectedMediaUuids = const {},
   }) async =>
       throw Exception('test error');
 }
