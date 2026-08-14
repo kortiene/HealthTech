@@ -48,6 +48,20 @@ function statusBg(s: LineStatus) {
   }
 }
 
+// Option A: auto-expiry when duration_days has elapsed since consultation date.
+function effectiveStatus(
+  line: OrdonnanceLineJson,
+  consultationDate: string,
+): OrdonnanceLineStatus | undefined {
+  if (line.status === "completed" || line.status === "expired") return line.status;
+  if (line.duration_days) {
+    const expiry = new Date(consultationDate);
+    expiry.setDate(expiry.getDate() + line.duration_days);
+    if (Date.now() >= expiry.getTime()) return "expired";
+  }
+  return line.status;
+}
+
 /** Returns true if ALL lines in an ordonnance are non-active. */
 function ordonnanceIsClosed(lines: OrdonnanceLineJson[]) {
   return lines.every((l) => l.status === "completed" || l.status === "expired");
@@ -95,11 +109,12 @@ export function TreatmentsScreen({
     ordId: string,
     lineIdx: number,
     key: string,
+    newStatus: OrdonnanceLineStatus,
   ) {
     setSaving(key);
     setError(null);
     try {
-      await onCloseOrdonnanceLine(consultIdx, ordId, lineIdx, "completed");
+      await onCloseOrdonnanceLine(consultIdx, ordId, lineIdx, newStatus);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec — réessayez.");
     } finally {
@@ -237,7 +252,7 @@ export function TreatmentsScreen({
 
                       {/* Lignes médicament */}
                       {ord.lines.map((line, li) => {
-                        const st = line.status;
+                        const st = effectiveStatus(line, date);
                         const isActive = !st || st === "active";
                         const key = `c${consultIdx}-o${ord.id}-l${li}`;
                         return (
@@ -275,27 +290,50 @@ export function TreatmentsScreen({
                               {statusLabel(st)}
                             </span>
                             {canWrite && isActive && (
-                              <button
-                                type="button"
-                                onClick={() => handleCloseLine(consultIdx, ord.id, li, key)}
-                                disabled={saving === key}
-                                aria-label={`Clôturer ${line.medication}`}
-                                style={{
-                                  flexShrink: 0,
-                                  padding: "4px 10px",
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  background: "none",
-                                  border: "1px solid var(--color-neutral-300)",
-                                  borderRadius: "var(--radius-sm)",
-                                  cursor: "pointer",
-                                  color: "var(--color-neutral-600)",
-                                  whiteSpace: "nowrap",
-                                  opacity: saving === key ? 0.5 : 1,
-                                }}
-                              >
-                                {saving === key ? "…" : "Clôturer"}
-                              </button>
+                              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseLine(consultIdx, ord.id, li, key, "completed")}
+                                  disabled={saving === key}
+                                  aria-label={`Terminer ${line.medication}`}
+                                  style={{
+                                    padding: "4px 10px",
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    background: "none",
+                                    border: "1px solid var(--color-neutral-300)",
+                                    borderRadius: "var(--radius-sm)",
+                                    cursor: "pointer",
+                                    color: "var(--color-neutral-600)",
+                                    whiteSpace: "nowrap",
+                                    opacity: saving === key ? 0.5 : 1,
+                                  }}
+                                >
+                                  {saving === key ? "…" : "Terminé"}
+                                </button>
+                                {!line.duration_days && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCloseLine(consultIdx, ord.id, li, key, "expired")}
+                                    disabled={saving === key}
+                                    aria-label={`Arrêt anticipé ${line.medication}`}
+                                    style={{
+                                      padding: "4px 10px",
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      background: "none",
+                                      border: "1px solid #f97316",
+                                      borderRadius: "var(--radius-sm)",
+                                      cursor: "pointer",
+                                      color: "#c2410c",
+                                      whiteSpace: "nowrap",
+                                      opacity: saving === key ? 0.5 : 1,
+                                    }}
+                                  >
+                                    {saving === key ? "…" : "Expiré"}
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         );

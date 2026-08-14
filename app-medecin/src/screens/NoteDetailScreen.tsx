@@ -6,6 +6,7 @@ import {
   formatDateFr,
   type Consultation,
   type MediaDescriptor,
+  type OrdonnanceLineJson,
   type OrdonnanceLineStatus,
 } from "../stubs/data";
 
@@ -48,6 +49,21 @@ function statusBg(s: OrdonnanceLineStatus | undefined) {
     case "expired":   return "#fff7ed";
     default:          return "var(--color-primary-50)";
   }
+}
+
+// Option A: auto-expiry when duration_days has elapsed since consultation date.
+// "completed" and "expired" stored statuses always win (doctor override).
+function effectiveStatus(
+  line: OrdonnanceLineJson,
+  consultationDate: string,
+): OrdonnanceLineStatus | undefined {
+  if (line.status === "completed" || line.status === "expired") return line.status;
+  if (line.duration_days) {
+    const expiry = new Date(consultationDate);
+    expiry.setDate(expiry.getDate() + line.duration_days);
+    if (Date.now() >= expiry.getTime()) return "expired";
+  }
+  return line.status;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -160,13 +176,12 @@ export function NoteDetailScreen({
   async function handleCloseLine(
     ordId: string,
     lineIdx: number,
-    current: OrdonnanceLineStatus | undefined,
+    newStatus: OrdonnanceLineStatus,
   ) {
-    if (current === "completed") return;
     setIsSaving(true);
     setError(null);
     try {
-      await onCloseOrdonnanceLine(consultationIndex, ordId, lineIdx, "completed");
+      await onCloseOrdonnanceLine(consultationIndex, ordId, lineIdx, newStatus);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec — réessayez.");
     } finally {
@@ -351,7 +366,7 @@ export function NoteDetailScreen({
                     </div>
                   )}
                   {ord.lines.map((line, li) => {
-                    const st = line.status;
+                    const st = effectiveStatus(line, c.date);
                     const isActive = !st || st === "active";
                     return (
                       <div
@@ -388,26 +403,48 @@ export function NoteDetailScreen({
                           {statusLabel(st)}
                         </span>
                         {canWrite && isActive && (
-                          <button
-                            type="button"
-                            onClick={() => handleCloseLine(ord.id, li, st)}
-                            disabled={isSaving}
-                            aria-label={`Clôturer ${line.medication}`}
-                            style={{
-                              flexShrink: 0,
-                              padding: "4px 10px",
-                              fontSize: 12,
-                              fontWeight: 600,
-                              background: "none",
-                              border: "1px solid var(--color-neutral-300)",
-                              borderRadius: "var(--radius-sm)",
-                              cursor: "pointer",
-                              color: "var(--color-neutral-600)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Clôturer
-                          </button>
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleCloseLine(ord.id, li, "completed")}
+                              disabled={isSaving}
+                              aria-label={`Terminer ${line.medication}`}
+                              style={{
+                                padding: "4px 10px",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                background: "none",
+                                border: "1px solid var(--color-neutral-300)",
+                                borderRadius: "var(--radius-sm)",
+                                cursor: "pointer",
+                                color: "var(--color-neutral-600)",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Terminé
+                            </button>
+                            {!line.duration_days && (
+                              <button
+                                type="button"
+                                onClick={() => handleCloseLine(ord.id, li, "expired")}
+                                disabled={isSaving}
+                                aria-label={`Arrêt anticipé ${line.medication}`}
+                                style={{
+                                  padding: "4px 10px",
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  background: "none",
+                                  border: "1px solid #f97316",
+                                  borderRadius: "var(--radius-sm)",
+                                  cursor: "pointer",
+                                  color: "#c2410c",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Expiré
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     );

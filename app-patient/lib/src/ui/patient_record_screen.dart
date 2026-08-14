@@ -2963,7 +2963,7 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
             ),
             const SizedBox(height: AppSpacing.sm),
             ...widget.consultation.ordonnances
-                .map((o) => _OrdonnanceBlock(ordonnance: o)),
+                .map((o) => _OrdonnanceBlock(ordonnance: o, consultationDate: widget.consultation.date)),
           ] else if (widget.consultation.prescription != null) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -3410,7 +3410,7 @@ class _TreatmentCardState extends State<_TreatmentCard> {
                                     ),
                                   ),
                                   ...pair.ordonnance.lines
-                                      .map((l) => _OrdonnanceLineCard(line: l)),
+                                      .map((l) => _OrdonnanceLineCard(line: l, consultationDate: pair.consultation.date)),
                                   if (pair.ordonnance.lines.isEmpty)
                                     Padding(
                                       padding:
@@ -3550,8 +3550,9 @@ class _CloseOption extends StatelessWidget {
 // ── Ordonnance block (#121) ───────────────────────────────────────────────────
 
 class _OrdonnanceBlock extends StatelessWidget {
-  const _OrdonnanceBlock({required this.ordonnance});
+  const _OrdonnanceBlock({required this.ordonnance, required this.consultationDate});
   final Ordonnance ordonnance;
+  final String consultationDate;
 
   @override
   Widget build(BuildContext context) {
@@ -3577,7 +3578,7 @@ class _OrdonnanceBlock extends StatelessWidget {
               ),
             ),
           ...ordonnance.lines.map(
-            (l) => _OrdonnanceLineCard(line: l),
+            (l) => _OrdonnanceLineCard(line: l, consultationDate: consultationDate),
           ),
           if (ordonnance.lines.isEmpty)
             Padding(
@@ -3592,8 +3593,22 @@ class _OrdonnanceBlock extends StatelessWidget {
 }
 
 class _OrdonnanceLineCard extends StatelessWidget {
-  const _OrdonnanceLineCard({required this.line});
+  const _OrdonnanceLineCard({required this.line, required this.consultationDate});
   final OrdonnanceLine line;
+  final String consultationDate;
+
+  /// Option A: auto-expiry when durationDays has elapsed since consultationDate.
+  /// Stored 'completed' and 'expired' always win.
+  static String? _effectiveStatus(String? stored, String consultationDate, int? durationDays) {
+    if (stored == 'completed' || stored == 'expired') return stored;
+    if (durationDays != null) {
+      final d = DateTime.tryParse(consultationDate);
+      if (d != null && DateTime.now().isAfter(d.add(Duration(days: durationDays)))) {
+        return 'expired';
+      }
+    }
+    return stored;
+  }
 
   static String? _statusLabel(String? s) => switch (s) {
         'completed' => 'Terminé',
@@ -3621,7 +3636,7 @@ class _OrdonnanceLineCard extends StatelessWidget {
       if (line.frequency != null) line.frequency!,
       if (line.durationDays != null) '${line.durationDays} j',
     ].join(' · ');
-    final status = line.status;
+    final status = _effectiveStatus(line.status, consultationDate, line.durationDays);
     final isActive = status == null || status == 'active';
     final statusLabel = _statusLabel(status);
 
