@@ -50,8 +50,11 @@
 //! Errors are intentionally **coarse** ([`CryptoError`]): decryption never distinguishes a
 //! wrong key from a tampered tag from a malformed blob. This denies an attacker a
 //! padding/error oracle on the doctor or server side.
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(warnings)]
+
+#[allow(unsafe_code, warnings, clippy::all)]
+mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -220,11 +223,9 @@ impl MasterKeyHandle {
         // `self` is dropped here; `Zeroizing` overwrites the key in place.
     }
 
-    /// Borrow the clear key for an in-RAM operation (test-only for now; #14 will expose the
-    /// production borrow that wraps the SQLCipher DB key). The borrow stays within the
-    /// handle's lifetime, so the key is never copied out.
-    #[cfg(test)]
-    fn expose_for_test(&self) -> &[u8; KEY_LEN] {
+    /// Borrow the clear key for in-crate operations (e.g. encrypt/decrypt in the FRB API).
+    /// The borrow stays within the handle's lifetime — the key bytes never leave the crate.
+    pub(crate) fn key_ref(&self) -> &[u8; KEY_LEN] {
         &self.key
     }
 }
@@ -528,6 +529,11 @@ pub fn wipe(secret: &mut [u8]) {
     secret.zeroize();
 }
 
+/// FRB 2.x public API surface — only this module is exposed across the FFI (#102).
+/// The rest of lib.rs is internal; key bytes never cross the boundary except through
+/// the explicitly named CryptoHandle::export_sealable sealing path.
+pub mod api;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -757,8 +763,8 @@ mod tests {
     fn master_key_handle_generates_full_length_nonzero_key() {
         let handle = MasterKeyHandle::generate();
         // 256-bit key, and not the all-zero buffer (basic entropy sanity).
-        assert_eq!(handle.expose_for_test().len(), KEY_LEN);
-        assert_ne!(handle.expose_for_test(), &[0u8; KEY_LEN]);
+        assert_eq!(handle.key_ref().len(), KEY_LEN);
+        assert_ne!(handle.key_ref(), &[0u8; KEY_LEN]);
     }
 
     #[test]
@@ -766,7 +772,7 @@ mod tests {
         // Two independent generations must not collide (CSPRNG entropy).
         let a = MasterKeyHandle::generate();
         let b = MasterKeyHandle::generate();
-        assert_ne!(a.expose_for_test(), b.expose_for_test());
+        assert_ne!(a.key_ref(), b.key_ref());
     }
 
     #[test]
@@ -774,7 +780,7 @@ mod tests {
         // The exported bytes (which go straight to hardware sealing) equal the handle's key.
         let handle = MasterKeyHandle::generate();
         let sealable = handle.export_sealable();
-        assert_eq!(&*sealable, handle.expose_for_test());
+        assert_eq!(&*sealable, handle.key_ref());
     }
 
     #[test]
@@ -783,7 +789,7 @@ mod tests {
         let original = MasterKeyHandle::generate();
         let sealable = original.export_sealable();
         let rewrapped = MasterKeyHandle::from_unsealed(*sealable);
-        assert_eq!(rewrapped.expose_for_test(), original.expose_for_test());
+        assert_eq!(rewrapped.key_ref(), original.key_ref());
     }
 
     // ── MasterKeyHandle / generate_master_key gap coverage (#11) ─────────────
@@ -816,11 +822,11 @@ mod tests {
         // Mutating the exported Zeroizing buffer must NOT affect the handle's own key
         // (they are separate allocations — Zeroizing::new(*self.key) copies the array).
         let handle = MasterKeyHandle::generate();
-        let original = *handle.expose_for_test();
+        let original = *handle.key_ref();
         let mut exported = handle.export_sealable();
         exported.iter_mut().for_each(|b| *b ^= 0xFF);
         assert_eq!(
-            handle.expose_for_test(),
+            handle.key_ref(),
             &original,
             "export_sealable must return an independent copy, not an alias"
         );
@@ -830,7 +836,7 @@ mod tests {
     fn from_unsealed_zeroed_input_wraps_without_panic() {
         // An all-zero byte array is degenerate but must not crash from_unsealed.
         let handle = MasterKeyHandle::from_unsealed([0u8; KEY_LEN]);
-        assert_eq!(handle.expose_for_test(), &[0u8; KEY_LEN]);
+        assert_eq!(handle.key_ref(), &[0u8; KEY_LEN]);
     }
 
     // ── Decrypt security regressions (#11) ───────────────────────────────────

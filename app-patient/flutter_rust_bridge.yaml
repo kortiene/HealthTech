@@ -1,0 +1,6 @@
+# flutter_rust_bridge 2.x codegen config (#102 — ADR 0003).
+# Run from app-patient/: flutter_rust_bridge_codegen generate
+rust_input: "crate::api"
+rust_root: "../crypto-core"
+dart_output: "lib/src/rust/"
+dart_entrypoint_class_name: "RustLib"

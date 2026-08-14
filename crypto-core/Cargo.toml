@@ -1,6 +1,12 @@
 # crypto-core — the single client-side cryptography crate (ADR 0003).
 # This is a WORKSPACE MEMBER: it declares [package] but intentionally NO [workspace].
 # The root Cargo.toml (owned by the orchestrator) ties this member into the cargo workspace.
+[lib]
+# cdylib  → Android/iOS .so/.a (loaded by flutter_rust_bridge at runtime)
+# staticlib → iOS/macOS static linking
+# lib (rlib) → cargo test + workspace consumers
+crate-type = ["staticlib", "cdylib", "lib"]
+
 [package]
 name = "crypto-core"
 version = "0.1.0"
@@ -17,6 +23,7 @@ pbkdf2 = "0.12"    # PBKDF2 (without built-in SHA, we wire sha2 via hmac path)
 sha2 = "0.10"      # SHA-256 for HMAC inside PBKDF2
 getrandom = "0.2"  # OS CSPRNG for nonces / master keys
 zeroize = "1"      # secret wiping
+flutter_rust_bridge = "=2.12.0"   # FRB 2.x FFI glue — matched to codegen version
 
 [dev-dependencies]
 hex = "0.4"        # decode NIST/round-trip vectors in tests
