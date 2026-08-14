@@ -409,10 +409,12 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     MedicalRecord local,
     MedicalRecord session,
   ) {
+    // ── new consultations ────────────────────────────────────────────────────
     final localIds = {for (final c in local.consultations) c.id};
     final newConsults =
         session.consultations.where((c) => !localIds.contains(c.id)).toList();
 
+    // ── treatments ───────────────────────────────────────────────────────────
     final localTreatMap = {for (final t in local.treatments) t.id: t};
     final mergedTreatments = local.treatments.map((t) {
       final s = session.treatments.where((x) => x.id == t.id).firstOrNull;
@@ -422,6 +424,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         session.treatments.where((t) => !localTreatMap.containsKey(t.id)),
       );
 
+    // ── allergies ────────────────────────────────────────────────────────────
     final localAllergyKeys = {
       for (final a in local.allergies) a.substance.toLowerCase(),
     };
@@ -429,6 +432,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         .where((a) => !localAllergyKeys.contains(a.substance.toLowerCase()))
         .toList();
 
+    // ── conditions ───────────────────────────────────────────────────────────
     final localConditionKeys = {
       for (final c in local.chronicConditions) c.name.toLowerCase(),
     };
@@ -436,14 +440,84 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         .where((c) => !localConditionKeys.contains(c.name.toLowerCase()))
         .toList();
 
+    // ── amendments + ordonnance line statuses on existing consultations (#144)
+    final sessionById = {for (final c in session.consultations) c.id: c};
+    var existingChanged = false;
+    final mergedConsults = local.consultations.map((localC) {
+      final sessionC = sessionById[localC.id];
+      if (sessionC == null) return localC;
+
+      // amendments: pick up any that the doctor appended
+      final newAmendments =
+          sessionC.amendments.length > localC.amendments.length
+              ? sessionC.amendments.sublist(localC.amendments.length)
+              : <ConsultationAmendment>[];
+
+      // ordonnance line statuses
+      var ordsChanged = false;
+      final mergedOrdonnances = localC.ordonnances.map((localOrd) {
+        final sessionOrd = sessionC.ordonnances
+            .where((o) => o.id == localOrd.id)
+            .firstOrNull;
+        if (sessionOrd == null) return localOrd;
+        var lineChanged = false;
+        final mergedLines = List<OrdonnanceLine>.generate(
+          localOrd.lines.length,
+          (i) {
+            if (i >= sessionOrd.lines.length) return localOrd.lines[i];
+            final sLine = sessionOrd.lines[i];
+            final lLine = localOrd.lines[i];
+            if (sLine.status != null && sLine.status != lLine.status) {
+              lineChanged = true;
+              return OrdonnanceLine(
+                medication: lLine.medication,
+                dose: lLine.dose,
+                frequency: lLine.frequency,
+                durationDays: lLine.durationDays,
+                notes: lLine.notes,
+                status: sLine.status,
+              );
+            }
+            return lLine;
+          },
+        );
+        if (!lineChanged) return localOrd;
+        ordsChanged = true;
+        return Ordonnance(
+          id: localOrd.id,
+          treatmentId: localOrd.treatmentId,
+          label: localOrd.label,
+          createdAt: localOrd.createdAt,
+          lines: mergedLines,
+        );
+      }).toList();
+
+      if (newAmendments.isEmpty && !ordsChanged) return localC;
+      existingChanged = true;
+      return Consultation(
+        id: localC.id,
+        date: localC.date,
+        practitionerRef: localC.practitionerRef,
+        summary: localC.summary,
+        prescription: localC.prescription,
+        ordonnances: mergedOrdonnances,
+        imageUrls: localC.imageUrls,
+        media: localC.media,
+        createdAt: localC.createdAt,
+        amendments: [...localC.amendments, ...newAmendments],
+      );
+    }).toList();
+
+    // ── early return ─────────────────────────────────────────────────────────
     if (newConsults.isEmpty &&
         !session.treatments.any((t) => !localTreatMap.containsKey(t.id)) &&
         newAllergies.isEmpty &&
-        newConditions.isEmpty) {
+        newConditions.isEmpty &&
+        !existingChanged) {
       return local;
     }
     return local.copyWith(
-      consultations: [...local.consultations, ...newConsults],
+      consultations: [...mergedConsults, ...newConsults],
       treatments: mergedTreatments,
       allergies: [...local.allergies, ...newAllergies],
       chronicConditions: [...local.chronicConditions, ...newConditions],
