@@ -1,12 +1,14 @@
 import { useState } from "preact/hooks";
 import type { NewConsultation } from "./screens/EditScreen";
+import { NoteDetailScreen } from "./screens/NoteDetailScreen";
 import { NoteScreen } from "./screens/NoteScreen";
 import { RecordScreen } from "./screens/RecordScreen";
 import { ScanScreen, type QrPayload } from "./screens/ScanScreen";
+import { TreatmentsScreen } from "./screens/TreatmentsScreen";
 import type { NewVoiceConsultation } from "./screens/VoiceNoteScreen";
-import { type MedicalRecord } from "./stubs/data";
+import { type MedicalRecord, type OrdonnanceLineStatus } from "./stubs/data";
 
-type Screen = "scan" | "record" | "note";
+type Screen = "scan" | "record" | "note" | "note-detail" | "treatments";
 
 function xorBytes(data: Uint8Array): Uint8Array {
   const out = new Uint8Array(data.length);
@@ -23,6 +25,7 @@ export function App() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rawFlutter, setRawFlutter] = useState<any>(null);
   const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
+  const [selectedConsultIdx, setSelectedConsultIdx] = useState<number>(0);
 
   async function handleConsultationSaved(
     consultation: NewConsultation,
@@ -174,6 +177,96 @@ export function App() {
     setScreen("record");
   }
 
+  async function handleAmendConsultation(
+    consultIdx: number,
+    text: string,
+    author: string,
+  ): Promise<void> {
+    if (!qrPayload || !rawFlutter)
+      throw new Error("Session expirée — rescannez le QR.");
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatedConsultations = [...(rawFlutter.consultations ?? [])] as any[];
+    const c = { ...updatedConsultations[consultIdx] };
+    c.amendments = [...(c.amendments ?? []), { text, author, at: now }];
+    updatedConsultations[consultIdx] = c;
+    const updatedRaw = { ...rawFlutter, consultations: updatedConsultations, updated_at: now };
+    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(qrPayload.wt ? { Authorization: `Bearer ${qrPayload.wt}` } : {}),
+      },
+      body: encrypted.buffer as ArrayBuffer,
+    });
+    if (!res.ok)
+      throw new Error(res.status >= 500 ? "Serveur indisponible — réessayez." : "Échec de l'enregistrement — réessayez.");
+    setRawFlutter(updatedRaw);
+    setScannedRecord((prev) => {
+      if (!prev) return prev;
+      const consultations = [...prev.consultations];
+      consultations[consultIdx] = {
+        ...consultations[consultIdx],
+        amendments: [
+          ...(consultations[consultIdx].amendments ?? []),
+          { text, author, at: now },
+        ],
+      };
+      return { ...prev, consultations };
+    });
+  }
+
+  async function handleCloseOrdonnanceLine(
+    consultIdx: number,
+    ordId: string,
+    lineIdx: number,
+    status: OrdonnanceLineStatus,
+  ): Promise<void> {
+    if (!qrPayload || !rawFlutter)
+      throw new Error("Session expirée — rescannez le QR.");
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatedConsultations = [...(rawFlutter.consultations ?? [])] as any[];
+    const c = { ...updatedConsultations[consultIdx] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    c.ordonnances = (c.ordonnances ?? []).map((ord: any) => {
+      if (ord.id !== ordId) return ord;
+      const lines = [...ord.lines];
+      lines[lineIdx] = { ...lines[lineIdx], status };
+      return { ...ord, lines };
+    });
+    updatedConsultations[consultIdx] = c;
+    const updatedRaw = { ...rawFlutter, consultations: updatedConsultations, updated_at: now };
+    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(qrPayload.wt ? { Authorization: `Bearer ${qrPayload.wt}` } : {}),
+      },
+      body: encrypted.buffer as ArrayBuffer,
+    });
+    if (!res.ok)
+      throw new Error(res.status >= 500 ? "Serveur indisponible — réessayez." : "Échec de l'enregistrement — réessayez.");
+    setRawFlutter(updatedRaw);
+    setScannedRecord((prev) => {
+      if (!prev) return prev;
+      const consultations = [...prev.consultations];
+      const prevC = consultations[consultIdx];
+      consultations[consultIdx] = {
+        ...prevC,
+        ordonnances: (prevC.ordonnances ?? []).map((ord) => {
+          if (ord.id !== ordId) return ord;
+          const lines = [...ord.lines];
+          lines[lineIdx] = { ...lines[lineIdx], status };
+          return { ...ord, lines };
+        }),
+      };
+      return { ...prev, consultations };
+    });
+  }
+
   async function handleVoiceConsultationSaved(
     consultation: NewVoiceConsultation,
   ): Promise<void> {
@@ -281,6 +374,35 @@ export function App() {
     );
   }
 
+  if (screen === "note-detail" && scannedRecord) {
+    return (
+      <div class="page-frame">
+        <NoteDetailScreen
+          consultation={scannedRecord.consultations[selectedConsultIdx]}
+          consultationIndex={selectedConsultIdx}
+          backendUrl={qrPayload?.url}
+          writeToken={qrPayload?.wt}
+          onAmend={handleAmendConsultation}
+          onCloseOrdonnanceLine={handleCloseOrdonnanceLine}
+          onBack={() => setScreen("record")}
+        />
+      </div>
+    );
+  }
+
+  if (screen === "treatments" && scannedRecord) {
+    return (
+      <div class="page-frame">
+        <TreatmentsScreen
+          record={scannedRecord}
+          writeToken={qrPayload?.wt}
+          onCloseOrdonnanceLine={handleCloseOrdonnanceLine}
+          onBack={() => setScreen("record")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div class="page-frame">
       <RecordScreen
@@ -290,6 +412,11 @@ export function App() {
         backendUrl={qrPayload?.url ?? ""}
         onSynced={() => setPendingCount(0)}
         onAddNote={() => setScreen("note")}
+        onViewNote={(idx) => {
+          setSelectedConsultIdx(idx);
+          setScreen("note-detail");
+        }}
+        onViewTreatments={() => setScreen("treatments")}
         onTerminated={() => {
           setPendingCount(0);
           setScannedRecord(null);
