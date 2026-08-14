@@ -12,8 +12,8 @@
 
 use crate::{
     decrypt_record as rust_decrypt, encrypt_record as rust_encrypt,
-    normalize_recovery_answers as rust_normalize, open_recovery_envelope,
-    seal_recovery_envelope, MasterKeyHandle, KEY_LEN,
+    normalize_recovery_answers as rust_normalize, open_recovery_envelope, seal_recovery_envelope,
+    MasterKeyHandle, KEY_LEN,
 };
 
 // ── Opaque handle ─────────────────────────────────────────────────────────────
@@ -119,10 +119,7 @@ pub fn seal_recovery(
 ///
 /// Throws on wrong secret, corrupted envelope, or unknown version/KDF
 /// — coarse error, no oracle (THR-05).
-pub fn open_recovery(
-    secret: Vec<u8>,
-    envelope: Vec<u8>,
-) -> Result<CryptoHandle, String> {
+pub fn open_recovery(secret: Vec<u8>, envelope: Vec<u8>) -> Result<CryptoHandle, String> {
     open_recovery_envelope(&secret, &envelope)
         .map(|inner| CryptoHandle { inner })
         .map_err(|e| e.to_string())

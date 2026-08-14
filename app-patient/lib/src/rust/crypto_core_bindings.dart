@@ -171,7 +171,9 @@ class FrbCryptoCore implements CryptoCore {
     Uint8List ciphertext,
   ) async {
     try {
-      return await (handle as _FrbHandle)._handle.decryptRecord(blob: ciphertext);
+      return await (handle as _FrbHandle)
+          ._handle
+          .decryptRecord(blob: ciphertext);
     } catch (_) {
       throw const DecryptError();
     }
