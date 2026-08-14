@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { type SessionCrypto } from "./crypto";
 import type { NewConsultation } from "./screens/EditScreen";
 import { NoteDetailScreen } from "./screens/NoteDetailScreen";
 import { NoteScreen } from "./screens/NoteScreen";
@@ -10,12 +11,6 @@ import { type MedicalRecord, type OrdonnanceLineStatus } from "./stubs/data";
 
 type Screen = "scan" | "record" | "note" | "note-detail" | "treatments";
 
-function xorBytes(data: Uint8Array): Uint8Array {
-  const out = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) out[i] = data[i] ^ 0x5a;
-  return out;
-}
-
 export function App() {
   const [screen, setScreen] = useState<Screen>("scan");
   const [pendingCount, setPendingCount] = useState(0);
@@ -25,12 +20,13 @@ export function App() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rawFlutter, setRawFlutter] = useState<any>(null);
   const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
+  const [sessionCrypto, setSessionCrypto] = useState<SessionCrypto | null>(null);
   const [selectedConsultIdx, setSelectedConsultIdx] = useState<number>(0);
 
   async function handleConsultationSaved(
     consultation: NewConsultation,
   ): Promise<void> {
-    if (!qrPayload || !rawFlutter)
+    if (!qrPayload || !rawFlutter || !sessionCrypto)
       throw new Error("Session expirée — rescannez le QR.");
 
     const now = new Date().toISOString();
@@ -96,10 +92,9 @@ export function App() {
       updated_at: now,
     };
 
-    // XOR 0x5A re-encrypt and PUT back to backend.
-    // Use the write token (wt) as the Bearer — the backend enforces read-only
-    // sessions by rejecting PUTs when wt is absent (#118).
-    const encrypted = xorBytes(
+    // Re-chiffre avec la clé de session et PUT vers le backend.
+    // Le write token (wt) est le Bearer — le backend rejette les PUTs sans wt (#118).
+    const encrypted = await sessionCrypto.encrypt(
       new TextEncoder().encode(JSON.stringify(updatedRaw)),
     );
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
@@ -182,7 +177,7 @@ export function App() {
     text: string,
     author: string,
   ): Promise<void> {
-    if (!qrPayload || !rawFlutter)
+    if (!qrPayload || !rawFlutter || !sessionCrypto)
       throw new Error("Session expirée — rescannez le QR.");
     const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,7 +186,7 @@ export function App() {
     c.amendments = [...(c.amendments ?? []), { text, author, at: now }];
     updatedConsultations[consultIdx] = c;
     const updatedRaw = { ...rawFlutter, consultations: updatedConsultations, updated_at: now };
-    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const encrypted = await sessionCrypto.encrypt(new TextEncoder().encode(JSON.stringify(updatedRaw)));
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
       method: "PUT",
       headers: {
@@ -223,7 +218,7 @@ export function App() {
     lineIdx: number,
     status: OrdonnanceLineStatus,
   ): Promise<void> {
-    if (!qrPayload || !rawFlutter)
+    if (!qrPayload || !rawFlutter || !sessionCrypto)
       throw new Error("Session expirée — rescannez le QR.");
     const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,7 +233,7 @@ export function App() {
     });
     updatedConsultations[consultIdx] = c;
     const updatedRaw = { ...rawFlutter, consultations: updatedConsultations, updated_at: now };
-    const encrypted = xorBytes(new TextEncoder().encode(JSON.stringify(updatedRaw)));
+    const encrypted = await sessionCrypto.encrypt(new TextEncoder().encode(JSON.stringify(updatedRaw)));
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
       method: "PUT",
       headers: {
@@ -270,7 +265,7 @@ export function App() {
   async function handleVoiceConsultationSaved(
     consultation: NewVoiceConsultation,
   ): Promise<void> {
-    if (!qrPayload || !rawFlutter)
+    if (!qrPayload || !rawFlutter || !sessionCrypto)
       throw new Error("Session expirée — rescannez le QR.");
 
     const addedAt = new Date().toISOString();
@@ -303,7 +298,7 @@ export function App() {
     };
 
     // PUT updated blob (media is already on /media endpoint; this blob carries the reference)
-    const encrypted = xorBytes(
+    const encrypted = await sessionCrypto.encrypt(
       new TextEncoder().encode(JSON.stringify(updatedRaw)),
     );
     const res = await fetch(`${qrPayload.url}/blob/${qrPayload.uuid}`, {
@@ -348,10 +343,11 @@ export function App() {
   if (screen === "scan") {
     return (
       <ScanScreen
-        onScanned={(record, raw, payload) => {
+        onScanned={(record, raw, payload, sc) => {
           setScannedRecord(record);
           setRawFlutter(raw);
           setQrPayload(payload);
+          setSessionCrypto(sc);
           setPendingCount(0);
           setScreen("record");
         }}
