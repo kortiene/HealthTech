@@ -46,6 +46,8 @@ export interface MediaDescriptor {
 }
 
 /** One medication line inside an ordonnance (#121). */
+export type OrdonnanceLineStatus = "active" | "completed" | "expired";
+
 export interface OrdonnanceLineJson {
   medication: string;
   dose?: string;
@@ -53,6 +55,14 @@ export interface OrdonnanceLineJson {
   /** Duration in days. */
   duration_days?: number;
   notes?: string;
+  /** Absent on legacy records → defaults to "active". */
+  status?: OrdonnanceLineStatus;
+}
+
+export interface ConsultationAmendment {
+  text: string;
+  author: string;
+  at: string; // ISO-8601 UTC
 }
 
 /** A prescription document written at one consultation (#121). */
@@ -91,6 +101,7 @@ export interface Consultation {
   prescription?: string;
   ordonnances?: OrdonnanceJson[];
   media?: MediaDescriptor[];
+  amendments?: ConsultationAmendment[];
 }
 
 export interface MedicalRecord {
@@ -279,6 +290,7 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
           frequency: l.frequency,
           duration_days: l.duration_days ?? l.durationDays,
           notes: l.notes,
+          status: l.status as OrdonnanceLineStatus | undefined,
         })),
       })) : undefined,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,6 +302,12 @@ export function parseFlutterRecord(raw: any): MedicalRecord {
         sizeBytes: m.size_bytes ?? m.sizeBytes,
         contentKey: m.content_key ?? m.contentKey ?? "",
         contentHash: m.content_hash ?? m.contentHash ?? "",
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      amendments: (c.amendments ?? []).map((a: any) => ({
+        text: a.text ?? "",
+        author: a.author ?? "",
+        at: a.at ?? "",
       })),
     })),
   };

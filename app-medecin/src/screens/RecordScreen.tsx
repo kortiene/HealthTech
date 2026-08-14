@@ -29,6 +29,8 @@ interface RecordScreenProps {
   onTerminated: () => void;
   /** Backend origin used to fetch image media at /media/{uuid} (XOR-0x5A in dev). */
   backendUrl?: string;
+  onViewNote?: (consultationIndex: number) => void;
+  onViewTreatments?: () => void;
 }
 
 // ─── Patient hero banner ──────────────────────────────────────────────────────
@@ -401,15 +403,19 @@ function MediaImageTile({ media, backendUrl }: { media: MediaDescriptor; backend
 function ConsultationTimeline({
   consultations,
   backendUrl,
+  onViewNote,
 }: {
   consultations: Consultation[];
   backendUrl?: string;
+  onViewNote?: (consultationIndex: number) => void;
 }) {
-  const sorted = [...consultations].sort((a, b) => {
-    const ka = a.createdAt ?? a.date;
-    const kb = b.createdAt ?? b.date;
-    return kb.localeCompare(ka);
-  });
+  const sorted = [...consultations]
+    .map((c, origIdx) => ({ c, origIdx }))
+    .sort((a, b) => {
+      const ka = a.c.createdAt ?? a.c.date;
+      const kb = b.c.createdAt ?? b.c.date;
+      return kb.localeCompare(ka);
+    });
   const last = sorted.length - 1;
 
   return (
@@ -448,7 +454,7 @@ function ConsultationTimeline({
         </span>
       </div>
 
-      {sorted.map((c, i) => (
+      {sorted.map(({ c, origIdx }, i) => (
         <div key={c.date + c.summary} style={{ display: "flex", gap: 12 }}>
           <div
             style={{
@@ -488,6 +494,7 @@ function ConsultationTimeline({
           </div>
 
           <div
+            onClick={() => onViewNote?.(origIdx)}
             style={{
               flex: 1,
               background: "var(--color-white)",
@@ -495,6 +502,7 @@ function ConsultationTimeline({
               borderRadius: "var(--radius-sm)",
               padding: "var(--space-sm) var(--space-md)",
               marginBottom: "var(--space-sm)",
+              cursor: onViewNote ? "pointer" : "default",
             }}
           >
             <p
@@ -683,6 +691,8 @@ export function RecordScreen({
   onAddNote,
   onTerminated,
   backendUrl,
+  onViewNote,
+  onViewTreatments,
 }: RecordScreenProps) {
   const record = recordProp ?? previewRecord;
   const [isSyncing, setIsSyncing] = useState(false);
@@ -846,8 +856,33 @@ export function RecordScreen({
           </SectionCard>
         )}
 
+        {record.treatments.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-md)", padding: "var(--space-sm) var(--space-md)", background: "var(--color-white)", border: "1px solid var(--color-neutral-200)", borderRadius: "var(--radius-sm)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+              <span className="icon-badge" style={{ background: "var(--color-primary-100)", width: 36, height: 36 }}>
+                <Icon name="assignment" size={18} color="var(--color-primary-700)" />
+              </span>
+              <div>
+                <p className="text-title-sm" style={{ margin: 0 }}>Traitements</p>
+                <p className="text-caption" style={{ margin: "2px 0 0" }}>
+                  {record.treatments.filter((t) => t.status === "active").length} en cours · {record.treatments.length} au total
+                </p>
+              </div>
+            </div>
+            {onViewTreatments && (
+              <button
+                type="button"
+                onClick={onViewTreatments}
+                style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, borderRadius: "var(--radius-sm)", background: "var(--color-primary-50)", border: "1px solid var(--color-primary-200)", color: "var(--color-primary-700)", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Voir tout
+              </button>
+            )}
+          </div>
+        )}
+
         {record.consultations.length > 0 && (
-          <ConsultationTimeline consultations={record.consultations} backendUrl={backendUrl} />
+          <ConsultationTimeline consultations={record.consultations} backendUrl={backendUrl} onViewNote={onViewNote} />
         )}
       </main>
 

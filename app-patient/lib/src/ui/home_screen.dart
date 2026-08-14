@@ -27,6 +27,9 @@ class HomeScreen extends StatelessWidget {
   bool get _isProfileEmpty =>
       (record.demographics.givenName ?? '').trim().isEmpty;
 
+  List<Treatment> get _activeTreatments =>
+      record.treatments.where((t) => t.status == 'active').toList();
+
   Consultation? get _lastConsultation {
     if (record.consultations.isEmpty) return null;
     final indexed = List<MapEntry<int, Consultation>>.generate(
@@ -65,6 +68,10 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: AppSpacing.md),
                 if (last != null) ...[
                   _LastConsultationCard(consultation: last),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (_activeTreatments.isNotEmpty) ...[
+                  _ActiveTreatmentsCard(treatments: _activeTreatments),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 _SecondaryAction(onTap: onScan),
@@ -276,6 +283,89 @@ class _LastConsultationCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Active treatments badge card (#144) ──────────────────────────────────────
+
+class _ActiveTreatmentsCard extends StatelessWidget {
+  const _ActiveTreatmentsCard({required this.treatments});
+  final List<Treatment> treatments;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    const maxShown = 3;
+    final shown = treatments.take(maxShown).toList();
+    final overflow = treatments.length - maxShown;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Symbols.medical_services_rounded,
+                  size: 16, color: AppColors.primary700),
+              const SizedBox(width: 6),
+              Text('Traitements en cours',
+                  style: tt.labelLarge?.copyWith(color: AppColors.primary700)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary100,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Text(
+                  '${treatments.length}',
+                  style: tt.bodySmall?.copyWith(
+                      color: AppColors.primary700, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...shown.map(
+            (t) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(right: 8, top: 1),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary500,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      t.diagnosis,
+                      style: tt.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (overflow > 0)
+            Text(
+              '+ $overflow autre${overflow > 1 ? 's' : ''}',
+              style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+            ),
         ],
       ),
     );

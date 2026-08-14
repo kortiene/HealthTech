@@ -390,6 +390,7 @@ class OrdonnanceLine {
     this.frequency,
     this.durationDays,
     this.notes,
+    this.status,
   });
 
   factory OrdonnanceLine.fromJson(Map<String, Object?> json) {
@@ -399,6 +400,7 @@ class OrdonnanceLine {
       frequency: json['frequency'] as String?,
       durationDays: (json['duration_days'] ?? json['durationDays']) as int?,
       notes: json['notes'] as String?,
+      status: json['status'] as String?,
     );
   }
 
@@ -408,12 +410,18 @@ class OrdonnanceLine {
   final int? durationDays;
   final String? notes;
 
+  /// Ordonnance line lifecycle status (#144).
+  /// `'active'` (default when absent) | `'completed'` | `'expired'`.
+  /// Absent on records written before #144 — treat as `'active'`.
+  final String? status;
+
   Map<String, Object?> toJson() => {
         'medication': medication,
         if (dose != null) 'dose': dose,
         if (frequency != null) 'frequency': frequency,
         if (durationDays != null) 'duration_days': durationDays,
         if (notes != null) 'notes': notes,
+        if (status != null) 'status': status,
       };
 
   @override
@@ -423,11 +431,12 @@ class OrdonnanceLine {
       other.dose == dose &&
       other.frequency == frequency &&
       other.durationDays == durationDays &&
-      other.notes == notes;
+      other.notes == notes &&
+      other.status == status;
 
   @override
   int get hashCode =>
-      Object.hash(medication, dose, frequency, durationDays, notes);
+      Object.hash(medication, dose, frequency, durationDays, notes, status);
 }
 
 /// A prescription document written at one consultation (#121).
@@ -577,6 +586,46 @@ class Treatment {
       id, diagnosis, startedAt, doctorRef, endedAt, status, createdAt);
 }
 
+/// An amendment appended to a [Consultation] by a later doctor (#144).
+/// Append-only — original note is never modified to preserve the audit trail.
+class ConsultationAmendment {
+  const ConsultationAmendment({
+    required this.text,
+    required this.author,
+    required this.at,
+  });
+
+  factory ConsultationAmendment.fromJson(Map<String, Object?> json) {
+    return ConsultationAmendment(
+      text: json['text'] as String? ?? '',
+      author: json['author'] as String? ?? '',
+      at: json['at'] as String? ?? '',
+    );
+  }
+
+  final String text;
+  final String author;
+
+  /// ISO-8601 UTC timestamp of the amendment.
+  final String at;
+
+  Map<String, Object?> toJson() => {
+        'text': text,
+        'author': author,
+        'at': at,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is ConsultationAmendment &&
+      other.text == text &&
+      other.author == author &&
+      other.at == at;
+
+  @override
+  int get hashCode => Object.hash(text, author, at);
+}
+
 /// A single consultation record. Binary images are NEVER stored here — heavy media
 /// is offloaded to the server (#23) and referenced by a [MediaDescriptor] in [media].
 class Consultation {
@@ -590,6 +639,7 @@ class Consultation {
     this.imageUrls = const [],
     this.media = const [],
     this.createdAt,
+    this.amendments = const <ConsultationAmendment>[],
   });
 
   factory Consultation.fromJson(Map<String, Object?> json) {
@@ -622,6 +672,8 @@ class Consultation {
       ordonnances = const [];
     }
 
+    final rawAmendments = json['amendments'] as List<Object?>?;
+
     return Consultation(
       id: json['id'] as String,
       date: json['date'] as String,
@@ -632,6 +684,11 @@ class Consultation {
       imageUrls: urls,
       media: media,
       createdAt: (json['created_at'] ?? json['createdAt']) as String?,
+      amendments: rawAmendments
+              ?.map((e) =>
+                  ConsultationAmendment.fromJson(e as Map<String, Object?>))
+              .toList() ??
+          const <ConsultationAmendment>[],
     );
   }
 
@@ -665,6 +722,11 @@ class Consultation {
   /// Absent on pre-#139 records — fall back to [date] for sorting.
   final String? createdAt;
 
+  /// Amendments appended by later doctors (#144). Original summary is never
+  /// modified — each amendment is append-only to preserve the audit trail.
+  /// Absent on pre-#144 records — defaults to [].
+  final List<ConsultationAmendment> amendments;
+
   Map<String, Object?> toJson() => {
         'id': id,
         'date': date,
@@ -677,6 +739,8 @@ class Consultation {
           'prescription': prescription,
         'image_urls': imageUrls,
         if (media.isNotEmpty) 'media': media.map((e) => e.toJson()).toList(),
+        if (amendments.isNotEmpty)
+          'amendments': amendments.map((a) => a.toJson()).toList(),
       };
 
   Consultation copyWithMedia(MediaDescriptor descriptor) => Consultation(
@@ -689,6 +753,7 @@ class Consultation {
         imageUrls: imageUrls,
         media: [...media, descriptor],
         createdAt: createdAt,
+        amendments: amendments,
       );
 
   @override
@@ -702,7 +767,8 @@ class Consultation {
       other.createdAt == createdAt &&
       _listEq(other.ordonnances, ordonnances) &&
       _listEq(other.imageUrls, imageUrls) &&
-      _listEq(other.media, media);
+      _listEq(other.media, media) &&
+      _listEq(other.amendments, amendments);
 
   @override
   int get hashCode => Object.hash(
@@ -715,6 +781,7 @@ class Consultation {
         Object.hashAll(ordonnances),
         Object.hashAll(imageUrls),
         Object.hashAll(media),
+        Object.hashAll(amendments),
       );
 }
 
