@@ -2902,6 +2902,49 @@ class _ConsultationSheetState extends State<_ConsultationSheet> {
             ),
             child: Text(widget.consultation.summary, style: tt.bodyLarge),
           ),
+          // ── Amendements (#144) ───────────────────────────────────────────────
+          if (widget.consultation.amendments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                const Icon(Symbols.edit_note_rounded,
+                    size: 16, color: AppColors.neutral500),
+                const SizedBox(width: 6),
+                Text(
+                  widget.consultation.amendments.length == 1
+                      ? 'Amendement'
+                      : 'Amendements (${widget.consultation.amendments.length})',
+                  style: tt.labelLarge?.copyWith(
+                      color: AppColors.neutral500, letterSpacing: 0.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...widget.consultation.amendments.map(
+              (a) => Container(
+                margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEFCE8),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${a.author} · ${_formatDate(a.at.length >= 10 ? a.at.substring(0, 10) : a.at)}',
+                      style: tt.bodySmall?.copyWith(
+                          color: AppColors.neutral500,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(a.text, style: tt.bodyMedium),
+                  ],
+                ),
+              ),
+            ),
+          ],
           if (widget.consultation.ordonnances.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -3552,6 +3595,24 @@ class _OrdonnanceLineCard extends StatelessWidget {
   const _OrdonnanceLineCard({required this.line});
   final OrdonnanceLine line;
 
+  static String? _statusLabel(String? s) => switch (s) {
+        'completed' => 'Terminé',
+        'expired' => 'Expiré',
+        _ => null,
+      };
+
+  static Color _statusColor(String? s) => switch (s) {
+        'completed' => AppColors.neutral500,
+        'expired' => const Color(0xFFC2410C),
+        _ => AppColors.primary700,
+      };
+
+  static Color _statusBg(String? s) => switch (s) {
+        'completed' => AppColors.neutral100,
+        'expired' => const Color(0xFFFFF7ED),
+        _ => AppColors.primary50,
+      };
+
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
@@ -3560,21 +3621,35 @@ class _OrdonnanceLineCard extends StatelessWidget {
       if (line.frequency != null) line.frequency!,
       if (line.durationDays != null) '${line.durationDays} j',
     ].join(' · ');
+    final status = line.status;
+    final isActive = status == null || status == 'active';
+    final statusLabel = _statusLabel(status);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Symbols.medication_rounded,
-              size: 18, color: AppColors.primary700),
+          Icon(Symbols.medication_rounded,
+              size: 18,
+              color: isActive ? AppColors.primary700 : AppColors.neutral500),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(line.medication,
-                    style: tt.titleSmall?.copyWith(fontSize: 14)),
+                Text(
+                  line.medication,
+                  style: tt.titleSmall?.copyWith(
+                    fontSize: 14,
+                    color: isActive
+                        ? null
+                        : AppColors.neutral500,
+                    decoration:
+                        isActive ? null : TextDecoration.lineThrough,
+                  ),
+                ),
                 if (details.isNotEmpty) ...[
                   const SizedBox(height: 1),
                   Text(details, style: tt.bodySmall),
@@ -3588,6 +3663,25 @@ class _OrdonnanceLineCard extends StatelessWidget {
               ],
             ),
           ),
+          if (!isActive && statusLabel != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: _statusBg(status),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border:
+                    Border.all(color: _statusColor(status).withAlpha(60)),
+              ),
+              child: Text(
+                statusLabel,
+                style: tt.bodySmall?.copyWith(
+                    color: _statusColor(status),
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -3687,6 +3781,7 @@ class _DecryptedImageTileState extends State<_DecryptedImageTile> {
         });
       }
     } catch (e) {
+      debugPrint(e.toString());
       if (mounted) {
         setState(() {
           _error = e.toString();
