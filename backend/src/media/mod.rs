@@ -91,21 +91,19 @@ impl MediaStore {
     pub async fn from_config(config: &Config) -> Self {
         match config.app_env {
             AppEnv::Dev => MediaStore::Memory(MemoryMediaStore::default()),
-            AppEnv::Staging | AppEnv::Prod => {
-                match ObjectMetaMediaStore::new(config).await {
-                    Ok(store) => {
-                        tracing::info!(env = %config.app_env, "using durable MinIO+Postgres media backing");
-                        MediaStore::ObjectMeta(store)
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            env = %config.app_env,
-                            "ObjectMetaMediaStore failed to initialise — cannot start in staging/prod without durable backing"
-                        );
-                        std::process::exit(1);
-                    }
+            AppEnv::Staging | AppEnv::Prod => match ObjectMetaMediaStore::new(config).await {
+                Ok(store) => {
+                    tracing::info!(env = %config.app_env, "using durable MinIO+Postgres media backing");
+                    MediaStore::ObjectMeta(store)
                 }
-            }
+                Err(_) => {
+                    tracing::error!(
+                        env = %config.app_env,
+                        "ObjectMetaMediaStore failed to initialise — cannot start in staging/prod without durable backing"
+                    );
+                    std::process::exit(1);
+                }
+            },
         }
     }
 
