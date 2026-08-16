@@ -22,8 +22,10 @@
 
 pub mod access;
 mod memory;
+mod object_meta;
 
 pub use memory::MemoryMediaStore;
+pub use object_meta::ObjectMetaMediaStore;
 
 use axum::body::Bytes;
 use uuid::Uuid;
@@ -75,30 +77,33 @@ pub enum MediaPutOutcome {
 pub enum MediaStore {
     /// Process-memory backing (dev/test).
     Memory(MemoryMediaStore),
+    /// Durable MinIO + PostgreSQL backing (staging/prod, #23/#8).
+    ObjectMeta(ObjectMetaMediaStore),
 }
 
 impl MediaStore {
     /// Select the backing for the running environment.
     ///
-    /// `dev` uses the in-memory store. `staging`/`prod` will use the durable MinIO + PostgreSQL
-    /// backing once it is wired — see the `TODO(#8)` below; until then they fall back to the
-    /// in-memory store and log a loud warning, since the real services do not exist before #8
-    /// (same posture as [`crate::store::BlobStore::from_config`]).
-    pub fn from_config(config: &Config) -> Self {
+    /// - `dev`: in-memory store (no external services required).
+    /// - `staging`/`prod`: MinIO + PostgreSQL via [`ObjectMetaMediaStore`]. Fails fast if the
+    ///   storage secrets are absent or the services are unreachable — a misconfigured deploy must
+    ///   never start half-blind.
+    pub async fn from_config(config: &Config) -> Self {
         match config.app_env {
             AppEnv::Dev => MediaStore::Memory(MemoryMediaStore::default()),
-            AppEnv::Staging | AppEnv::Prod => {
-                // TODO(#8): construct the durable object backing (MinIO put/get/remove of the
-                // opaque ciphertext in a DEDICATED media bucket with SSE-at-rest, plus a Postgres
-                // `media_metadata` pool holding non-identifying columns only) from `config`'s
-                // injected storage secrets, once sovereign hosting (#8, ADR 0005) is provisioned.
-                tracing::warn!(
-                    env = %config.app_env,
-                    "durable MinIO+Postgres media backing is not wired yet (tracked under #23/#8); \
-                     falling back to the in-memory store"
-                );
-                MediaStore::Memory(MemoryMediaStore::default())
-            }
+            AppEnv::Staging | AppEnv::Prod => match ObjectMetaMediaStore::new(config).await {
+                Ok(store) => {
+                    tracing::info!(env = %config.app_env, "using durable MinIO+Postgres media backing");
+                    MediaStore::ObjectMeta(store)
+                }
+                Err(_) => {
+                    tracing::error!(
+                        env = %config.app_env,
+                        "ObjectMetaMediaStore failed to initialise — cannot start in staging/prod without durable backing"
+                    );
+                    std::process::exit(1);
+                }
+            },
         }
     }
 
@@ -106,6 +111,7 @@ impl MediaStore {
     pub async fn put(&self, uuid: Uuid, bytes: Bytes) -> Result<MediaPutOutcome, StoreError> {
         match self {
             MediaStore::Memory(s) => s.put(uuid, bytes).await,
+            MediaStore::ObjectMeta(s) => s.put(uuid, bytes).await,
         }
     }
 
@@ -113,6 +119,7 @@ impl MediaStore {
     pub async fn get(&self, uuid: Uuid) -> Result<Option<StoredMedia>, StoreError> {
         match self {
             MediaStore::Memory(s) => s.get(uuid).await,
+            MediaStore::ObjectMeta(s) => s.get(uuid).await,
         }
     }
 
@@ -121,6 +128,7 @@ impl MediaStore {
     pub async fn exists(&self, uuid: Uuid) -> Result<bool, StoreError> {
         match self {
             MediaStore::Memory(s) => s.exists(uuid).await,
+            MediaStore::ObjectMeta(s) => s.exists(uuid).await,
         }
     }
 
@@ -129,16 +137,15 @@ impl MediaStore {
     pub async fn delete(&self, uuid: Uuid) -> Result<bool, StoreError> {
         match self {
             MediaStore::Memory(s) => s.delete(uuid).await,
+            MediaStore::ObjectMeta(s) => s.delete(uuid).await,
         }
     }
 
     /// Readiness probe for the backing store.
-    /// `allow(dead_code)` until the durable MinIO+Postgres backing lands with #8, at which point
-    /// the health endpoint will wire all store probes into a composite readiness check.
-    #[allow(dead_code)]
     pub async fn health(&self) -> Result<(), StoreError> {
         match self {
             MediaStore::Memory(s) => s.health().await,
+            MediaStore::ObjectMeta(s) => s.health().await,
         }
     }
 }
@@ -191,14 +198,13 @@ mod tests {
     }
 
     /// `from_config` with a dev config (no env vars) must construct a working memory-backed store.
-    #[test]
-    fn from_config_dev_returns_functional_memory_store() {
+    #[tokio::test]
+    async fn from_config_dev_returns_functional_memory_store() {
         let config = Config::load(|_| None).expect("dev config must load with no env vars");
-        let store = MediaStore::from_config(&config);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap();
-        rt.block_on(store.health())
+        let store = MediaStore::from_config(&config).await;
+        store
+            .health()
+            .await
             .expect("memory media store must always report healthy");
     }
 }

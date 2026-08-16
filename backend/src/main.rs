@@ -99,11 +99,14 @@ fn version_headers_named(
     ]
 }
 
-/// Readiness probe. `200 "ok"` when the backing store answers, `503` otherwise.
+/// Readiness probe. `200 "ok"` when both backing stores answer, `503` otherwise.
 async fn health(State(state): State<AppState>) -> Response {
-    match state.store.health().await {
-        Ok(()) => (StatusCode::OK, "ok").into_response(),
-        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "unavailable").into_response(),
+    let blob_ok = state.store.health().await.is_ok();
+    let media_ok = state.media.health().await.is_ok();
+    if blob_ok && media_ok {
+        (StatusCode::OK, "ok").into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "unavailable").into_response()
     }
 }
 
@@ -430,10 +433,10 @@ async fn main() {
         std::process::exit(1);
     });
 
-    // Pick the backing stores for this environment (in-memory in dev; MinIO+Postgres lands with
-    // #8). The media access signer takes the injected `PRESIGNED_URL_SIGNING_KEY` (ADR 0005/0007).
+    // Pick the backing stores for this environment (in-memory in dev; MinIO+Postgres in staging/prod).
+    // The media access signer takes the injected `PRESIGNED_URL_SIGNING_KEY` (ADR 0005/0007).
     let store = BlobStore::from_config(&config).await;
-    let media = MediaStore::from_config(&config);
+    let media = MediaStore::from_config(&config).await;
     let access = MediaAccess::from_config(&config);
 
     // TODO(#8): TLS termination handled by the in-country reverse proxy (ADR 0005).
