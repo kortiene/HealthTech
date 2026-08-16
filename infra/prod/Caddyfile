@@ -1,0 +1,7 @@
+# HealthTech — reverse proxy TLS (Caddy 2).
+# Caddy gère automatiquement les certificats Let's Encrypt.
+# Remplacer api.healthtech.ci par le vrai domaine si différent.
+
+api.healthtech.ci {
+    reverse_proxy backend:8080
+}
