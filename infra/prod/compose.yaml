@@ -3,22 +3,21 @@
 # PRÉREQUIS :
 #   1. Docker + Docker Compose installés sur le serveur.
 #   2. Copier .env.example → .env et remplir toutes les valeurs.
-#   3. Le serveur doit être physiquement en Côte d'Ivoire (ARTCI/ADR 0005).
-#   4. Les domaines api.healthtech.ci et medecin.healthtech.ci pointent sur l'IP du serveur.
+#   3. Le réseau Docker "proxy" du companion doit exister sur le serveur.
 #
 # DÉMARRAGE (première fois — construit la PWA localement) :
-#   docker compose -f infra/prod/compose.yaml --env-file infra/prod/.env up -d --build
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml up -d --build
 #
-# MISE À JOUR BACKEND (image pre-built depuis ghcr.io) :
-#   docker compose -f infra/prod/compose.yaml --env-file infra/prod/.env pull backend
-#   docker compose -f infra/prod/compose.yaml --env-file infra/prod/.env up -d backend
+# MISE À JOUR BACKEND :
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml pull backend
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml up -d backend
 #
-# MISE À JOUR PWA (rebuild local après git pull) :
-#   docker compose -f infra/prod/compose.yaml --env-file infra/prod/.env up -d --build pwa
+# MISE À JOUR PWA (après git pull) :
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml up -d --build pwa
 #
 # LOGS :
-#   docker compose -f infra/prod/compose.yaml logs -f backend
-#   docker compose -f infra/prod/compose.yaml logs -f pwa
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml logs -f backend
+#   docker compose --env-file infra/prod/.env -f infra/prod/compose.yaml logs -f pwa
 
 services:
   postgres:
@@ -57,15 +56,19 @@ services:
 
   backend:
     image: ghcr.io/kortiene/healthtech-backend:latest
+    expose:
+      - 8080
     environment:
       APP_ENV: prod
       BIND_ADDR: 0.0.0.0:8080
-      # Construit à partir des variables du .env — ne pas modifier ces lignes.
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-healthtech}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       PRESIGNED_URL_SIGNING_KEY: ${PRESIGNED_URL_SIGNING_KEY}
+      VIRTUAL_HOST: ${BACKEND_DOMAIN}
+      LETSENCRYPT_HOST: ${BACKEND_DOMAIN}
+      LETSENCRYPT_EMAIL: devops@wozo.com
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,40 +77,29 @@ services:
     restart: unless-stopped
     networks:
       - internal
+      - proxy
 
   pwa:
     build:
       context: ../../app-medecin
       dockerfile: Dockerfile
+    expose:
+      - 80
+    environment:
+      VIRTUAL_HOST: ${PWA_DOMAIN}
+      LETSENCRYPT_HOST: ${PWA_DOMAIN}
+      LETSENCRYPT_EMAIL: devops@wozo.com
     restart: unless-stopped
     networks:
       - internal
-
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - backend
-      - pwa
-    restart: unless-stopped
-    networks:
-      - internal
+      - proxy
 
 volumes:
   pgdata:
   miniodata:
-  caddy_data:
-  caddy_config:
 
-# Réseau interne isolé : seul Caddy expose des ports vers l'extérieur.
-# Le backend et les services de stockage ne sont pas accessibles directement.
 networks:
   internal:
     driver: bridge
+  proxy:
+    external: true
