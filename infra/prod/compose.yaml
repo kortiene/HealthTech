@@ -68,7 +68,7 @@ services:
       PRESIGNED_URL_SIGNING_KEY: ${PRESIGNED_URL_SIGNING_KEY}
       VIRTUAL_HOST: ${BACKEND_DOMAIN}
       LETSENCRYPT_HOST: ${BACKEND_DOMAIN}
-      LETSENCRYPT_EMAIL: devops@wozo.com
+      LETSENCRYPT_EMAIL: devops@incubtek.com
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,7 +88,7 @@ services:
     environment:
       VIRTUAL_HOST: ${PWA_DOMAIN}
       LETSENCRYPT_HOST: ${PWA_DOMAIN}
-      LETSENCRYPT_EMAIL: devops@wozo.com
+      LETSENCRYPT_EMAIL: devops@incubtek.com
     restart: unless-stopped
     networks:
       - internal
