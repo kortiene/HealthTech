@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleur de fond du splash natif (AppColors.primary900). -->
+    <color name="launch_background">#003D39</color>
+</resources>
