@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icône avant-plan adaptative (108 dp × 108 dp).
+  Zone sûre : centre 66 dp (dp 21–87). La croix médicale (22–86) y tient.
+  Couleur : blanc — lisible sur primary700 (#006C67).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,22 L63,22 L63,45 L86,45 L86,63 L63,63 L63,86 L45,86 L45,63 L22,63 L22,45 L45,45 Z"/>
+</vector>
