@@ -39,7 +39,8 @@ import 'src/ui/main_shell.dart';
 import 'src/ui/onboarding_screen.dart';
 import 'src/ui/splash_screen.dart';
 
-const String _kBackendBaseUrl = 'https://api.healthtech.ci';
+const String _kBackendBaseUrl =
+    'https://healthtech-api.staging.go.incubtek.com';
 const String _kPinKey = 'patient_pin';
 const String _kLastSyncKey = 'last_sync_at';
 const String _kAutoShareMediaKey = 'auto_share_media';
