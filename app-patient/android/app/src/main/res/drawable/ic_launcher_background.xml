@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fond de l'icône adaptative Android 8+ (AppColors.primary700). -->
+<!-- Fond de l'icône adaptative Android 8+ (AppColors.primary900). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#006C67"/>
+    <solid android:color="#003D39"/>
 </shape>

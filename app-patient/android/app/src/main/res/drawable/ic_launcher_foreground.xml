@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Icône avant-plan adaptative (108 dp × 108 dp).
-  Zone sûre : centre 66 dp (dp 21–87). La croix médicale (22–86) y tient.
-  Couleur : blanc — lisible sur primary700 (#006C67).
+  Foreground adaptatif (108 dp × 108 dp). Reproduit le Container du SplashScreen :
+    - Carré arrondi primary700 (#006C67), centré dans la safe-zone (22–86 dp)
+      → corners radius 20 dp (≈ AppRadii.lg+8=32 ramené à l'échelle 64/100)
+    - Croix médicale blanche, 32 dp de côté, bras 10 dp (≈ 50 % du carré)
+  Le background layer (#003D39) est visible autour quand le launcher masque l'icône.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Carré arrondi (container) : primary700 -->
+    <path
+        android:fillColor="#006C67"
+        android:pathData="M42,22 L66,22 Q86,22,86,42 L86,66 Q86,86,66,86 L42,86 Q22,86,22,66 L22,42 Q22,22,42,22 Z"/>
+
+    <!-- Croix médicale : blanche, centrée dans le container -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M45,22 L63,22 L63,45 L86,45 L86,63 L63,63 L63,86 L45,86 L45,63 L22,63 L22,45 L45,45 Z"/>
+        android:pathData="M49,38 L59,38 L59,49 L70,49 L70,59 L59,59 L59,70 L49,70 L49,59 L38,59 L38,49 L49,49 Z"/>
 </vector>
