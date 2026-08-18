@@ -25,9 +25,9 @@ RUN cargo build --release --locked --package backend \
  && cp target/release/backend /backend
 
 # ---- runtime stage --------------------------------------------------------
-# distroless/base-debian12 inclut glibc — compatible avec le binaire glibc produit
-# par le toolchain Rust standard (bookworm). Image < 20 Mo, pas de shell, non-root.
-FROM gcr.io/distroless/base-debian12:nonroot AS runtime
+# distroless/cc-debian12 inclut glibc + libgcc_s — requis par les binaires Rust
+# compilés avec le toolchain glibc standard. Pas de shell, non-root, ~20 Mo.
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 LABEL org.opencontainers.image.title="healthtech-backend" \
       org.opencontainers.image.description="HealthTech zero-knowledge blob proxy (ADR 0004) — stores opaque ciphertext only, no keys, no decrypt path." \
       org.opencontainers.image.source="https://github.com/kortiene/HealthTech" \
