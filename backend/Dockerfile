@@ -36,14 +36,18 @@ RUN cargo build --release --locked --target "${TARGET}" --package backend \
  && cp "target/${TARGET}/release/backend" /backend
 
 # ---- runtime stage --------------------------------------------------------
-# distroless static + nonroot: no shell/pkg-mgr, runs as uid 65532.
-FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+# Alpine fournit le loader musl (/lib/ld-musl-x86_64.so.1) requis par le binaire
+# musl PIE produit par Rust. distroless/static est trop vide — il n'a pas ce loader.
+# Alpine reste minimal : pas de shell par défaut dans l'image finale (sh existe mais
+# on ne l'expose pas), surface d'attaque faible, image < 10 Mo.
+FROM alpine:3.21 AS runtime
 LABEL org.opencontainers.image.title="healthtech-backend" \
       org.opencontainers.image.description="HealthTech zero-knowledge blob proxy (ADR 0004) — stores opaque ciphertext only, no keys, no decrypt path." \
       org.opencontainers.image.source="https://github.com/kortiene/HealthTech" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
+RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /backend /usr/local/bin/backend
 # Matches the listen address in backend/src/main.rs (0.0.0.0:8080).
 EXPOSE 8080
-USER nonroot:nonroot
+USER app:app
 ENTRYPOINT ["/usr/local/bin/backend"]
