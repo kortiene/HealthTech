@@ -618,11 +618,13 @@ class _QrView extends StatelessWidget {
                             color: AppColors.primary500,
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            'Valable 120 s — Partagez uniquement avec votre médecin',
-                            style: TextStyle(
-                              color: AppColors.white.withAlpha(153),
-                              fontSize: 11,
+                          Flexible(
+                            child: Text(
+                              'Valable 120 s — Partagez uniquement avec votre médecin',
+                              style: TextStyle(
+                                color: AppColors.white.withAlpha(153),
+                                fontSize: 11,
+                              ),
                             ),
                           ),
                         ],

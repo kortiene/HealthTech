@@ -78,8 +78,9 @@ class HomeScreen extends StatelessWidget {
                   _ActiveTreatmentsCard(treatments: _activeTreatments),
                   const SizedBox(height: AppSpacing.md),
                 ],
-                _SecondaryAction(onTap: onScan),
-                const SizedBox(height: AppSpacing.md),
+                // Interface médecin masquée — non nécessaire ici pour l'instant.
+                // _SecondaryAction(onTap: onScan),
+                // const SizedBox(height: AppSpacing.md),
                 _BackupStatusCard(
                   lastBackupAt: lastSyncedAt != null
                       ? DateTime.tryParse(lastSyncedAt!)?.toLocal()
@@ -378,60 +379,7 @@ class _ActiveTreatmentsCard extends StatelessWidget {
   }
 }
 
-// ── Secondary action — scanner ───────────────────────────────────────────────
-
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(AppRadii.md),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            border: Border.all(color: AppColors.neutral200),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.accent100,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                ),
-                child: const Icon(Symbols.qr_code_scanner_rounded,
-                    color: AppColors.accent700, size: 24),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Interface médecin',
-                        style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 2),
-                    Text('Scanner le QR d\'un patient',
-                        style: Theme.of(context).textTheme.bodyMedium),
-                  ],
-                ),
-              ),
-              const Icon(Symbols.chevron_right_rounded,
-                  color: AppColors.neutral500),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── Secondary action — scanner (masqué pour l'instant, voir _showScan) ──────
 
 // ── Backup status card ───────────────────────────────────────────────────────
 
