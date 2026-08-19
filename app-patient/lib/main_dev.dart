@@ -182,6 +182,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   bool _biometricEnabled = false;
   String? _lastSyncedAt;
   bool _autoShareMedia = false;
+  bool _isSyncing = false;
 
   static const _masterKey = MasterKeyService(
     cryptoCore: _DevCryptoCore(),
@@ -524,7 +525,29 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _onQrClosed() async {
+  Future<void> _onQrClosed(Uint8List? sessionKey) async {
+    // Dev (XOR-0x5A): crypto is key-agnostic — sessionKey is not needed.
+    sessionKey?.fillRange(0, sessionKey.length, 0);
+    if (mounted) setState(() => _isSyncing = true);
+    try {
+      await _doCloudSync();
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  Future<void> _onHomeSync() async {
+    if (_isSyncing || _record == null || _account == null) return;
+    if (mounted) setState(() => _isSyncing = true);
+    try {
+      await _doCloudSync();
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  // Shared pull-and-merge logic for dev mode (XOR-0x5A is key-agnostic).
+  Future<void> _doCloudSync() async {
     final savedRecord = _record;
     if (savedRecord == null || _account == null) return;
     final handle = await _masterKey.unsealForUse();
@@ -540,7 +563,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       } on BackendUnavailable {
         // Offline — write savedRecord back as-is.
       } catch (_) {
-        // Prod decrypt error → write savedRecord back as-is.
+        // Decrypt error or other — fall back to local.
       }
       if (!identical(toWrite, savedRecord) && mounted) {
         setState(() => _record = toWrite);
@@ -653,6 +676,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           onWillPauseForPicker: _onWillPauseForPicker,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,
+          onHomeSync: _onHomeSync,
+          isSyncing: _isSyncing,
           storedPin: _storedPin,
           onChangePin: _onChangePin,
           biometricService: _biometricService,

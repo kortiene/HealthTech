@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -26,6 +28,8 @@ class MainShell extends StatefulWidget {
     this.onWillPauseForPicker,
     this.onUpdateRecord,
     this.onQrClosed,
+    this.onHomeSync,
+    this.isSyncing = false,
     this.storedPin,
     this.onChangePin,
     this.biometricService,
@@ -47,7 +51,9 @@ class MainShell extends StatefulWidget {
   final String? backendUrl;
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(MedicalRecord)? onUpdateRecord;
-  final Future<void> Function()? onQrClosed;
+  final Future<void> Function(Uint8List?)? onQrClosed;
+  final Future<void> Function()? onHomeSync;
+  final bool isSyncing;
   final String? storedPin;
   final Future<void> Function(String)? onChangePin;
   final BiometricService? biometricService;
@@ -68,8 +74,10 @@ class _MainShellState extends State<MainShell> {
   int _tab = 0;
 
   Future<void> _showQr() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    // QrScreen pops with a copy of the session key bytes (or null if expired).
+    // The copy is made before dispose() wipes the original key bytes.
+    final sessionKey = await Navigator.of(context).push<Uint8List?>(
+      MaterialPageRoute<Uint8List?>(
         builder: (_) => QrScreen(
           controller: widget.qrController,
           record: widget.record,
@@ -77,8 +85,8 @@ class _MainShellState extends State<MainShell> {
         ),
       ),
     );
-    // QR screen closed — doctor may have written a note; pull latest from cloud.
-    await widget.onQrClosed?.call();
+    // Pass the session key so _onQrClosed can decrypt the doctor's session blob.
+    await widget.onQrClosed?.call(sessionKey);
   }
 
   void _openEditProfile() {
@@ -116,6 +124,8 @@ class _MainShellState extends State<MainShell> {
         onScan: _showScan,
         lastSyncedAt: widget.lastSyncedAt,
         onEditProfile: _openEditProfile,
+        onSync: widget.onHomeSync != null ? () => widget.onHomeSync!() : null,
+        isSyncing: widget.isSyncing,
       ),
       PatientRecordScreen(
         record: widget.record,

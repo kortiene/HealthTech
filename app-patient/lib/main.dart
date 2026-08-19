@@ -12,14 +12,15 @@
 //
 //   On app pause → lock (show PinScreen again on resume).
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import 'src/rust/frb_generated.dart';
 
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
 import 'src/cloud/media_client.dart';
+import 'src/cloud/network_retry.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
@@ -27,8 +28,8 @@ import 'src/qr/media_migration.dart';
 import 'src/record/media_cipher.dart';
 import 'src/record/medical_record.dart';
 import 'src/record/medical_record_store.dart';
-import 'src/cloud/network_retry.dart';
 import 'src/rust/crypto_core_bindings.dart';
+import 'src/rust/frb_generated.dart';
 import 'src/secure/biometric_service.dart';
 import 'src/secure/keystore_channel.dart';
 import 'src/secure/master_key_service.dart';
@@ -102,10 +103,18 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   bool _autoShareMedia = false;
 
   final _masterKey = const MasterKeyService();
+  final _crypto = const FrbCryptoCore();
   late final PatientAccountStore _accountStore;
   late final MedicalRecordStore _recordStore;
   late final MediaClient _mediaClient;
   final _mediaCipher = const MediaCipher(FrbCryptoCore());
+
+  // Session key kept in RAM after QR close so the home sync button can retry
+  // decryption if the doctor writes notes after the patient leaves QR screen.
+  // Wiped on successful merge or when _pendingSessionExpiresAt is passed.
+  Uint8List? _pendingSessionKey;
+  DateTime? _pendingSessionExpiresAt;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -429,37 +438,53 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _onQrClosed() async {
+  void _wipePendingSession() {
+    _pendingSessionKey?.fillRange(0, _pendingSessionKey!.length, 0);
+    _pendingSessionKey = null;
+    _pendingSessionExpiresAt = null;
+  }
+
+  // Core cloud sync: downloads from backend, decrypts with sessionKey (or
+  // master key if null), merges doctor additions into local record, restores
+  // master-key blob on backend. Returns true when local record was updated.
+  // Does NOT wipe sessionKey — caller manages its lifecycle.
+  Future<bool> _syncFromCloud({Uint8List? sessionKey}) async {
     final savedRecord = _record;
-    if (savedRecord == null || _account == null) return;
+    if (savedRecord == null || _account == null) return false;
     final handle = await _masterKey.unsealForUse();
     try {
-      // Try to pick up doctor additions from the session blob.
-      // Base is always savedRecord to preserve file:// media URLs —
-      // the session blob has null URLs (sanitised for the doctor).
-      // In dev (XOR-0x5A key-agnostic): decrypt succeeds → merge applied.
-      // In prod (AES-GCM): decrypt throws with wrong key → fallback to local.
       var toWrite = savedRecord;
       final toDelete = <String>[];
+      bool gotNewData = false;
       try {
-        final fromCloud = await _recordStore.read(
-          handle,
-          _account!.anonymousUuid,
-          forceCloud: true,
-        );
-        toWrite = _mergeSessionIntoLocal(savedRecord, fromCloud);
-        // Download url:null media that the doctor uploaded (#152).
-        final (downloaded, pending) = await downloadPendingMedia(
-          toWrite,
-          _mediaClient,
-          _mediaCipher,
-        );
-        toWrite = downloaded;
-        toDelete.addAll(pending);
+        MasterKeyHandle? sessionHandle;
+        if (sessionKey != null) {
+          sessionHandle = await _crypto.handleFromUnsealed(sessionKey);
+        }
+        try {
+          final fromCloud = await _recordStore.read(
+            sessionHandle ?? handle,
+            _account!.anonymousUuid,
+            forceCloud: true,
+          );
+          final merged = _mergeSessionIntoLocal(savedRecord, fromCloud);
+          gotNewData = !identical(merged, savedRecord);
+          toWrite = merged;
+          // Download url:null media that the doctor uploaded (#152).
+          final (downloaded, pending) = await downloadPendingMedia(
+            toWrite,
+            _mediaClient,
+            _mediaCipher,
+          );
+          toWrite = downloaded;
+          toDelete.addAll(pending);
+        } finally {
+          if (sessionHandle != null) await _crypto.wipe(sessionHandle);
+        }
       } on BackendUnavailable {
         // Offline — write savedRecord back as-is.
       } catch (_) {
-        // Prod decrypt error → write savedRecord back as-is.
+        // DecryptError or other — fall back to local record.
       }
       if (!identical(toWrite, savedRecord) && mounted) {
         setState(() => _record = toWrite);
@@ -473,7 +498,6 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       } on BackendUnavailable {
         // Offline — local record intact; cloud sync will restore on next connect.
       }
-      // Delete media from backend after local persistence confirmed (#152).
       for (final uuid in toDelete) {
         try {
           await _mediaClient.deleteMedia(uuid);
@@ -481,8 +505,51 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           // Best-effort — backend retention policy (#114) cleans up.
         }
       }
+      return gotNewData;
     } finally {
       await _masterKey.wipeHandle(handle);
+    }
+  }
+
+  // Called by QrScreen (via MainShell) when the patient closes the QR screen.
+  // sessionKey: copy of K_session made before dispose() wipes it. null when
+  // the QR expired before the screen was closed.
+  Future<void> _onQrClosed(Uint8List? sessionKey) async {
+    // Save a copy of the session key for the home sync button to retry with,
+    // in case the doctor writes notes after the patient leaves this screen.
+    if (sessionKey != null) {
+      _wipePendingSession();
+      _pendingSessionKey = Uint8List.fromList(sessionKey);
+      _pendingSessionExpiresAt =
+          DateTime.now().add(const Duration(seconds: 120));
+      sessionKey.fillRange(0, sessionKey.length, 0);
+    }
+    if (mounted) setState(() => _isSyncing = true);
+    try {
+      final gotData = await _syncFromCloud(sessionKey: _pendingSessionKey);
+      if (gotData) _wipePendingSession();
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  // Home screen "Récupérer les notes" button handler.
+  // Uses the pending session key (kept in RAM for 120s after QR close) to
+  // decrypt the doctor's session blob if the doctor wrote after patient left.
+  Future<void> _onHomeSync() async {
+    if (_isSyncing || _record == null || _account == null) return;
+    final pending = _pendingSessionKey;
+    final expiry = _pendingSessionExpiresAt;
+    final sessionKey =
+        (pending != null && expiry != null && DateTime.now().isBefore(expiry))
+            ? pending
+            : null;
+    if (mounted) setState(() => _isSyncing = true);
+    try {
+      final gotData = await _syncFromCloud(sessionKey: sessionKey);
+      if (gotData) _wipePendingSession();
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
@@ -619,6 +686,8 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           onWillPauseForPicker: _onWillPauseForPicker,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,
+          onHomeSync: _onHomeSync,
+          isSyncing: _isSyncing,
           storedPin: _storedPin,
           onChangePin: _onChangePin,
           biometricService: _biometricService,

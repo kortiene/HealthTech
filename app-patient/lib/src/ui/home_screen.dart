@@ -15,6 +15,8 @@ class HomeScreen extends StatelessWidget {
     required this.onScan,
     this.lastSyncedAt,
     this.onEditProfile,
+    this.onSync,
+    this.isSyncing = false,
   });
 
   final MedicalRecord record;
@@ -23,6 +25,8 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onScan;
   final String? lastSyncedAt;
   final VoidCallback? onEditProfile;
+  final VoidCallback? onSync;
+  final bool isSyncing;
 
   bool get _isProfileEmpty =>
       (record.demographics.givenName ?? '').trim().isEmpty;
@@ -74,12 +78,15 @@ class HomeScreen extends StatelessWidget {
                   _ActiveTreatmentsCard(treatments: _activeTreatments),
                   const SizedBox(height: AppSpacing.md),
                 ],
-                _SecondaryAction(onTap: onScan),
-                const SizedBox(height: AppSpacing.md),
+                // Interface médecin masquée — non nécessaire ici pour l'instant.
+                // _SecondaryAction(onTap: onScan),
+                // const SizedBox(height: AppSpacing.md),
                 _BackupStatusCard(
                   lastBackupAt: lastSyncedAt != null
                       ? DateTime.tryParse(lastSyncedAt!)?.toLocal()
                       : null,
+                  onSync: onSync,
+                  isSyncing: isSyncing,
                 ),
                 const SizedBox(height: AppSpacing.xl),
               ]),
@@ -315,21 +322,21 @@ class _ActiveTreatmentsCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Symbols.medical_services_rounded,
-                  size: 16, color: AppColors.primary700),
+                  size: 16, color: AppColors.accent700),
               const SizedBox(width: 6),
               Text('Traitements en cours',
-                  style: tt.labelLarge?.copyWith(color: AppColors.primary700)),
+                  style: tt.labelLarge?.copyWith(color: AppColors.accent700)),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primary100,
+                  color: AppColors.accent100,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
                 child: Text(
                   '${treatments.length}',
                   style: tt.bodySmall?.copyWith(
-                      color: AppColors.primary700, fontWeight: FontWeight.w700),
+                      color: AppColors.accent700, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -345,7 +352,7 @@ class _ActiveTreatmentsCard extends StatelessWidget {
                     height: 6,
                     margin: const EdgeInsets.only(right: 8, top: 1),
                     decoration: const BoxDecoration(
-                      color: AppColors.primary500,
+                      color: AppColors.accent500,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -372,100 +379,100 @@ class _ActiveTreatmentsCard extends StatelessWidget {
   }
 }
 
-// ── Secondary action — scanner ───────────────────────────────────────────────
-
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(AppRadii.md),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            border: Border.all(color: AppColors.neutral200),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.accent100,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                ),
-                child: const Icon(Symbols.qr_code_scanner_rounded,
-                    color: AppColors.accent700, size: 24),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Interface médecin',
-                        style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 2),
-                    Text('Scanner le QR d\'un patient',
-                        style: Theme.of(context).textTheme.bodyMedium),
-                  ],
-                ),
-              ),
-              const Icon(Symbols.chevron_right_rounded,
-                  color: AppColors.neutral500),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── Secondary action — scanner (masqué pour l'instant, voir _showScan) ──────
 
 // ── Backup status card ───────────────────────────────────────────────────────
 
 class _BackupStatusCard extends StatelessWidget {
-  const _BackupStatusCard({this.lastBackupAt});
+  const _BackupStatusCard({
+    this.lastBackupAt,
+    this.onSync,
+    this.isSyncing = false,
+  });
   final DateTime? lastBackupAt;
+  final VoidCallback? onSync;
+  final bool isSyncing;
 
   String _label() {
+    if (isSyncing) return 'Synchronisation…';
     if (lastBackupAt == null) return 'Aucune sauvegarde';
     final diff = DateTime.now().difference(lastBackupAt!);
-    if (diff.inMinutes < 60) return 'Sauvegardé il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'Sauvegardé il y a ${diff.inHours} h';
-    return 'Sauvegardé il y a ${diff.inDays} jour(s)';
+    if (diff.inMinutes < 1) return 'Synchronisé à l\'instant';
+    if (diff.inMinutes < 60) return 'Synchronisé il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Synchronisé il y a ${diff.inHours} h';
+    return 'Synchronisé il y a ${diff.inDays} jour(s)';
   }
 
   @override
   Widget build(BuildContext context) {
     final ok = lastBackupAt != null;
-    final color = ok ? AppColors.success : AppColors.neutral500;
+    final color = isSyncing
+        ? AppColors.primary500
+        : ok
+            ? AppColors.success
+            : AppColors.neutral500;
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppRadii.md),
         border: Border.all(color: AppColors.neutral200),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
-            size: 18,
-            color: color,
+          Row(
+            children: [
+              if (isSyncing)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary500,
+                  ),
+                )
+              else
+                Icon(
+                  ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
+                  size: 18,
+                  color: color,
+                ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  _label(),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: color),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(_label(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: color)),
+          if (onSync != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: isSyncing ? null : onSync,
+                icon: const Icon(Symbols.sync_rounded, size: 16),
+                label: const Text('Récupérer les notes du médecin'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary100,
+                  foregroundColor: AppColors.primary700,
+                  disabledBackgroundColor: AppColors.neutral100,
+                  disabledForegroundColor: AppColors.neutral500,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  textStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
