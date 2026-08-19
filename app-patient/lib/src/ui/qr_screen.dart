@@ -241,12 +241,12 @@ class _QrScreenState extends State<QrScreen> {
   }
 
   // Copy session key bytes before popping so the caller can decrypt the
-  // doctor's session blob BEFORE dispose() zeroes _payload.sessionKey.
-  // Returns null when the session already expired.
+  // doctor's session blob. The key is returned even after the countdown
+  // reaches zero — the doctor may write notes after the display timer
+  // expires. dispose() handles the actual zero-wipe.
   void _popWithKey() {
     final p = _payload;
-    final keyCopy =
-        (p != null && !p.isExpired) ? Uint8List.fromList(p.sessionKey) : null;
+    final keyCopy = p != null ? Uint8List.fromList(p.sessionKey) : null;
     Navigator.pop(context, keyCopy);
   }
 
@@ -258,7 +258,8 @@ class _QrScreenState extends State<QrScreen> {
           _remainingSeconds--;
         } else {
           _countdownTimer?.cancel();
-          _payload?.wipe();
+          // Key is NOT wiped here — dispose() handles it so that _popWithKey
+          // can still return valid bytes after the display countdown expires.
         }
       }),
     );
