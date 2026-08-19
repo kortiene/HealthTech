@@ -245,9 +245,8 @@ class _QrScreenState extends State<QrScreen> {
   // Returns null when the session already expired.
   void _popWithKey() {
     final p = _payload;
-    final keyCopy = (p != null && !p.isExpired)
-        ? Uint8List.fromList(p.sessionKey)
-        : null;
+    final keyCopy =
+        (p != null && !p.isExpired) ? Uint8List.fromList(p.sessionKey) : null;
     Navigator.pop(context, keyCopy);
   }
 

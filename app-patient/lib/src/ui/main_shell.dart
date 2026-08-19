@@ -124,9 +124,7 @@ class _MainShellState extends State<MainShell> {
         onScan: _showScan,
         lastSyncedAt: widget.lastSyncedAt,
         onEditProfile: _openEditProfile,
-        onSync: widget.onHomeSync != null
-            ? () => widget.onHomeSync!()
-            : null,
+        onSync: widget.onHomeSync != null ? () => widget.onHomeSync!() : null,
         isSyncing: widget.isSyncing,
       ),
       PatientRecordScreen(

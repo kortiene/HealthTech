@@ -540,11 +540,10 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     if (_isSyncing || _record == null || _account == null) return;
     final pending = _pendingSessionKey;
     final expiry = _pendingSessionExpiresAt;
-    final sessionKey = (pending != null &&
-            expiry != null &&
-            DateTime.now().isBefore(expiry))
-        ? pending
-        : null;
+    final sessionKey =
+        (pending != null && expiry != null && DateTime.now().isBefore(expiry))
+            ? pending
+            : null;
     if (mounted) setState(() => _isSyncing = true);
     try {
       final gotData = await _syncFromCloud(sessionKey: sessionKey);
