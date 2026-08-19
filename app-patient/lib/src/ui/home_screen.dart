@@ -15,6 +15,8 @@ class HomeScreen extends StatelessWidget {
     required this.onScan,
     this.lastSyncedAt,
     this.onEditProfile,
+    this.onSync,
+    this.isSyncing = false,
   });
 
   final MedicalRecord record;
@@ -23,6 +25,8 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onScan;
   final String? lastSyncedAt;
   final VoidCallback? onEditProfile;
+  final VoidCallback? onSync;
+  final bool isSyncing;
 
   bool get _isProfileEmpty =>
       (record.demographics.givenName ?? '').trim().isEmpty;
@@ -80,6 +84,8 @@ class HomeScreen extends StatelessWidget {
                   lastBackupAt: lastSyncedAt != null
                       ? DateTime.tryParse(lastSyncedAt!)?.toLocal()
                       : null,
+                  onSync: onSync,
+                  isSyncing: isSyncing,
                 ),
                 const SizedBox(height: AppSpacing.xl),
               ]),
@@ -430,24 +436,40 @@ class _SecondaryAction extends StatelessWidget {
 // ── Backup status card ───────────────────────────────────────────────────────
 
 class _BackupStatusCard extends StatelessWidget {
-  const _BackupStatusCard({this.lastBackupAt});
+  const _BackupStatusCard({
+    this.lastBackupAt,
+    this.onSync,
+    this.isSyncing = false,
+  });
   final DateTime? lastBackupAt;
+  final VoidCallback? onSync;
+  final bool isSyncing;
 
   String _label() {
+    if (isSyncing) return 'Synchronisation…';
     if (lastBackupAt == null) return 'Aucune sauvegarde';
     final diff = DateTime.now().difference(lastBackupAt!);
-    if (diff.inMinutes < 60) return 'Sauvegardé il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'Sauvegardé il y a ${diff.inHours} h';
-    return 'Sauvegardé il y a ${diff.inDays} jour(s)';
+    if (diff.inMinutes < 1) return 'Synchronisé à l\'instant';
+    if (diff.inMinutes < 60) return 'Synchronisé il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Synchronisé il y a ${diff.inHours} h';
+    return 'Synchronisé il y a ${diff.inDays} jour(s)';
   }
 
   @override
   Widget build(BuildContext context) {
     final ok = lastBackupAt != null;
-    final color = ok ? AppColors.success : AppColors.neutral500;
+    final color = isSyncing
+        ? AppColors.primary500
+        : ok
+            ? AppColors.success
+            : AppColors.neutral500;
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: onSync != null ? AppSpacing.xs : AppSpacing.md,
+        top: AppSpacing.sm,
+        bottom: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppRadii.md),
@@ -455,17 +477,41 @@ class _BackupStatusCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
-            size: 18,
-            color: color,
-          ),
+          if (isSyncing)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary500,
+              ),
+            )
+          else
+            Icon(
+              ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
+              size: 18,
+              color: color,
+            ),
           const SizedBox(width: AppSpacing.sm),
-          Text(_label(),
+          Expanded(
+            child: Text(
+              _label(),
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: color)),
+                  ?.copyWith(color: color),
+            ),
+          ),
+          if (onSync != null)
+            IconButton(
+              onPressed: isSyncing ? null : onSync,
+              icon: const Icon(Symbols.sync_rounded, size: 18),
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              color: AppColors.primary500,
+              disabledColor: AppColors.neutral500,
+              tooltip: 'Récupérer les notes du médecin',
+            ),
         ],
       ),
     );

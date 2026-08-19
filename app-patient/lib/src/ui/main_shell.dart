@@ -28,6 +28,8 @@ class MainShell extends StatefulWidget {
     this.onWillPauseForPicker,
     this.onUpdateRecord,
     this.onQrClosed,
+    this.onHomeSync,
+    this.isSyncing = false,
     this.storedPin,
     this.onChangePin,
     this.biometricService,
@@ -50,6 +52,8 @@ class MainShell extends StatefulWidget {
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(MedicalRecord)? onUpdateRecord;
   final Future<void> Function(Uint8List?)? onQrClosed;
+  final Future<void> Function()? onHomeSync;
+  final bool isSyncing;
   final String? storedPin;
   final Future<void> Function(String)? onChangePin;
   final BiometricService? biometricService;
@@ -120,6 +124,10 @@ class _MainShellState extends State<MainShell> {
         onScan: _showScan,
         lastSyncedAt: widget.lastSyncedAt,
         onEditProfile: _openEditProfile,
+        onSync: widget.onHomeSync != null
+            ? () => widget.onHomeSync!()
+            : null,
+        isSyncing: widget.isSyncing,
       ),
       PatientRecordScreen(
         record: widget.record,
