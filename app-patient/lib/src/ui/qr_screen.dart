@@ -12,6 +12,7 @@
 // get the loading/QR/error states without interacting with the selector.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -239,6 +240,17 @@ class _QrScreenState extends State<QrScreen> {
     }
   }
 
+  // Copy session key bytes before popping so the caller can decrypt the
+  // doctor's session blob BEFORE dispose() zeroes _payload.sessionKey.
+  // Returns null when the session already expired.
+  void _popWithKey() {
+    final p = _payload;
+    final keyCopy = (p != null && !p.isExpired)
+        ? Uint8List.fromList(p.sessionKey)
+        : null;
+    Navigator.pop(context, keyCopy);
+  }
+
   void _startCountdown() {
     _countdownTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -255,22 +267,32 @@ class _QrScreenState extends State<QrScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primary900,
-      appBar: AppBar(
+    // PopScope(canPop: false) intercepts the system back gesture so we can
+    // pass the session key copy to the caller before dispose() wipes it.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _popWithKey();
+      },
+      child: Scaffold(
         backgroundColor: AppColors.primary900,
-        foregroundColor: AppColors.white,
-        elevation: 0,
-        title: const Text(
-          'Accès consultation',
-          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600),
+        appBar: AppBar(
+          backgroundColor: AppColors.primary900,
+          foregroundColor: AppColors.white,
+          elevation: 0,
+          title: const Text(
+            'Accès consultation',
+            style:
+                TextStyle(color: AppColors.white, fontWeight: FontWeight.w600),
+          ),
+          leading: IconButton(
+            icon:
+                const Icon(Symbols.arrow_back_rounded, color: AppColors.white),
+            onPressed: _popWithKey,
+          ),
         ),
-        leading: IconButton(
-          icon: const Icon(Symbols.arrow_back_rounded, color: AppColors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        body: SafeArea(child: _buildBody()),
       ),
-      body: SafeArea(child: _buildBody()),
     );
   }
 

@@ -12,14 +12,15 @@
 //
 //   On app pause → lock (show PinScreen again on resume).
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import 'src/rust/frb_generated.dart';
 
 import 'src/cloud/backend_client.dart'
     show BackendClient, BackendUnavailable, BlobNotFound;
 import 'src/cloud/media_client.dart';
+import 'src/cloud/network_retry.dart';
 import 'src/design/app_theme.dart';
 import 'src/doctor/scan_service.dart';
 import 'src/qr/access_token.dart';
@@ -27,8 +28,8 @@ import 'src/qr/media_migration.dart';
 import 'src/record/media_cipher.dart';
 import 'src/record/medical_record.dart';
 import 'src/record/medical_record_store.dart';
-import 'src/cloud/network_retry.dart';
 import 'src/rust/crypto_core_bindings.dart';
+import 'src/rust/frb_generated.dart';
 import 'src/secure/biometric_service.dart';
 import 'src/secure/keystore_channel.dart';
 import 'src/secure/master_key_service.dart';
@@ -102,6 +103,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   bool _autoShareMedia = false;
 
   final _masterKey = const MasterKeyService();
+  final _crypto = const FrbCryptoCore();
   late final PatientAccountStore _accountStore;
   late final MedicalRecordStore _recordStore;
   late final MediaClient _mediaClient;
@@ -429,37 +431,51 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _onQrClosed() async {
+  // sessionKey: copy of the QR session key, passed by QrScreen before wipe.
+  // null when the QR expired before the patient closed the screen — in that
+  // case the session blob on the backend cannot be decrypted; we fall back to
+  // the local record and restore the master-key blob on the backend.
+  Future<void> _onQrClosed(Uint8List? sessionKey) async {
     final savedRecord = _record;
     if (savedRecord == null || _account == null) return;
     final handle = await _masterKey.unsealForUse();
     try {
-      // Try to pick up doctor additions from the session blob.
-      // Base is always savedRecord to preserve file:// media URLs —
-      // the session blob has null URLs (sanitised for the doctor).
-      // In dev (XOR-0x5A key-agnostic): decrypt succeeds → merge applied.
-      // In prod (AES-GCM): decrypt throws with wrong key → fallback to local.
       var toWrite = savedRecord;
       final toDelete = <String>[];
       try {
-        final fromCloud = await _recordStore.read(
-          handle,
-          _account!.anonymousUuid,
-          forceCloud: true,
-        );
-        toWrite = _mergeSessionIntoLocal(savedRecord, fromCloud);
-        // Download url:null media that the doctor uploaded (#152).
-        final (downloaded, pending) = await downloadPendingMedia(
-          toWrite,
-          _mediaClient,
-          _mediaCipher,
-        );
-        toWrite = downloaded;
-        toDelete.addAll(pending);
+        // When sessionKey is available, decrypt the session blob (written by
+        // the doctor) with a temporary session-key handle. Without it (QR
+        // expired before close), we cannot decrypt → fall through to catch.
+        MasterKeyHandle? sessionHandle;
+        try {
+          if (sessionKey != null) {
+            sessionHandle = await _crypto.handleFromUnsealed(sessionKey);
+          }
+          final fromCloud = await _recordStore.read(
+            sessionHandle ?? handle,
+            _account!.anonymousUuid,
+            forceCloud: true,
+          );
+          toWrite = _mergeSessionIntoLocal(savedRecord, fromCloud);
+          // Download url:null media that the doctor uploaded (#152).
+          final (downloaded, pending) = await downloadPendingMedia(
+            toWrite,
+            _mediaClient,
+            _mediaCipher,
+          );
+          toWrite = downloaded;
+          toDelete.addAll(pending);
+        } finally {
+          if (sessionHandle != null) {
+            await _crypto.wipe(sessionHandle);
+          }
+          sessionKey?.fillRange(0, sessionKey.length, 0);
+        }
       } on BackendUnavailable {
         // Offline — write savedRecord back as-is.
       } catch (_) {
-        // Prod decrypt error → write savedRecord back as-is.
+        // DecryptError (session key null, blob still session-keyed) or other
+        // issue — fall back to local record.
       }
       if (!identical(toWrite, savedRecord) && mounted) {
         setState(() => _record = toWrite);
