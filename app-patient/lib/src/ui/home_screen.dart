@@ -322,21 +322,21 @@ class _ActiveTreatmentsCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Symbols.medical_services_rounded,
-                  size: 16, color: AppColors.primary700),
+                  size: 16, color: AppColors.accent700),
               const SizedBox(width: 6),
               Text('Traitements en cours',
-                  style: tt.labelLarge?.copyWith(color: AppColors.primary700)),
+                  style: tt.labelLarge?.copyWith(color: AppColors.accent700)),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primary100,
+                  color: AppColors.accent100,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
                 child: Text(
                   '${treatments.length}',
                   style: tt.bodySmall?.copyWith(
-                      color: AppColors.primary700, fontWeight: FontWeight.w700),
+                      color: AppColors.accent700, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -352,7 +352,7 @@ class _ActiveTreatmentsCard extends StatelessWidget {
                     height: 6,
                     margin: const EdgeInsets.only(right: 8, top: 1),
                     decoration: const BoxDecoration(
-                      color: AppColors.primary500,
+                      color: AppColors.accent500,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -412,54 +412,67 @@ class _BackupStatusCard extends StatelessWidget {
             ? AppColors.success
             : AppColors.neutral500;
     return Container(
-      padding: EdgeInsets.only(
-        left: AppSpacing.md,
-        right: onSync != null ? AppSpacing.xs : AppSpacing.md,
-        top: AppSpacing.sm,
-        bottom: AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppRadii.md),
         border: Border.all(color: AppColors.neutral200),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isSyncing)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.primary500,
+          Row(
+            children: [
+              if (isSyncing)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary500,
+                  ),
+                )
+              else
+                Icon(
+                  ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
+                  size: 18,
+                  color: color,
+                ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  _label(),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: color),
+                ),
               ),
-            )
-          else
-            Icon(
-              ok ? Symbols.cloud_done_rounded : Symbols.cloud_off_rounded,
-              size: 18,
-              color: color,
-            ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              _label(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: color),
-            ),
+            ],
           ),
-          if (onSync != null)
-            IconButton(
-              onPressed: isSyncing ? null : onSync,
-              icon: const Icon(Symbols.sync_rounded, size: 18),
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              color: AppColors.primary500,
-              disabledColor: AppColors.neutral500,
-              tooltip: 'Récupérer les notes du médecin',
+          if (onSync != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: isSyncing ? null : onSync,
+                icon: const Icon(Symbols.sync_rounded, size: 16),
+                label: const Text('Récupérer les notes du médecin'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary100,
+                  foregroundColor: AppColors.primary700,
+                  disabledBackgroundColor: AppColors.neutral100,
+                  disabledForegroundColor: AppColors.neutral500,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  textStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ),
             ),
+          ],
         ],
       ),
     );
