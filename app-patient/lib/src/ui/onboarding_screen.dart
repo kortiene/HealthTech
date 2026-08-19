@@ -12,6 +12,8 @@
 // touching any storage.  They are never logged, never passed to the backend,
 // and never appear in Dart debug output.
 
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -143,11 +145,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await _ctrl.createAccount(cmuNumber: cmu, phone: phone, consent: consent);
       widget.onComplete();
     } on KeystoreUnavailable catch (e) {
+      log('Trousseau indisponible : ${e.message}');
       setState(() {
         _step = _Step.identity;
         _error = 'Trousseau indisponible : ${e.message}';
       });
-    } catch (_) {
+    } catch (e, st) {
+      log('createAccount failed: $e', stackTrace: st);
       setState(() {
         _step = _Step.identity;
         _error = 'Erreur lors de la création du compte. Réessayez.';

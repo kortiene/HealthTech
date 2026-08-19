@@ -100,7 +100,9 @@ class KeystoreChannel {
     if (clear == null) {
       throw const KeystoreUnavailable('unseal returned no key material');
     }
-    return clear;
+    // MethodChannel retourne une vue non modifiable — on copie pour pouvoir
+    // effacer les bytes après usage (fillRange dans MasterKeyService).
+    return Uint8List.fromList(clear);
   }
 
   /// Whether a hardware KEK already exists for this device/install (idempotence,
