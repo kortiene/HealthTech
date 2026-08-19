@@ -111,9 +111,11 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
 
   // Session key kept in RAM after QR close so the home sync button can retry
   // decryption if the doctor writes notes after the patient leaves QR screen.
-  // Wiped on successful merge or when _pendingSessionExpiresAt is passed.
+  // No expiry timer — the key lives until a new QR session is generated or
+  // the app process is killed (swipe from recents / phone restart). This
+  // matches the master key's own lifetime and avoids arbitrary cutoffs that
+  // break real consultations longer than any fixed duration.
   Uint8List? _pendingSessionKey;
-  DateTime? _pendingSessionExpiresAt;
   bool _isSyncing = false;
 
   @override
@@ -441,7 +443,6 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   void _wipePendingSession() {
     _pendingSessionKey?.fillRange(0, _pendingSessionKey!.length, 0);
     _pendingSessionKey = null;
-    _pendingSessionExpiresAt = null;
   }
 
   // Core cloud sync: downloads from backend, decrypts with sessionKey (or
@@ -456,6 +457,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
       var toWrite = savedRecord;
       final toDelete = <String>[];
       bool gotNewData = false;
+      bool readFromCloud = false;
       try {
         MasterKeyHandle? sessionHandle;
         if (sessionKey != null) {
@@ -467,6 +469,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
             _account!.anonymousUuid,
             forceCloud: true,
           );
+          readFromCloud = true;
           final merged = _mergeSessionIntoLocal(savedRecord, fromCloud);
           gotNewData = !identical(merged, savedRecord);
           toWrite = merged;
@@ -482,21 +485,29 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           if (sessionHandle != null) await _crypto.wipe(sessionHandle);
         }
       } on BackendUnavailable {
-        // Offline — write savedRecord back as-is.
-      } catch (_) {
-        // DecryptError or other — fall back to local record.
+        // Offline — skip write-back below.
+      } catch (e, st) {
+        // DecryptError or JSON parse failure — fall back to local record.
+        // Do NOT write to the backend: the cloud blob may be the doctor's
+        // K_session blob that we simply cannot decrypt yet (wrong/missing key).
+        // Overwriting it would permanently destroy the doctor's notes.
+        debugPrint('[sync] cloud read failed: $e\n$st');
       }
       if (!identical(toWrite, savedRecord) && mounted) {
         setState(() => _record = toWrite);
       }
-      // Restore canonical master-key blob on the backend.
-      try {
-        await _recordStore.write(toWrite, handle, _account!.anonymousUuid);
-        final now = DateTime.now().toUtc().toIso8601String();
-        await _storage.write(key: _kLastSyncKey, value: now);
-        if (mounted) setState(() => _lastSyncedAt = now);
-      } on BackendUnavailable {
-        // Offline — local record intact; cloud sync will restore on next connect.
+      // Restore canonical master-key blob on the backend only when the cloud
+      // read succeeded. Skipping when readFromCloud=false preserves any doctor
+      // session blob that this sync could not decrypt.
+      if (readFromCloud) {
+        try {
+          await _recordStore.write(toWrite, handle, _account!.anonymousUuid);
+          final now = DateTime.now().toUtc().toIso8601String();
+          await _storage.write(key: _kLastSyncKey, value: now);
+          if (mounted) setState(() => _lastSyncedAt = now);
+        } on BackendUnavailable {
+          // Offline — local record intact; cloud sync will restore on next connect.
+        }
       }
       for (final uuid in toDelete) {
         try {
@@ -512,42 +523,38 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   }
 
   // Called by QrScreen (via MainShell) when the patient closes the QR screen.
-  // sessionKey: copy of K_session made before dispose() wipes it. null when
-  // the QR expired before the screen was closed.
+  // sessionKey: copy of K_session made before dispose() wipes it. Non-null
+  // even when the display countdown reached zero — the key bytes are preserved
+  // in QrScreen until dispose() (fix #170 bug 1).
   Future<void> _onQrClosed(Uint8List? sessionKey) async {
-    // Save a copy of the session key for the home sync button to retry with,
-    // in case the doctor writes notes after the patient leaves this screen.
+    // Store the session key so the home sync button can decrypt the doctor's
+    // blob regardless of how long the consultation lasts. No expiry timer —
+    // the key lives until a new QR session is started or the process is killed.
     if (sessionKey != null) {
       _wipePendingSession();
       _pendingSessionKey = Uint8List.fromList(sessionKey);
-      _pendingSessionExpiresAt =
-          DateTime.now().add(const Duration(seconds: 120));
       sessionKey.fillRange(0, sessionKey.length, 0);
     }
     if (mounted) setState(() => _isSyncing = true);
     try {
-      final gotData = await _syncFromCloud(sessionKey: _pendingSessionKey);
-      if (gotData) _wipePendingSession();
+      // Do not wipe after gotData=true: the doctor may make a second change
+      // during the same consultation and the patient must be able to sync again.
+      await _syncFromCloud(sessionKey: _pendingSessionKey);
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }
   }
 
   // Home screen "Récupérer les notes" button handler.
-  // Uses the pending session key (kept in RAM for 120s after QR close) to
-  // decrypt the doctor's session blob if the doctor wrote after patient left.
+  // Uses the pending session key (RAM-only, no expiry) to decrypt the doctor's
+  // session blob. Key is cleared only when a new QR session is generated.
   Future<void> _onHomeSync() async {
     if (_isSyncing || _record == null || _account == null) return;
-    final pending = _pendingSessionKey;
-    final expiry = _pendingSessionExpiresAt;
-    final sessionKey =
-        (pending != null && expiry != null && DateTime.now().isBefore(expiry))
-            ? pending
-            : null;
     if (mounted) setState(() => _isSyncing = true);
     try {
-      final gotData = await _syncFromCloud(sessionKey: sessionKey);
-      if (gotData) _wipePendingSession();
+      // Do not wipe after gotData=true: the doctor may make a second change
+      // during the same consultation and the patient must be able to sync again.
+      await _syncFromCloud(sessionKey: _pendingSessionKey);
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }
