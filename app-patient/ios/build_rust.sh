@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-WORKSPACE_ROOT="$SRCROOT/../../.."
+WORKSPACE_ROOT="$SRCROOT/../.."
 [[ "$CONFIGURATION" == "Debug" ]] && CARGO_PROFILE="dev" || CARGO_PROFILE="release"
 CARGO_DIR="$([[ $CARGO_PROFILE == "dev" ]] && echo debug || echo release)"
 
