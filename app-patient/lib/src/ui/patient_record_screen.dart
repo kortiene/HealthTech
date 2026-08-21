@@ -4040,8 +4040,7 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     if (Platform.isIOS && widget.media.mime.contains('webm')) {
       setState(() {
         _status = _PlayerStatus.error;
-        _errorMessage =
-            'Format audio non supporté sur iOS (audio/webm). '
+        _errorMessage = 'Format audio non supporté sur iOS (audio/webm). '
             'Le médecin doit enregistrer en AAC/M4A.';
       });
       return;

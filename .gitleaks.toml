@@ -33,6 +33,8 @@ paths = [
   # NIST CAVP AES-256-GCM known-answer vectors — public test fixtures, not real keys.
   '''^crypto-core/tests/vectors/nist_aes256gcm\.rs$''',
   '''^crypto-core/src/lib\.rs$''',
+  # CocoaPods lock file — pod SHAs are public checksums, not secrets.
+  '''(^|/)Podfile\.lock$''',
 ]
 # Throwaway dev tokens and bootstrap placeholders are not secrets.
 regexes = [
