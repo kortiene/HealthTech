@@ -4035,6 +4035,16 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
       });
       return;
     }
+    // AVPlayer (iOS) cannot decode WebM/Opus. Block early to prevent an
+    // unhandled stream error from audioplayers that crashes debug builds.
+    if (Platform.isIOS && widget.media.mime.contains('webm')) {
+      setState(() {
+        _status = _PlayerStatus.error;
+        _errorMessage = 'Format audio non supporté sur iOS (audio/webm). '
+            'Le médecin doit enregistrer en AAC/M4A.';
+      });
+      return;
+    }
     setState(() => _status = _PlayerStatus.loading);
     try {
       final uri = Uri.parse(_resolveUrl(rawUrl));
