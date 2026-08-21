@@ -12,9 +12,12 @@
 //
 //   On app pause → lock (show PinScreen again on resume).
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart'
+    show ExternalLibrary;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'src/cloud/backend_client.dart'
@@ -51,7 +54,15 @@ const _storage = FlutterSecureStorage(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
+  // On iOS crypto-core is a static library linked into the app binary —
+  // symbols are already in the process, so DynamicLibrary.open() would fail.
+  // Use ExternalLibrary.process() to tell FRB to look up symbols via dlsym.
+  if (Platform.isIOS) {
+    await RustLib.init(
+        externalLibrary: ExternalLibrary.process(iKnowHowToUseIt: true));
+  } else {
+    await RustLib.init();
+  }
   runApp(const PatientApp());
 }
 
@@ -449,7 +460,12 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
   // master key if null), merges doctor additions into local record, restores
   // master-key blob on backend. Returns true when local record was updated.
   // Does NOT wipe sessionKey — caller manages its lifecycle.
-  Future<bool> _syncFromCloud({Uint8List? sessionKey}) async {
+  // onSessionExpired: called when cloud decryption fails AND sessionKey is
+  // null — signals the caller that a re-scan is needed.
+  Future<bool> _syncFromCloud({
+    Uint8List? sessionKey,
+    void Function()? onSessionExpired,
+  }) async {
     final savedRecord = _record;
     if (savedRecord == null || _account == null) return false;
     final handle = await _masterKey.unsealForUse();
@@ -492,6 +508,9 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
         // K_session blob that we simply cannot decrypt yet (wrong/missing key).
         // Overwriting it would permanently destroy the doctor's notes.
         debugPrint('[sync] cloud read failed: $e\n$st');
+        // No session key in RAM → app was restarted mid-consultation. Notify
+        // the caller so it can ask the patient to re-scan the QR.
+        if (sessionKey == null) onSessionExpired?.call();
       }
       if (!identical(toWrite, savedRecord) && mounted) {
         setState(() => _record = toWrite);
@@ -554,7 +573,20 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
     try {
       // Do not wipe after gotData=true: the doctor may make a second change
       // during the same consultation and the patient must be able to sync again.
-      await _syncFromCloud(sessionKey: _pendingSessionKey);
+      await _syncFromCloud(
+        sessionKey: _pendingSessionKey,
+        onSessionExpired: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Session expirée — re-scannez le QR du médecin pour récupérer les nouvelles notes.',
+              ),
+              duration: Duration(seconds: 7),
+            ),
+          );
+        },
+      );
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }

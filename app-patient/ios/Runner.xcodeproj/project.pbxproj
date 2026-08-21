@@ -522,7 +522,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-lcrypto_core",
+					"-force_load $(SRCROOT)/RustLib/libcrypto_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.healthtech.appPatient;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -713,7 +713,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-lcrypto_core",
+					"-force_load $(SRCROOT)/RustLib/libcrypto_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.healthtech.appPatient;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -744,7 +744,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-lcrypto_core",
+					"-force_load $(SRCROOT)/RustLib/libcrypto_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.healthtech.appPatient;
 				PRODUCT_NAME = "$(TARGET_NAME)";
