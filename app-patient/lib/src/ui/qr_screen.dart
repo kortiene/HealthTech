@@ -17,6 +17,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../design/app_theme.dart';
 import '../qr/access_token.dart';
@@ -29,6 +30,7 @@ class QrScreen extends StatefulWidget {
     this.record,
     this.autoMode,
     this.autoShareMedia = false,
+    this.doctorPwaUrl,
   });
 
   final QrController controller;
@@ -45,6 +47,12 @@ class QrScreen extends StatefulWidget {
   /// When true, justificatifs are always shared without asking consent.
   /// Controlled by the "Partage automatique" toggle in Settings.
   final bool autoShareMedia;
+
+  /// URL of the doctor's PWA (e.g. `https://healthtech-medecin.staging.go.incubtek.com`).
+  /// When non-null, an "Envoyer à distance" button is shown below the QR code
+  /// so the patient can share the access link by SMS, WhatsApp, or e-mail (#177).
+  /// When null, the button is hidden and the feature is disabled.
+  final String? doctorPwaUrl;
 
   @override
   State<QrScreen> createState() => _QrScreenState();
@@ -312,8 +320,14 @@ class _QrScreenState extends State<QrScreen> {
     if (_remainingSeconds == 0) {
       return _ExpiredView(onRegenerate: () => _generate(_selectedMode!));
     }
+    // Pre-compute the remote link so the key bytes never leave _QrScreenState
+    // (only the encoded string is passed to the stateless _QrView).
+    final link = widget.doctorPwaUrl != null
+        ? p.toLinkFragment(widget.doctorPwaUrl!)
+        : null;
     return _QrView(
       qrData: p.toQrString(),
+      linkFragment: link,
       remainingSeconds: _remainingSeconds,
       readOnly: p.isReadOnly,
     );
@@ -498,11 +512,16 @@ class _QrView extends StatelessWidget {
     required this.qrData,
     required this.remainingSeconds,
     required this.readOnly,
+    this.linkFragment,
   });
 
   final String qrData;
   final int remainingSeconds;
   final bool readOnly;
+
+  /// Pre-computed remote-access link (#177). When non-null, an "Envoyer à
+  /// distance" button is displayed so the patient can share the link.
+  final String? linkFragment;
 
   @override
   Widget build(BuildContext context) {
@@ -630,6 +649,43 @@ class _QrView extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // Remote-access button (#177) — only shown when doctorPwaUrl is configured.
+                    if (linkFragment != null) ...[
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => const _RemoteSendConfirmDialog(),
+                          );
+                          if (confirmed == true) {
+                            await Share.share(
+                              'Mon dossier médical sécurisé — '
+                              'accès valable 2 min, usage unique :\n'
+                              '$linkFragment',
+                              subject: 'Dossier médical HealthTech',
+                            );
+                          }
+                        },
+                        icon: const Icon(
+                          Symbols.share_rounded,
+                          color: AppColors.primary500,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'Envoyer à distance',
+                          style: TextStyle(color: AppColors.primary500),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.primary500),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.md),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -819,6 +875,37 @@ class _ErrorView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Remote-send confirmation dialog (#177) ────────────────────────────────────
+
+class _RemoteSendConfirmDialog extends StatelessWidget {
+  const _RemoteSendConfirmDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Envoyer à distance'),
+      content: const Text(
+        'Voulez-vous envoyer un accès 120 s à votre dossier ?\n\n'
+        'Le lien sera valide une seule fois. '
+        'Partagez uniquement avec votre médecin.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary700,
+          ),
+          child: const Text('Confirmer'),
+        ),
+      ],
     );
   }
 }

@@ -97,6 +97,21 @@ class QrPayload {
         if (writeToken != null) 'wt': base64Url.encode(writeToken!),
       });
 
+  /// Remote-access link for teleconsultation (#177).
+  ///
+  /// The session payload is embedded **only** in the URL fragment (`#`), which
+  /// is never transmitted to the server (RFC 3986 §3.5) — ZK invariant preserved.
+  ///
+  /// Format: `https://<doctorPwaUrl>/access#<base64url_no_padding(toQrString())>`
+  ///
+  /// The doctor's PWA decodes the fragment and executes the same decrypt flow
+  /// as the QR scan, with the identical 120-s expiry embedded in the payload.
+  String toLinkFragment(String doctorPwaUrl) {
+    final encoded =
+        base64Url.encode(utf8.encode(toQrString())).replaceAll('=', '');
+    return '$doctorPwaUrl/access#$encoded';
+  }
+
   /// Overwrite [sessionKey] and [writeToken] bytes in place (best-effort RAM
   /// scrub on expiry / screen dispose).
   void wipe() {

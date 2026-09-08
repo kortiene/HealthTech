@@ -23,7 +23,7 @@ mod rate_limit;
 mod store;
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -209,19 +209,35 @@ async fn put_blob(
 /// `200` carries the opaque bytes with `Content-Type: application/octet-stream`, `Content-Length`
 /// (both set by the `Bytes` response), and the `ETag`/`X-Blob-Version` headers.
 /// Rate-limited to 300 read requests / 60 s per IP (#104).
+///
+/// Audit log: every successful read records `uuid + client IP + timestamp` at the `audit` target
+/// (#177 — teleconsultation link access). The session key and plaintext are never logged.
 async fn get_blob(
     connect_info: Option<ConnectInfo<SocketAddr>>,
     State(state): State<AppState>,
     Path(uuid): Path<Uuid>,
 ) -> Response {
-    if let Some(ConnectInfo(addr)) = connect_info {
-        if !state.read_limiter.check(addr.ip()).await {
+    // Save the client IP before consuming connect_info so it can be reused for the audit log.
+    let client_ip: Option<IpAddr> = connect_info.as_ref().map(|ci| ci.0.ip());
+    if let Some(ip) = client_ip {
+        if !state.read_limiter.check(ip).await {
             return rate_limit::rate_limit_exceeded().into_response();
         }
     }
     // TODO(#23): support HTTP range requests for resumable ≤500 KB downloads on degraded networks.
     match state.store.get(uuid).await {
         Ok(Some(StoredBlob { bytes, meta })) => {
+            // Audit log: uuid + IP + event. Never the session key or plaintext (ZK invariant).
+            let ip_str = client_ip
+                .map(|ip| ip.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            tracing::info!(
+                target: "audit",
+                %uuid,
+                ip = %ip_str,
+                event = "blob.get",
+                "blob accessed"
+            );
             (version_headers(meta.version), bytes).into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),

@@ -45,6 +45,8 @@ import 'src/ui/splash_screen.dart';
 
 const String _kBackendBaseUrl =
     'https://healthtech-api.staging.go.incubtek.com';
+const String _kDoctorPwaUrl =
+    'https://healthtech-medecin.staging.go.incubtek.com';
 const String _kPinKey = 'patient_pin';
 const String _kLastSyncKey = 'last_sync_at';
 const String _kAutoShareMediaKey = 'auto_share_media';
@@ -722,6 +724,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           scanService: _buildScanService(),
           onLock: _onLock,
           backendUrl: _kBackendBaseUrl,
+          doctorPwaUrl: _kDoctorPwaUrl,
           onWillPauseForPicker: _onWillPauseForPicker,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,

@@ -45,6 +45,9 @@ final String _kBackendBaseUrl =
 // browser — always localhost when the backend runs on the dev machine.
 const String _kQrBackendUrl = 'http://localhost:8081';
 
+// Doctor PWA local dev server URL for the teleconsultation link (#177).
+const String _kDoctorPwaUrl = 'http://localhost:5173';
+
 const String _kPinKey = 'patient_pin';
 const String _kLastSyncKey = 'last_sync_at';
 const String _kAutoShareMediaKey = 'auto_share_media';
@@ -673,6 +676,7 @@ class _AppRootState extends State<_AppRoot> with WidgetsBindingObserver {
           scanService: _buildScanService(),
           onLock: _onLock,
           backendUrl: _kBackendBaseUrl,
+          doctorPwaUrl: _kDoctorPwaUrl,
           onWillPauseForPicker: _onWillPauseForPicker,
           onUpdateRecord: _onUpdateRecord,
           onQrClosed: _onQrClosed,
