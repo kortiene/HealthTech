@@ -25,6 +25,7 @@ class MainShell extends StatefulWidget {
     required this.scanService,
     required this.onLock,
     this.backendUrl,
+    this.doctorPwaUrl,
     this.onWillPauseForPicker,
     this.onUpdateRecord,
     this.onQrClosed,
@@ -49,6 +50,10 @@ class MainShell extends StatefulWidget {
   final ScanService scanService;
   final VoidCallback onLock;
   final String? backendUrl;
+
+  /// URL of the doctor's PWA, forwarded to [QrScreen] for the teleconsultation
+  /// remote-access link feature (#177). Null disables the button.
+  final String? doctorPwaUrl;
   final VoidCallback? onWillPauseForPicker;
   final Future<void> Function(MedicalRecord)? onUpdateRecord;
   final Future<void> Function(Uint8List?)? onQrClosed;
@@ -82,6 +87,7 @@ class _MainShellState extends State<MainShell> {
           controller: widget.qrController,
           record: widget.record,
           autoShareMedia: widget.autoShareMedia,
+          doctorPwaUrl: widget.doctorPwaUrl,
         ),
       ),
     );

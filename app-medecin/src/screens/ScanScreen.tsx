@@ -3,21 +3,18 @@ import jsQR from "jsqr";
 import { Icon } from "../components/Icon";
 import { SnackBar, type SnackBarTone } from "../components/SnackBar";
 import { Spinner } from "../components/Spinner";
-import { createSessionCrypto, type SessionCrypto } from "../crypto";
-import { parseFlutterRecord, type MedicalRecord } from "../stubs/data";
+import { type SessionCrypto } from "../crypto";
+import { type MedicalRecord } from "../stubs/data";
+import {
+  processQrPayload,
+  type QrPayload,
+  type QrScanError,
+} from "../lib/processQrPayload";
 
-type ScanError = "expired" | "serverDown" | "decryptError" | "cameraError";
+// Re-export QrPayload so existing importers (app.tsx) are unaffected.
+export type { QrPayload } from "../lib/processQrPayload";
 
-export interface QrPayload {
-  v: number;
-  uuid: string;
-  url: string;
-  /** Clé de session AES-256 (base64url, 32 octets) — déchiffrement client uniquement. */
-  key: string;
-  exp?: number;
-  /** Write token (base64url). Present only in read-write sessions. */
-  wt?: string;
-}
+type ScanError = QrScanError | "cameraError";
 
 export interface ScanScreenProps {
   onScanned: (
@@ -131,45 +128,10 @@ export function ScanScreen({ onScanned }: ScanScreenProps) {
     setError(null);
     setProcessing(true);
     try {
-      let payload: QrPayload;
-      try {
-        payload = JSON.parse(raw) as QrPayload;
-      } catch {
-        throw new Error("decryptError");
-      }
-
-      if (payload.v !== 1 || !payload.uuid || !payload.url) {
-        throw new Error("decryptError");
-      }
-      if (payload.exp && payload.exp * 1000 < Date.now()) {
-        throw new Error("expired");
-      }
-
-      let res: Response;
-      try {
-        res = await fetch(`${payload.url}/blob/${payload.uuid}`, {
-          headers: { Authorization: `Bearer ${payload.key}` },
-        });
-      } catch {
-        throw new Error("serverDown");
-      }
-
-      if (res.status === 404 || res.status === 410) throw new Error("expired");
-      if (!res.ok) throw new Error("serverDown");
-
-      const buf = await res.arrayBuffer();
-      let decrypted: Uint8Array;
-      let recordRaw: unknown;
-      try {
-        const sc = await createSessionCrypto(payload.key);
-        decrypted = await sc.decrypt(new Uint8Array(buf));
-        recordRaw = JSON.parse(new TextDecoder().decode(decrypted));
-        const record = parseFlutterRecord(recordRaw);
-        setProcessing(false);
-        onScanned(record, recordRaw, payload, sc);
-      } catch {
-        throw new Error("decryptError");
-      }
+      const { record, raw: rawFlutter, payload, sessionCrypto } =
+        await processQrPayload(raw);
+      setProcessing(false);
+      onScanned(record, rawFlutter, payload, sessionCrypto);
     } catch (err) {
       setProcessing(false);
       scanningRef.current = false;

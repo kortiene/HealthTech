@@ -225,6 +225,65 @@ void main() {
       expect(p.isReadOnly, isFalse);
     });
 
+    // ── toLinkFragment (#177 — remote-access teleconsultation link) ──────────
+
+    test('toLinkFragment: URL starts with doctorPwaUrl/access#', () {
+      const doctorUrl = 'https://medecin.test';
+      final link = _freshPayload().toLinkFragment(doctorUrl);
+      expect(link, startsWith('$doctorUrl/access#'));
+    });
+
+    test('toLinkFragment: fragment contains no = padding', () {
+      final link = _freshPayload().toLinkFragment('https://medecin.test');
+      final fragment = link.split('#').last;
+      expect(fragment, isNot(contains('=')));
+    });
+
+    test(
+        'toLinkFragment round-trip: decoding the fragment restores toQrString()',
+        () {
+      final p = _freshPayload();
+      final link = p.toLinkFragment('https://medecin.test');
+      final fragment = link.split('#').last;
+      // Re-add padding stripped by Dart's replaceAll('=', '')
+      final padding = (4 - fragment.length % 4) % 4;
+      final padded = fragment + '=' * padding;
+      final decoded = utf8.decode(base64Url.decode(padded));
+      expect(decoded, p.toQrString());
+    });
+
+    test('toLinkFragment: decoded fragment is valid JSON with v=1', () {
+      final p = _freshPayload();
+      final link = p.toLinkFragment('https://medecin.test');
+      final fragment = link.split('#').last;
+      final padding = (4 - fragment.length % 4) % 4;
+      final padded = fragment + '=' * padding;
+      final map = jsonDecode(utf8.decode(base64Url.decode(padded)))
+          as Map<String, Object?>;
+      expect(map['v'], 1);
+      expect(map['uuid'], _uuid);
+    });
+
+    test('toLinkFragment: session key is NOT in the URL path (ZK invariant)',
+        () {
+      final p = _freshPayload();
+      final link = p.toLinkFragment('https://medecin.test');
+      // Everything before '#' (path + query) must not contain the key bytes
+      final withoutFragment = link.split('#').first;
+      expect(withoutFragment, isNot(contains(base64Url.encode(p.sessionKey))));
+    });
+
+    test(
+        'toLinkFragment: different doctorPwaUrl produces different link prefix',
+        () {
+      final p = _freshPayload();
+      final link1 = p.toLinkFragment('https://medecin-a.test');
+      final link2 = p.toLinkFragment('https://medecin-b.test');
+      expect(link1, isNot(equals(link2)));
+      // Fragment (payload) is the same
+      expect(link1.split('#').last, link2.split('#').last);
+    });
+
     test('wipe zeros writeToken bytes', () {
       final wt = Uint8List.fromList(List.filled(32, 0xFF));
       final p = QrPayload(

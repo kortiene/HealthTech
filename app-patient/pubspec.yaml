@@ -66,6 +66,10 @@ dependencies:
   # XOR 0x5A encrypt in Dart (stub only — prod uses MediaCipher+FRB, TODO #102).
   image_picker: ^1.1.0
 
+  # Native share sheet for the teleconsultation remote-access link (#177).
+  # Triggers SMS, WhatsApp, e-mail and all platform share targets.
+  share_plus: ^10.0.0
+
   # UI: typography (Inter) and Material Symbols icons.
   google_fonts: ^6.2.0
   material_symbols_icons: ^4.2843.0
