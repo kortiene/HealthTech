@@ -222,7 +222,7 @@ jobs:
             --lockfile=Cargo.lock
             --lockfile=app-medecin/package-lock.json
             --lockfile=app-patient/pubspec.lock
-            --lockfile=adw_sdlc/package-lock.json
+            --lockfile=adw_sdlc/pnpm-lock.yaml
 
   # ---- Single required status check for branch protection ----------------
   ci-success:
