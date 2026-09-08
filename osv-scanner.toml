@@ -48,4 +48,16 @@ reason = "h2 0.3.27 — unbounded empty DATA frames (server-side DoS). Fix is h2
 
 [[IgnoredVulns]]
 id = "GHSA-82fw-gwwq-j7x9"
-reason = "vitest prototype pollution via module mock — dev test runner only (app-medecin 3.2.6). Fix requires major version bump 3.x→4.x blocked by npm 10 arborist bug on peer-dep resolution; vitest is never executed in production or in the patient data pipeline. Tracked separately."
+reason = "vitest prototype pollution via module mock — dev test runner only (app-medecin 3.2.6, adw_sdlc 4.1.9; both < 4.1.11). app-medecin 3.x→4.x upgrade blocked by npm 10 arborist bug; adw_sdlc 4.1.9→4.1.11 tracked separately. vitest is never executed in production or in the patient data pipeline."
+
+[[IgnoredVulns]]
+id = "GHSA-crvj-82cr-hjcx"
+reason = "hono 4.13.0 — HTTP framework CVE. Transitive dep via @hono/node-server → @modelcontextprotocol/sdk in adw_sdlc (dev SDLC tooling only). Not in the patient data pipeline or any runtime code path. Upgrade to 4.13.8+ tracked separately."
+
+[[IgnoredVulns]]
+id = "GHSA-g6gw-c38x-mqfc"
+reason = "hono 4.13.0 — HTTP framework CVE. Same rationale as GHSA-crvj-82cr-hjcx: adw_sdlc dev tooling only, not in patient data pipeline."
+
+[[IgnoredVulns]]
+id = "GHSA-gqvv-2mrq-wpjv"
+reason = "hono 4.13.0 — HTTP framework CVE. Same rationale as GHSA-crvj-82cr-hjcx: adw_sdlc dev tooling only, not in patient data pipeline."
