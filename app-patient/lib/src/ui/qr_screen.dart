@@ -12,6 +12,7 @@
 // get the loading/QR/error states without interacting with the selector.
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -1024,8 +1025,10 @@ class _MediaSelectionSheetState extends State<_MediaSelectionSheet> {
                     ),
                   ),
                   for (final m in groups[groupLabel]!)
-                    CheckboxListTile(
-                      value: _selected.contains(m.descriptor.uuid),
+                    _MediaItemTile(
+                      descriptor: m.descriptor,
+                      label: m.itemLabel,
+                      selected: _selected.contains(m.descriptor.uuid),
                       onChanged: (v) => setState(() {
                         if (v ?? false) {
                           _selected.add(m.descriptor.uuid);
@@ -1033,16 +1036,6 @@ class _MediaSelectionSheetState extends State<_MediaSelectionSheet> {
                           _selected.remove(m.descriptor.uuid);
                         }
                       }),
-                      title: Text(m.itemLabel, style: tt.bodyMedium),
-                      subtitle: Text(
-                        '${(m.descriptor.sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB',
-                        style:
-                            tt.bodySmall?.copyWith(color: AppColors.neutral500),
-                      ),
-                      activeColor: AppColors.primary700,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12),
                     ),
                 ],
                 const SizedBox(height: 16),
@@ -1073,6 +1066,147 @@ class _MediaSelectionSheetState extends State<_MediaSelectionSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Media item tile with thumbnail (#173) ─────────────────────────────────────
+
+class _MediaItemTile extends StatelessWidget {
+  const _MediaItemTile({
+    required this.descriptor,
+    required this.label,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final MediaDescriptor descriptor;
+  final String label;
+  final bool selected;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final sizeMb =
+        '${(descriptor.sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return InkWell(
+      onTap: () => onChanged(!selected),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          children: [
+            Checkbox(
+              value: selected,
+              onChanged: onChanged,
+              activeColor: AppColors.primary700,
+            ),
+            _MediaThumbnail(descriptor: descriptor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: tt.bodyMedium),
+                  Text(
+                    sizeMb,
+                    style: tt.bodySmall?.copyWith(color: AppColors.neutral500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 52×52 thumbnail: decrypts file:// images in RAM; shows a MIME icon otherwise.
+class _MediaThumbnail extends StatefulWidget {
+  const _MediaThumbnail({required this.descriptor});
+  final MediaDescriptor descriptor;
+
+  @override
+  State<_MediaThumbnail> createState() => _MediaThumbnailState();
+}
+
+class _MediaThumbnailState extends State<_MediaThumbnail> {
+  Uint8List? _bytes;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final url = widget.descriptor.url;
+    if (widget.descriptor.mime.startsWith('image/') &&
+        url != null &&
+        url.startsWith('file://')) {
+      _loading = true;
+      _decryptFromDisk(url);
+    }
+  }
+
+  Future<void> _decryptFromDisk(String url) async {
+    try {
+      final path = url.replaceFirst('file://', '');
+      final cipher = await File(path).readAsBytes();
+      // Dev decrypt stub (XOR 0x5A) — same pattern as _DecryptedImageTile.
+      // TODO(#102): replace with MediaCipher(FrbCryptoCore).decrypt()
+      final plain = Uint8List(cipher.length);
+      for (var i = 0; i < cipher.length; i++) {
+        plain[i] = cipher[i] ^ 0x5A;
+      }
+      if (mounted) {
+        setState(() {
+          _bytes = plain;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mime = widget.descriptor.mime;
+    final IconData fallbackIcon;
+    if (mime.startsWith('audio/')) {
+      fallbackIcon = Symbols.mic_rounded;
+    } else if (mime.startsWith('image/')) {
+      fallbackIcon = Symbols.photo_rounded;
+    } else {
+      fallbackIcon = Symbols.description_rounded;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+      child: SizedBox(
+        width: 52,
+        height: 52,
+        child: ColoredBox(
+          color: AppColors.neutral100,
+          child: _loading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary700,
+                  ),
+                )
+              : _bytes != null
+                  ? Image.memory(_bytes!, fit: BoxFit.cover)
+                  : Center(
+                      child: Icon(
+                        fallbackIcon,
+                        size: 26,
+                        color: AppColors.neutral500,
+                      ),
+                    ),
+        ),
       ),
     );
   }
