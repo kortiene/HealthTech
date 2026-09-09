@@ -224,11 +224,10 @@ export function VoiceNoteScreen({
         }}
       >
         {/* ── Doctor name field ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+        <div>
           <label
             htmlFor="voice-doctor-name"
-            className="text-caption"
-            style={{ color: "var(--color-neutral-600)", fontWeight: 600 }}
+            className="text-title-sm field-label"
           >
             Médecin *
           </label>
@@ -240,7 +239,6 @@ export function VoiceNoteScreen({
             onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
             placeholder="Dr. Nom Prénom"
             disabled={isSaving}
-            style={{ border: "1.5px solid var(--color-neutral-300)" }}
           />
         </div>
 
@@ -426,23 +424,11 @@ export function VoiceNoteScreen({
                 type="button"
                 onClick={restart}
                 disabled={isSaving}
-                style={{
-                  flex: 1,
-                  padding: "12px var(--space-md)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1.5px solid var(--color-neutral-300)",
-                  background: "var(--color-white)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-xs)",
-                }}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
               >
-                <Icon name="refresh" size={18} color="var(--color-neutral-700)" />
-                <span className="text-body" style={{ fontWeight: 600 }}>
-                  Recommencer
-                </span>
+                <Icon name="refresh" size={18} color="var(--color-primary-700)" />
+                Recommencer
               </button>
 
               <button
@@ -450,27 +436,11 @@ export function VoiceNoteScreen({
                 onClick={handleSave}
                 disabled={isSaving || !doctorName.trim()}
                 aria-label="Enregistrer la consultation"
-                style={{
-                  flex: 1,
-                  padding: "12px var(--space-md)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background:
-                    isSaving || !doctorName.trim()
-                      ? "var(--color-neutral-300)"
-                      : "var(--color-primary-700)",
-                  color: "var(--color-white)",
-                  cursor: isSaving || !doctorName.trim() ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-xs)",
-                }}
+                className="btn btn-filled"
+                style={{ flex: 1 }}
               >
                 <Icon name="save" size={18} color="var(--color-white)" />
-                <span style={{ fontWeight: 600, color: "var(--color-white)" }}>
-                  {isSaving ? "Envoi…" : "Enregistrer"}
-                </span>
+                {isSaving ? "Envoi…" : "Enregistrer"}
               </button>
             </div>
           </div>
