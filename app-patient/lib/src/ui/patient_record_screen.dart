@@ -4037,11 +4037,14 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
     }
     // AVPlayer (iOS) cannot decode WebM/Opus. Block early to prevent an
     // unhandled stream error from audioplayers that crashes debug builds.
+    // Chrome/Safari doctors now record in AAC/MP4 (#176); this guard fires
+    // only for notes recorded from Firefox (which cannot produce MP4).
     if (Platform.isIOS && widget.media.mime.contains('webm')) {
       setState(() {
         _status = _PlayerStatus.error;
-        _errorMessage = 'Format audio non supporté sur iOS (audio/webm). '
-            'Le médecin doit enregistrer en AAC/M4A.';
+        _errorMessage = 'Note vocale enregistrée en WebM — '
+            'format non lisible sur iPhone. '
+            'Demandez au médecin d\'utiliser Chrome ou Safari.';
       });
       return;
     }
@@ -4061,7 +4064,10 @@ class _VoiceNoteTileState extends State<_VoiceNoteTile> {
         plain[i] = ciphertext[i] ^ 0x5A;
       }
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${widget.media.uuid}.webm');
+      // Derive extension from the stored MIME so AVPlayer picks the right codec.
+      // AAC/MP4 → .m4a  |  WebM/Opus → .webm
+      final ext = widget.media.mime.startsWith('audio/mp4') ? 'm4a' : 'webm';
+      final file = File('${dir.path}/${widget.media.uuid}.$ext');
       await file.writeAsBytes(plain, flush: true);
       _localPath = file.path;
       await _player.setSourceDeviceFile(file.path);

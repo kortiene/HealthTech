@@ -10,6 +10,25 @@ export interface NewVoiceConsultation {
   media: MediaDescriptor[];
 }
 
+/**
+ * Picks the best audio MIME type for cross-platform playback.
+ *
+ * Priority: AAC/MP4 (iOS AVPlayer + Android ExoPlayer + Chrome/Safari/Edge)
+ * before WebM/Opus (Android only — iOS AVPlayer cannot decode WebM).
+ *
+ * @param isSupported - injectable for unit tests; defaults to MediaRecorder.isTypeSupported
+ */
+export function pickAudioMimeType(
+  isSupported: (mime: string) => boolean = (m) =>
+    MediaRecorder.isTypeSupported(m),
+): string {
+  if (isSupported("audio/mp4;codecs=mp4a.40.2"))
+    return "audio/mp4;codecs=mp4a.40.2";
+  if (isSupported("audio/mp4")) return "audio/mp4";
+  if (isSupported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
+  return "audio/webm";
+}
+
 export interface VoiceNoteScreenProps {
   backendUrl: string;
   writeToken?: string;
@@ -60,9 +79,7 @@ export function VoiceNoteScreen({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+      const mimeType = pickAudioMimeType();
       const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
 
@@ -71,7 +88,9 @@ export function VoiceNoteScreen({
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        // Use recorder.mimeType (the actual negotiated type) rather than the
+        // requested mimeType — they can differ when the browser normalises it.
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
         setAudioBlob(blob);
         if (audioUrl) URL.revokeObjectURL(audioUrl);
         setAudioUrl(URL.createObjectURL(blob));
@@ -205,29 +224,21 @@ export function VoiceNoteScreen({
         }}
       >
         {/* ── Doctor name field ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+        <div>
           <label
             htmlFor="voice-doctor-name"
-            className="text-caption"
-            style={{ color: "var(--color-neutral-600)", fontWeight: 600 }}
+            className="text-title-sm field-label"
           >
             Médecin *
           </label>
           <input
             id="voice-doctor-name"
+            className="field-input"
             type="text"
             value={doctorName}
             onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
             placeholder="Dr. Nom Prénom"
             disabled={isSaving}
-            style={{
-              padding: "10px var(--space-md)",
-              borderRadius: "var(--radius-sm)",
-              border: "1.5px solid var(--color-neutral-300)",
-              fontSize: 16,
-              outline: "none",
-              background: "var(--color-white)",
-            }}
           />
         </div>
 
@@ -343,6 +354,36 @@ export function VoiceNoteScreen({
               gap: "var(--space-md)",
             }}
           >
+            {/* Firefox records in WebM — iOS AVPlayer cannot decode it. */}
+            {audioBlob?.type.includes("webm") && (
+              <div
+                role="alert"
+                aria-label="Avertissement format audio"
+                style={{
+                  background: "var(--color-accent-50, #fff3e0)",
+                  border: "1.5px solid var(--color-accent-300, #ffb74d)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "var(--space-sm) var(--space-md)",
+                  display: "flex",
+                  gap: "var(--space-sm)",
+                  alignItems: "flex-start",
+                }}
+              >
+                <Icon
+                  name="warning"
+                  size={18}
+                  color="var(--color-accent-700, #e65100)"
+                />
+                <p
+                  className="text-caption"
+                  style={{ margin: 0, color: "var(--color-accent-700, #e65100)" }}
+                >
+                  Votre navigateur enregistre en WebM — ce format{" "}
+                  <strong>ne sera pas lisible sur iPhone</strong>. Utilisez
+                  Chrome ou Safari pour un enregistrement compatible iOS.
+                </p>
+              </div>
+            )}
             <div
               style={{
                 background: "var(--color-white)",
@@ -383,23 +424,11 @@ export function VoiceNoteScreen({
                 type="button"
                 onClick={restart}
                 disabled={isSaving}
-                style={{
-                  flex: 1,
-                  padding: "12px var(--space-md)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1.5px solid var(--color-neutral-300)",
-                  background: "var(--color-white)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-xs)",
-                }}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
               >
-                <Icon name="refresh" size={18} color="var(--color-neutral-700)" />
-                <span className="text-body" style={{ fontWeight: 600 }}>
-                  Recommencer
-                </span>
+                <Icon name="refresh" size={18} color="var(--color-primary-700)" />
+                Recommencer
               </button>
 
               <button
@@ -407,27 +436,11 @@ export function VoiceNoteScreen({
                 onClick={handleSave}
                 disabled={isSaving || !doctorName.trim()}
                 aria-label="Enregistrer la consultation"
-                style={{
-                  flex: 1,
-                  padding: "12px var(--space-md)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background:
-                    isSaving || !doctorName.trim()
-                      ? "var(--color-neutral-300)"
-                      : "var(--color-primary-700)",
-                  color: "var(--color-white)",
-                  cursor: isSaving || !doctorName.trim() ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-xs)",
-                }}
+                className="btn btn-filled"
+                style={{ flex: 1 }}
               >
                 <Icon name="save" size={18} color="var(--color-white)" />
-                <span className="text-body" style={{ fontWeight: 600 }}>
-                  {isSaving ? "Envoi…" : "Enregistrer"}
-                </span>
+                {isSaving ? "Envoi…" : "Enregistrer"}
               </button>
             </div>
           </div>
