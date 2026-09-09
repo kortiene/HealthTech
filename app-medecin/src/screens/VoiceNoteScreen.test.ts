@@ -1,4 +1,4 @@
-// VNode-level structural tests for VoiceNoteScreen (#120).
+// VNode-level structural tests for VoiceNoteScreen (#120 / #176).
 //
 // Environment: vitest + node (no DOM). preact/hooks stubbed — useState returns
 // initial value, useEffect/useRef are no-ops. The component tree is inspected
@@ -10,6 +10,8 @@
 //   - Preview phase: audio element, Recommencer button, Enregistrer button
 //   - onCancel wired to close button
 //   - No nav / aside / tablist chrome
+//   - pickAudioMimeType: priority logic (AAC/MP4 first, WebM fallback) (#176)
+//   - Preview: WebM warning banner shown for Firefox-recorded blobs (#176)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +22,7 @@ vi.mock("preact/hooks", () => ({
 }));
 
 import * as hooks from "preact/hooks";
-import { VoiceNoteScreen } from "./VoiceNoteScreen";
+import { VoiceNoteScreen, pickAudioMimeType } from "./VoiceNoteScreen";
 
 // ── VNode helpers ──────────────────────────────────────────────────────────────
 
@@ -190,5 +192,74 @@ describe("VoiceNoteScreen — prop wiring (#120)", () => {
     const closeBtn = buttons.find((b) => b.props?.["aria-label"] === "Fermer");
     expect(closeBtn).toBeDefined();
     expect(closeBtn?.props?.["onClick"]).toBe(onCancel);
+  });
+});
+
+// ── pickAudioMimeType (#176) ───────────────────────────────────────────────────
+
+describe("pickAudioMimeType (#176)", () => {
+  it("returns audio/mp4;codecs=mp4a.40.2 when supported", () => {
+    expect(pickAudioMimeType(() => true)).toBe("audio/mp4;codecs=mp4a.40.2");
+  });
+
+  it("falls back to audio/mp4 when codecs variant unsupported", () => {
+    const supported = (m: string) => m === "audio/mp4";
+    expect(pickAudioMimeType(supported)).toBe("audio/mp4");
+  });
+
+  it("falls back to audio/webm;codecs=opus when MP4 unavailable", () => {
+    const supported = (m: string) => m === "audio/webm;codecs=opus";
+    expect(pickAudioMimeType(supported)).toBe("audio/webm;codecs=opus");
+  });
+
+  it("falls back to audio/webm when nothing else is supported", () => {
+    expect(pickAudioMimeType(() => false)).toBe("audio/webm");
+  });
+
+  it("prefers AAC/MP4 over WebM when both are available", () => {
+    const supported = (m: string) =>
+      m === "audio/mp4" || m === "audio/webm;codecs=opus";
+    expect(pickAudioMimeType(supported)).toBe("audio/mp4");
+  });
+});
+
+// ── Preview: WebM warning banner (#176) ───────────────────────────────────────
+
+describe("VoiceNoteScreen — WebM warning banner (#176)", () => {
+  const fakeUrl = "blob:http://localhost/fake-audio";
+
+  function setupPreview(blobType: string) {
+    vi.mocked(hooks.useState)
+      .mockReturnValueOnce(["Dr. Koné", () => {}]) // doctorName
+      .mockReturnValueOnce(["preview", () => {}])  // phase
+      .mockReturnValueOnce([12000, () => {}])       // durationMs
+      .mockReturnValueOnce([fakeUrl, () => {}])     // audioUrl
+      .mockReturnValueOnce([new Blob([], { type: blobType }), () => {}]) // audioBlob
+      .mockReturnValueOnce([false, () => {}])       // isSaving
+      .mockReturnValueOnce([null, () => {}]);       // error
+  }
+
+  it("shows warning banner when blob is WebM (Firefox path)", () => {
+    setupPreview("audio/webm;codecs=opus");
+    const vnode = VoiceNoteScreen(defaultProps);
+    expect(
+      containsAttr(vnode, "aria-label", "Avertissement format audio"),
+    ).toBe(true);
+  });
+
+  it("does not show warning banner when blob is AAC/MP4 (Chrome path)", () => {
+    setupPreview("audio/mp4;codecs=mp4a.40.2");
+    const vnode = VoiceNoteScreen(defaultProps);
+    expect(
+      containsAttr(vnode, "aria-label", "Avertissement format audio"),
+    ).toBe(false);
+  });
+
+  it("does not show warning banner when blob type is empty", () => {
+    setupPreview("");
+    const vnode = VoiceNoteScreen(defaultProps);
+    expect(
+      containsAttr(vnode, "aria-label", "Avertissement format audio"),
+    ).toBe(false);
   });
 });

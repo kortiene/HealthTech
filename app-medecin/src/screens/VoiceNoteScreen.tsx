@@ -10,6 +10,25 @@ export interface NewVoiceConsultation {
   media: MediaDescriptor[];
 }
 
+/**
+ * Picks the best audio MIME type for cross-platform playback.
+ *
+ * Priority: AAC/MP4 (iOS AVPlayer + Android ExoPlayer + Chrome/Safari/Edge)
+ * before WebM/Opus (Android only — iOS AVPlayer cannot decode WebM).
+ *
+ * @param isSupported - injectable for unit tests; defaults to MediaRecorder.isTypeSupported
+ */
+export function pickAudioMimeType(
+  isSupported: (mime: string) => boolean = (m) =>
+    MediaRecorder.isTypeSupported(m),
+): string {
+  if (isSupported("audio/mp4;codecs=mp4a.40.2"))
+    return "audio/mp4;codecs=mp4a.40.2";
+  if (isSupported("audio/mp4")) return "audio/mp4";
+  if (isSupported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
+  return "audio/webm";
+}
+
 export interface VoiceNoteScreenProps {
   backendUrl: string;
   writeToken?: string;
@@ -60,9 +79,7 @@ export function VoiceNoteScreen({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+      const mimeType = pickAudioMimeType();
       const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
 
@@ -71,7 +88,9 @@ export function VoiceNoteScreen({
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        // Use recorder.mimeType (the actual negotiated type) rather than the
+        // requested mimeType — they can differ when the browser normalises it.
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
         setAudioBlob(blob);
         if (audioUrl) URL.revokeObjectURL(audioUrl);
         setAudioUrl(URL.createObjectURL(blob));
@@ -343,6 +362,36 @@ export function VoiceNoteScreen({
               gap: "var(--space-md)",
             }}
           >
+            {/* Firefox records in WebM — iOS AVPlayer cannot decode it. */}
+            {audioBlob?.type.includes("webm") && (
+              <div
+                role="alert"
+                aria-label="Avertissement format audio"
+                style={{
+                  background: "var(--color-accent-50, #fff3e0)",
+                  border: "1.5px solid var(--color-accent-300, #ffb74d)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "var(--space-sm) var(--space-md)",
+                  display: "flex",
+                  gap: "var(--space-sm)",
+                  alignItems: "flex-start",
+                }}
+              >
+                <Icon
+                  name="warning"
+                  size={18}
+                  color="var(--color-accent-700, #e65100)"
+                />
+                <p
+                  className="text-caption"
+                  style={{ margin: 0, color: "var(--color-accent-700, #e65100)" }}
+                >
+                  Votre navigateur enregistre en WebM — ce format{" "}
+                  <strong>ne sera pas lisible sur iPhone</strong>. Utilisez
+                  Chrome ou Safari pour un enregistrement compatible iOS.
+                </p>
+              </div>
+            )}
             <div
               style={{
                 background: "var(--color-white)",
