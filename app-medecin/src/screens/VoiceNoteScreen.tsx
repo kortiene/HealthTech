@@ -234,19 +234,12 @@ export function VoiceNoteScreen({
           </label>
           <input
             id="voice-doctor-name"
+            className="field-input"
             type="text"
             value={doctorName}
             onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
             placeholder="Dr. Nom Prénom"
             disabled={isSaving}
-            style={{
-              padding: "10px var(--space-md)",
-              borderRadius: "var(--radius-sm)",
-              border: "1.5px solid var(--color-neutral-300)",
-              fontSize: 16,
-              outline: "none",
-              background: "var(--color-white)",
-            }}
           />
         </div>
 
@@ -474,7 +467,7 @@ export function VoiceNoteScreen({
                 }}
               >
                 <Icon name="save" size={18} color="var(--color-white)" />
-                <span className="text-body" style={{ fontWeight: 600 }}>
+                <span className="text-body" style={{ fontWeight: 600, color: "inherit" }}>
                   {isSaving ? "Envoi…" : "Enregistrer"}
                 </span>
               </button>
