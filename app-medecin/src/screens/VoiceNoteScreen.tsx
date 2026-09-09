@@ -240,6 +240,7 @@ export function VoiceNoteScreen({
             onInput={(e) => setDoctorName((e.target as HTMLInputElement).value)}
             placeholder="Dr. Nom Prénom"
             disabled={isSaving}
+            style={{ border: "1.5px solid var(--color-neutral-300)" }}
           />
         </div>
 
@@ -467,7 +468,7 @@ export function VoiceNoteScreen({
                 }}
               >
                 <Icon name="save" size={18} color="var(--color-white)" />
-                <span className="text-body" style={{ fontWeight: 600, color: "inherit" }}>
+                <span style={{ fontWeight: 600, color: "var(--color-white)" }}>
                   {isSaving ? "Envoi…" : "Enregistrer"}
                 </span>
               </button>
